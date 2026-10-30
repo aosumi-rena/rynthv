@@ -195,7 +195,7 @@ pub fn anchor_keyboard(app: &mut App, ctx: &Context) -> bool {
     if app.gesture.is_some() || blocked(app, ctx) {
         return false;
     }
-    if ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, Key::A)) {
+    if ctx.input_mut(|input| input.consume_key(Modifiers::COMMAND, Key::A)) {
         anchor_select_all(app);
         return true;
     }
@@ -205,13 +205,13 @@ pub fn anchor_keyboard(app: &mut App, ctx: &Context) -> bool {
         (Key::V, anchor_paste),
         (Key::D, anchor_duplicate),
     ] {
-        if ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, key)) {
+        if ctx.input_mut(|input| input.consume_key(Modifiers::COMMAND, key)) {
             command(app);
             return true;
         }
     }
     for (key, up) in [(Key::ArrowUp, true), (Key::ArrowDown, false)] {
-        if ctx.input_mut(|input| input.consume_key(Modifiers::CTRL, key)) {
+        if ctx.input_mut(|input| input.consume_key(Modifiers::COMMAND, key)) {
             anchor_shift_octave(app, up);
             return true;
         }

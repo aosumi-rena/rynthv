@@ -247,7 +247,7 @@ fn interaction(
     response.context_menu(|ui| {
         let selected = !app.editor.selected.is_empty();
         if ui
-            .add_enabled(selected, Button::new(crate::i18n::t("填入歌词…")).shortcut_text("Ctrl+L"))
+            .add_enabled(selected, Button::new(crate::i18n::t("填入歌词…")).shortcut_text(crate::ui::chrome::shortcut_text("Ctrl+L")))
             .clicked()
         {
             crate::ui::fill_lyrics::open(app);
@@ -261,14 +261,14 @@ fn interaction(
         crate::ui::retakes::commands(app, ui);
         ui.separator();
         if ui
-            .add_enabled(selected, Button::new(crate::i18n::t("复制")).shortcut_text("Ctrl+C"))
+            .add_enabled(selected, Button::new(crate::i18n::t("复制")).shortcut_text(crate::ui::chrome::shortcut_text("Ctrl+C")))
             .clicked()
         {
             crate::ui::chrome::edit::copy(app, ui.ctx());
             ui.close();
         }
         if ui
-            .add_enabled(selected, Button::new(crate::i18n::t("剪切")).shortcut_text("Ctrl+X"))
+            .add_enabled(selected, Button::new(crate::i18n::t("剪切")).shortcut_text(crate::ui::chrome::shortcut_text("Ctrl+X")))
             .clicked()
         {
             crate::ui::chrome::edit::cut(app, ui.ctx());
@@ -277,7 +277,7 @@ fn interaction(
         if ui
             .add_enabled(
                 crate::ui::chrome::edit::can_paste(app),
-                Button::new(crate::i18n::t("粘贴")).shortcut_text("Ctrl+V"),
+                Button::new(crate::i18n::t("粘贴")).shortcut_text(crate::ui::chrome::shortcut_text("Ctrl+V")),
             )
             .on_hover_text(crate::i18n::t("在播放游标处粘贴音符"))
             .clicked()

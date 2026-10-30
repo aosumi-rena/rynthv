@@ -42,7 +42,17 @@ fn config_root() -> Result<PathBuf, String> {
         .ok_or_else(|| "XDG_CONFIG_HOME 和 HOME 未设置为绝对路径，无法定位用户配置目录。".into())
 }
 
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(target_os = "macos")]
+fn config_root() -> Result<PathBuf, String> {
+    // macOS convention: ~/Library/Application Support. $HOME is always absolute.
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .map(|home| home.join("Library").join("Application Support"))
+        .ok_or_else(|| "HOME 未设置为绝对路径，无法定位用户配置目录。".into())
+}
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 fn config_root() -> Result<PathBuf, String> {
     Err("当前平台尚未支持用户配置目录。".into())
 }

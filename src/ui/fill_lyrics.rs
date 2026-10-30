@@ -127,7 +127,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                             .fill(GREEN)
                             .min_size(size),
                     )
-                    .on_hover_text(crate::i18n::t("Ctrl+Enter 确定"))
+                    .on_hover_text(format!("{} 确定", crate::ui::chrome::shortcut_text("Ctrl+Enter")))
                     .clicked();
                 cancel = ui
                     .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))
@@ -136,7 +136,7 @@ pub fn show(app: &mut App, ctx: &Context) {
         });
     if modal.is_top_modal && !modal.any_popup_open {
         cancel |= ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
-        submit |= ctx.input_mut(|i| i.consume_key(Modifiers::CTRL, Key::Enter));
+        submit |= ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Enter));
     }
     if cancel {
         ctx.memory_mut(|m| m.surrender_focus(Id::new("fill-lyrics-text")));

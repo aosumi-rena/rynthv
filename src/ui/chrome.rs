@@ -10,7 +10,7 @@ fn item(ui: &mut Ui, text: &str, shortcut: &str, enabled: bool) -> bool {
     let response = ui.add_enabled(
         enabled,
         Button::new(text)
-            .shortcut_text(shortcut)
+            .shortcut_text(shortcut_text(shortcut))
             .min_size(vec2(180.0, 22.0)),
     );
     if response.clicked() {
@@ -20,6 +20,20 @@ fn item(ui: &mut Ui, text: &str, shortcut: &str, enabled: bool) -> bool {
         false
     }
 }
+/// Menu labels name the platform's primary modifier. Shortcuts are registered
+/// with [`Modifiers::COMMAND`], which egui maps to ⌘ on macOS and Ctrl elsewhere,
+/// so the hint text has to follow the same mapping.
+pub(crate) fn shortcut_text(shortcut: &str) -> String {
+    if cfg!(target_os = "macos") {
+        shortcut
+            .replace("Ctrl+", "⌘")
+            .replace("Shift+", "⇧")
+            .replace("Alt+", "⌥")
+    } else {
+        shortcut.to_owned()
+    }
+}
+
 pub fn menus(app: &mut App, ui: &mut Ui) {
     let ctx = ui.ctx().clone();
     MenuBar::new().ui(ui, |ui| {
@@ -201,8 +215,11 @@ pub fn shortcuts(app: &mut App, ctx: &Context) {
         return;
     }
     let command = |key, modifiers| ctx.input_mut(|i| i.consume_key(modifiers, key));
-    let ctrl = Modifiers::CTRL;
-    let shift = Modifiers::CTRL | Modifiers::SHIFT;
+    // COMMAND is ⌘ on macOS and Ctrl elsewhere; matching the platform's
+    // primary modifier keeps the registered shortcuts consistent with the
+    // hints shown in the menus.
+    let ctrl = Modifiers::COMMAND;
+    let shift = Modifiers::COMMAND | Modifiers::SHIFT;
     if matches!(app.gesture, Some(super::piano::Gesture::Anchor(_)))
         && super::piano::anchor_keyboard(app, ctx)
     {

@@ -3,6 +3,10 @@ use std::path::Path;
 
 #[cfg(target_os = "linux")]
 mod linux;
+
+#[cfg(target_os = "macos")]
+mod macos;
+
 mod native;
 
 pub fn install(ctx: &Context) -> Result<(), String> {
@@ -79,7 +83,12 @@ fn system_font(bold: bool) -> Result<FontData, String> {
     linux::load(bold)
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "linux")))]
+#[cfg(target_os = "macos")]
+fn system_font(bold: bool) -> Result<FontData, String> {
+    macos::load(bold)
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
 fn system_font(_bold: bool) -> Result<FontData, String> {
-    Err("UI system font loading is supported on Windows and Linux only".into())
+    Err("UI system font loading is supported on Windows, Linux and macOS only".into())
 }

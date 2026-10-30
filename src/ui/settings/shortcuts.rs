@@ -63,7 +63,7 @@ pub(super) fn show(ui: &mut Ui) {
                         .corner_radius(3)
                         .inner_margin(Margin::symmetric(8, 4))
                         .show(ui, |ui| {
-                            ui.label(RichText::new(*key).color(TEXT));
+                            ui.label(RichText::new(crate::ui::chrome::shortcut_text(key)).color(TEXT));
                         });
                 });
             });
