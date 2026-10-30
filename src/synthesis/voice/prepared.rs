@@ -118,6 +118,11 @@ impl PreparedTree {
 
     pub(super) fn prepare_embedded_execution(bytes:&[u8],legacy_numeric:bool)->Result<Self> {
         let records = super::embedded::parse(bytes)?;
+        Self::prepare_records(records,legacy_numeric)
+    }
+
+    pub(super) fn prepare_records(records:Vec<super::embedded::Record>,legacy_numeric:bool)->Result<Self> {
+        if records.is_empty() {return Err(VoiceError::new("Model has no records"));}
         let root = records.len() - 1;
         let mut nodes = Vec::with_capacity(records.len());
         let mut resources = Vec::with_capacity(records.len());

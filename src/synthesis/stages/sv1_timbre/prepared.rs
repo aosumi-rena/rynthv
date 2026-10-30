@@ -40,7 +40,7 @@ impl PreparedSv1TimbreFrames {
         let records = records::prepare(request, network.contract, log_hz)?;
         let linguistic = network.frontend.linguistic(request.phones)?;
         let normalized_pitch = network.frontend.normalize_pitch(&records.log_hz)?;
-        let style_rows=if let Some(modes)=request.mode_coefficients.filter(|_|network.contract==Contract::Compatible) {
+        let mut style_rows=if let Some(modes)=request.mode_coefficients {
             let names=crate::synthesis::vocal_modes::ordered_style_names(network.tree,network.style_node,network.styles.variants.len())?;
             let constant=(!modes.animated()).then(||network.styles.blend(&modes.weights(&names,false))).transpose()?;
             let mut values=Vec::with_capacity(frames*network.styles.neutral.len());
@@ -50,18 +50,24 @@ impl PreparedSv1TimbreFrames {
             }
             Some(Sequence::from_values(network.styles.neutral.len(),values)?)
         }else{None};
+        if let Some(weights)=request.dds.and_then(|d|d.default_weights.as_ref()) {
+            if weights.len()!=frames || weights.iter().any(|v|!v.is_finite()) {return Err(VoiceError::new("Default style weights are not aligned"));}
+            let rows=style_rows.get_or_insert(Sequence::from_values(network.styles.neutral.len(),network.styles.neutral.repeat(frames))?);
+            for (row,&weight) in rows.values.chunks_exact_mut(network.styles.neutral.len()).zip(weights) {
+                if weight!=1.0 {for (value,&neutral) in row.iter_mut().zip(network.styles.neutral.iter()) {*value+=neutral*(weight-1.0);}}
+            }
+        }
         let expanded = network.context.prepare_frames(&ContextInput {
             phones: request.phones,
             linguistic: &linguistic,
             normalized_pitch: &normalized_pitch,
             bank: &network.bank,
+            bank_rows:request.dds.and_then(|d|d.bank_rows.as_ref()),
             style: &network.styles.neutral,
             style_rows:style_rows.as_ref(),
             phone_factors: None,
         })?;
-        let spectral_silence=if network.contract==Contract::Compatible {
-            Some(super::silence::flags(&linguistic.silence,&phone_frames)?)
-        }else{None};
+        let spectral_silence=Some(super::silence::flags(&linguistic.silence,&phone_frames)?);
         expanded.validate()?;
         #[cfg(feature="acoustic-diagnostic")]
         for (label,value) in [("compatible_acoustic_linguistic",&linguistic.normalized),("compatible_acoustic_expanded",&expanded)] {

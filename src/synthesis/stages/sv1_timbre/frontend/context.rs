@@ -9,10 +9,12 @@ use crate::synthesis::{
 
 pub struct Context<'a> {
     tree: &'a PreparedTree,
+    native: bool,
     phone_projection: usize,
     pointwise: usize,
     convolution: usize,
     language: Option<usize>,
+    language_override: Option<crate::synthesis::inference::ops::embedding::Embedding>,
 }
 
 pub struct ContextInput<'a> {
@@ -20,6 +22,7 @@ pub struct ContextInput<'a> {
     pub linguistic: &'a PhoneInput,
     pub normalized_pitch: &'a [f32],
     pub bank: &'a [f32],
+    pub bank_rows:Option<&'a Sequence>,
     pub style: &'a [f32],
     pub style_rows:Option<&'a Sequence>,
     pub phone_factors: Option<&'a [f32]>,
@@ -31,7 +34,7 @@ pub struct ContextOutput {
 }
 
 impl<'a> Context<'a> {
-    pub fn prepare(tree: &'a PreparedTree, index: usize) -> Result<Self> {
+    pub fn prepare(tree: &'a PreparedTree, index: usize, native: bool, half_language: bool) -> Result<Self> {
         let node = tree.node(index)?;
         if node.type_id != TIMBRE_CONTEXT_TYPE_ID
             || !matches!(node.children.len(), 3 | 4)
@@ -49,12 +52,20 @@ impl<'a> Context<'a> {
                 "SV1 acoustic language node is not an embedding",
             ));
         }
+        if half_language && !native {
+            return Err(VoiceError::new("Language precision applies only to native DDS voices"));
+        }
+        let language_override = if half_language {
+            language.map(|index| super::language::prepare(tree, index)).transpose()?
+        } else { None };
         Ok(Self {
             tree,
+            native,
             phone_projection: node.children[0],
             pointwise: node.children[1],
             convolution: node.children[2],
             language,
+            language_override,
         })
     }
 
@@ -102,7 +113,14 @@ impl<'a> Context<'a> {
                         .map(|&id| id as f32)
                         .collect(),
                 )?;
-                runtime.execute(index, &ids, true)
+                if let Some(embedding) = &self.language_override {
+                    let mut output = Sequence::zeros(ids.frames, embedding.features())?;
+                    embedding.execute(&ids.values, &mut output.values)
+                        .map_err(|error| VoiceError::new(error.to_string()))?;
+                    Ok(output)
+                } else {
+                    runtime.execute(index, &ids, true)
+                }
             })
             .transpose()?;
         let language_width = language.as_ref().map_or(0, |values| values.channels);
@@ -114,6 +132,12 @@ impl<'a> Context<'a> {
             .and_then(|width| width.checked_add(input.style.len()))
             .ok_or_else(|| VoiceError::new("SV1 acoustic conditioning width overflows"))?;
         let mut expanded = Sequence::zeros(frames, channels)?;
+        if let Some(rows)=input.bank_rows {
+            rows.validate()?;
+            if rows.frames!=frames || rows.channels!=input.bank.len() || rows.values.iter().any(|v|!v.is_finite()) {
+                return Err(VoiceError::new("Speaker vector frames are not aligned"));
+            }
+        }
         if let Some(styles)=input.style_rows {
             styles.validate()?;
             if styles.frames!=frames || styles.channels!=input.style.len() || styles.values.iter().any(|v|!v.is_finite()) {
@@ -139,19 +163,26 @@ impl<'a> Context<'a> {
                 }
                 let fraction = if phone.frames == 1 {
                     0.5
-                } else if self.tree.legacy_numeric() {
+                } else if self.native || self.tree.legacy_numeric() {
                     position as f32 / (phone.frames-1) as f32
                 } else {
                     position as f32 * (1.0 / (phone.frames - 1) as f32)
                 };
                 let mut cursor = projected.channels;
                 for scalar in [fraction, input.normalized_pitch[frame_index]] {
-                    let bank=if self.tree.legacy_numeric() {compatible_cosine_bank(scalar)}else{cosine_bank(scalar)};
+                    let bank = if self.native {
+                        super::quadrature::bank(scalar)?
+                    } else if self.tree.legacy_numeric() {
+                        compatible_cosine_bank(scalar)
+                    } else {
+                        cosine_bank(scalar)
+                    };
                     row[cursor..cursor + 4].copy_from_slice(&bank);
                     cursor += 4;
                 }
                 let style=input.style_rows.map(|rows|rows.frame(frame_index)).transpose()?.unwrap_or(input.style);
-                for values in [input.bank, language, style] {
+                let bank=input.bank_rows.map(|rows|rows.frame(frame_index)).transpose()?.unwrap_or(input.bank);
+                for values in [bank, language, style] {
                     row[cursor..cursor + values.len()].copy_from_slice(values);
                     cursor += values.len();
                 }

@@ -39,7 +39,7 @@ impl From<&Note> for NoteInput {
 pub struct VoiceInput {
 
     pub track_default_is_self: bool,
-    pub model_content_identity: Option<String>,
+    pub model_source_identity: Option<String>,
     pub database: Value,
     pub instance_options: Extra,
     pub track_default_database: Value,
@@ -133,6 +133,7 @@ impl TempoMapping {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OwnerInput {
+    pub experiments: crate::synthesis::experiments::ExperimentalContext,
     pub group_id: String,
     pub content_offset: GlobalBlick,
     pub visible_begin: GlobalBlick,
@@ -160,13 +161,15 @@ impl OwnerInput {
         reference: &GroupRef,
         group: &Group,
     ) -> bool {
-        Self::new(
+        let mut candidate=Self::new(
                 project,
                 track,
                 reference,
                 group,
-                self.voice.model_content_identity.as_deref(),
-            ).sections().iter().any(|(_,input)| input==self)
+                self.voice.model_source_identity.as_deref(),
+            );
+        candidate.experiments=self.experiments.clone();
+        candidate.sections().iter().any(|(_,input)| input==self)
     }
 
     pub(super) fn new(
@@ -179,6 +182,7 @@ impl OwnerInput {
         let mut output_options = synthesis_extensions(&project.render_config);
         for key in [
             "destination",
+            "audioFormat",
             "filename",
             "exportMixDown",
             "exportPitch",
@@ -197,6 +201,7 @@ impl OwnerInput {
         track_options.remove("renderEnabled");
         Self {
             group_id: group.uuid.clone(),
+            experiments: Default::default(),
             content_offset: GlobalBlick(reference.blick_offset),
             visible_begin: GlobalBlick(reference.blick_absolute_begin),
             visible_end: (reference.blick_absolute_end >= 0)
@@ -211,7 +216,7 @@ impl OwnerInput {
             group_options: group_extensions(&group.extra),
             voice: VoiceInput {
                 track_default_is_self: reference.id == track.main_ref.id,
-                model_content_identity: voice_identity.map(str::to_owned),
+                model_source_identity: voice_identity.map(str::to_owned),
                 database: reference.database.clone(),
                 instance_options: reference_extensions(&reference.extra),
                 track_default_database: track.main_ref.database.clone(),

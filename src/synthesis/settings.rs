@@ -18,8 +18,14 @@ pub struct VoiceSelection {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SynthesisSettings {
+    #[serde(default)]
+    pub experiments: super::experiments::ExperimentalSettings,
     pub databases: Option<PathBuf>,
     pub sv1_databases: Option<PathBuf>,
+    #[serde(default)]
+    pub voice_sources: Vec<PathBuf>,
+    #[serde(default)]
+    pub audio_converter: Option<PathBuf>,
     pub dictionaries: Option<PathBuf>,
     pub selected_voice: Option<VoiceSelection>,
     #[serde(default)]
@@ -37,7 +43,10 @@ fn default_duration_key() -> u64 {
 impl Default for SynthesisSettings {
     fn default() -> Self {
         Self {
+            experiments: Default::default(),
             databases: None, sv1_databases: None, dictionaries: None, selected_voice: None,
+            voice_sources: Vec::new(),
+            audio_converter: None,
             duration_key_override_enabled: false, duration_key_override_value: default_duration_key(),
             voice_duration_key_overrides: Vec::new(),
         }
@@ -56,10 +65,11 @@ impl SynthesisSettings {
         ]
         .into_iter()
         .filter_map(|(label, path)| path.map(|path| (label, path)))
+        .chain(self.voice_sources.iter().map(|path|("",path.as_path())))
     }
 
     pub fn has_databases(&self) -> bool {
-        self.databases.is_some() || self.sv1_databases.is_some()
+        self.database_roots().next().is_some()
     }
 
     pub fn path() -> Result<PathBuf, String> {

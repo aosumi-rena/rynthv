@@ -41,7 +41,7 @@ pub(super) struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn new(tree: Arc<PreparedTree>,effects:Option<crate::synthesis::stages::vocoder::effects::EffectTimeline>,compatible_dispatch:bool,seeds:Option<Arc<[u64]>>) -> Result<Self> {
+    pub fn new(tree: Arc<PreparedTree>,effects:Option<crate::synthesis::stages::vocoder::effects::EffectTimeline>,compatible_dispatch:bool,native_dds:bool,seeds:Option<Arc<[u64]>>) -> Result<Self> {
         let cancellation = Cancellation::child(execution::current());
         let worker_cancellation = cancellation.clone();
         let (input, inputs) = mpsc::sync_channel(MAX_OUTSTANDING);
@@ -59,6 +59,7 @@ impl Pipeline {
                         &outputs,
                         effects,
                         compatible_dispatch,
+                        native_dds,
                         seeds,
                         #[cfg(feature = "synth-profile")]
                         profile,
@@ -185,6 +186,7 @@ fn run(
     outputs: &mpsc::Sender<Result<Output>>,
     effects:Option<crate::synthesis::stages::vocoder::effects::EffectTimeline>,
     compatible_dispatch:bool,
+    native_dds:bool,
     seeds:Option<Arc<[u64]>>,
     #[cfg(feature = "synth-profile")] profile: crate::synthesis::profiling::ParallelWork,
 ) -> Result<()> {
@@ -193,6 +195,7 @@ fn run(
     let mut stage=VocoderStage::prepare(tree)?;
     stage.effects=effects;
     if compatible_dispatch {stage.set_compatible_dispatch();}
+    if native_dds {stage.set_native_dds();}
     if let Some(seeds)=seeds {stage.set_editor_seed_source(seeds);}
     let mut vocoder = stage.into_stream()?;
     let mut setup_ms = started.elapsed().as_secs_f64() * 1000.0;

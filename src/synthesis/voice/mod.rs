@@ -7,6 +7,7 @@ mod family;
 mod format;
 mod inventory;
 mod materialized_flat;
+mod flat;
 mod member_modes;
 mod nofs;
 mod noise_cadence;

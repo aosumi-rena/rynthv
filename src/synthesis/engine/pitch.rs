@@ -1,4 +1,6 @@
 mod assembly;
+mod growl;
+pub(super) use growl::apply as apply_growl;
 pub(super) use assembly::assemble as assemble_note_curves;
 
 use crate::synthesis::{

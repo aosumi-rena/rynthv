@@ -9,6 +9,8 @@ use serde_json::{Map, Value};
 pub struct VocalModeEditCapability {
     catalogue: Vec<String>,
     independent_lanes: bool,
+    minimum:i32,
+    maximum:i32,
 }
 
 impl VocalModeEditCapability {
@@ -20,16 +22,21 @@ impl VocalModeEditCapability {
                 || prepared.summary().stage_preparation_error.is_some()
             {return Err("合唱成员的唱法目录或模型尚未准备好。".into());}
         }
-        Self::from_parts(config.family, Some(config.vocal_mode_names()))
+        let mut capability=Self::from_parts(config.family, Some(config.vocal_mode_names()))?;
+        let range=crate::synthesis::experiments::ExperimentalSettings::ui().style_range();
+        capability.minimum=range.0 as i32;capability.maximum=range.1 as i32;
+        let settings=crate::synthesis::experiments::ExperimentalSettings::ui();
+        capability.independent_lanes |= config.family==VoiceFamily::Sv2 && settings.active(settings.component_curves);
+        Ok(capability)
     }
 
     fn from_parts(family: VoiceFamily, resolved: Option<&[String]>) -> Result<Self, String> {
-        if !matches!(family, VoiceFamily::Sv2|VoiceFamily::Sv2Compatible) {
+        if family==VoiceFamily::Sv1 && !crate::synthesis::experiments::ExperimentalSettings::ui().enabled {
             return Err("此引擎不支持 R3 唱法。".into());
         }
         let catalogue = resolved.ok_or("唱法目录尚未加载。")?;
         if catalogue.is_empty() { return Err("此歌声没有公开可用的唱法。".into()); }
-        Ok(Self { catalogue: catalogue.to_vec(), independent_lanes: family==VoiceFamily::Sv2 })
+        Ok(Self { catalogue: catalogue.to_vec(), independent_lanes: family==VoiceFamily::Sv2,minimum:0,maximum:150 })
     }
 
     pub fn independent_lanes(&self)->bool {self.independent_lanes}
@@ -46,7 +53,7 @@ fn controls(extra: &Extra) -> Result<PublicModeMap, String> {
     let Some(value) = voice.get("vocalModeParams") else { return Ok(PublicModeMap::new()); };
     let parsed: PublicModeMap = serde_json::from_value(value.clone())
         .map_err(|error| format!("保存的唱法格式不能编辑（原值保留）：{error}"))?;
-    for mode in parsed.values() { mode.validate()?; }
+
     Ok(parsed)
 }
 
@@ -78,8 +85,8 @@ impl Editor {
         ].iter().all(|component|changes.iter().any(|(changed,_)|changed==component)) {
             return Err("请将旧版兼容歌声升级版本 2 以单独控制音高、音色和发音。".into());
         }
-        if changes.iter().any(|(_, value)| !value.is_finite() || !(0.0..=150.0).contains(value)) {
-            return Err("唱法值必须是 0..150 范围的有限数值。".into());
+        if changes.iter().any(|(_, value)| !value.is_finite() || !(f64::from(capability.minimum)..=f64::from(capability.maximum)).contains(value)) {
+            return Err(format!("唱法值必须是 {}..{} 范围的有限数值。",capability.minimum,capability.maximum));
         }
         let selected = self.vocal_mode_selection()?;
         if selected.reference_id != reference_id {

@@ -7,9 +7,14 @@ pub(super) fn range(parameter: &Parameter, zoom: f32) -> (f64, f64) {
         Parameter::ToneShift => (-400.0, 400.0),
         Parameter::Vibrato => (0.0, 2.0),
         Parameter::Rap => (0.0, 1.0),
-        Parameter::VocalMode(_) => (0.0, 150.0),
+        Parameter::VocalMode(_) => crate::synthesis::experiments::ExperimentalSettings::ui().style_range(),
+        Parameter::Experimental {..} => parameter.range(),
         _ => (-1.0, 1.0),
     };
+    let factor=if matches!(parameter,Parameter::Loudness|Parameter::Tension|Parameter::Breathiness|Parameter::Voicing|Parameter::Gender|Parameter::ToneShift|Parameter::Mouth) {
+        f64::from(crate::synthesis::experiments::ExperimentalSettings::ui().expression_factor())
+    }else{1.0};
+    let (low,high)=(low*factor,high*factor);
     let center = (low + high) * 0.5;
     let half = (high - low) * 0.5 * 100.0 / f64::from(zoom);
     (center - half, center + half)
@@ -30,6 +35,9 @@ pub(super) fn labels(parameter: &Parameter, low: f64, high: f64) -> (String, Str
         Parameter::Voicing => (crate::i18n::t("无声").into(), crate::i18n::t("有声").into()),
         Parameter::Mouth => (crate::i18n::t("闭合").into(), crate::i18n::t("张开").into()),
         Parameter::VocalMode(_) => (format!("{low:.0}%"), format!("{high:.0}%")),
+        Parameter::Experimental {key,..} if key=="growl_frequency" => (format!("{low:.0} Hz"),format!("{high:.0} Hz")),
+        Parameter::Experimental {key,..} if key=="growl_amplitude" || key=="ddsDefaultStyle" || key.starts_with("ddsPhoneMix_") || key.starts_with("voiceBlend_") => (format!("{:.0}%",low*100.0),format!("{:.0}%",high*100.0)),
+        Parameter::Experimental {..} => (format!("{low:.0}%"),format!("{high:.0}%")),
         Parameter::Rap => (String::new(), String::new()),
     }
 }

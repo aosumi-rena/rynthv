@@ -11,6 +11,7 @@ pub struct VocalModeCoefficients {
     automation: Option<crate::synthesis::score::PreparedAutomation>,
     origin_seconds: f64,
     normalization:Vec<(String,f32)>,
+    experimental_range:Option<(f32,f32)>,
 }
 
 pub fn validate_public(controls: &PublicModeMap) -> Result<()> {
@@ -23,8 +24,13 @@ pub fn validate_public(controls: &PublicModeMap) -> Result<()> {
 pub fn resolve_for_voice(voice: &PreparedVoice, controls: Option<&PublicModeMap>)
     -> Result<Option<VocalModeCoefficients>>
 {
+    resolve_for_voice_with_range(voice,controls,None)
+}
+
+fn resolve_for_voice_with_range(voice:&PreparedVoice,controls:Option<&PublicModeMap>,range:Option<(f32,f32)>)
+    ->Result<Option<VocalModeCoefficients>> {
     let Some(controls) = controls.filter(|modes| !modes.is_empty()) else { return Ok(None); };
-    if !matches!(voice.family,VoiceFamily::Sv2|VoiceFamily::Sv2Compatible) {
+    if voice.family==VoiceFamily::Sv1 && range.is_none() {
         return Err(VoiceError::new("Vocal modes require an R3 voice"));
     }
     if !voice.speakers.is_empty() {
@@ -37,7 +43,7 @@ pub fn resolve_for_voice(voice: &PreparedVoice, controls: Option<&PublicModeMap>
     }
     let catalogue = voice.vocal_modes.as_deref().ok_or_else(||
         VoiceError::new("Vocal-mode catalogue has not been loaded"))?;
-    resolve_registered(controls, catalogue).map(Some)
+    resolve_registered_with_range(controls, catalogue,range).map(Some)
 }
 
 pub fn validate_for_voice(voice:&PreparedVoice,controls:Option<&PublicModeMap>) -> Result<()> {
@@ -46,24 +52,30 @@ pub fn validate_for_voice(voice:&PreparedVoice,controls:Option<&PublicModeMap>) 
     Ok(())
 }
 
+#[cfg(test)]
 fn resolve_registered(controls: &PublicModeMap, catalogue: &[String]) -> Result<VocalModeCoefficients> {
-    validate_public(controls)?;
+    resolve_registered_with_range(controls,catalogue,None)
+}
+fn resolve_registered_with_range(controls:&PublicModeMap,catalogue:&[String],range:Option<(f32,f32)>)->Result<VocalModeCoefficients> {
+    if let Some((minimum,maximum))=range {
+        if minimum < -3.0 || maximum>3.0 || minimum>0.0 || maximum<1.5 {return Err(VoiceError::new("Invalid experimental style range"));}
+        for value in controls.values().flat_map(|c|[c.pitch,c.timbre,c.pronunciation]).flatten() {
+            if !value.is_finite() || value<f64::from(minimum)*100.0 || value>f64::from(maximum)*100.0 {return Err(VoiceError::new("Experimental style value is outside the selected range"));}
+        }
+    } else {validate_public(controls)?;}
     let mut values = BTreeMap::new();
     for (name, control) in controls {
         if !catalogue.contains(name) {
-
             continue;
         }
-
         let percent = |value: Option<f64>| (value.unwrap_or(0.0) as f32) / 100.0_f32;
         values.insert(name.clone(), ModeWeight {
-
             pitch: percent(control.pitch),
             primary_ppg: percent(control.pronunciation),
             secondary_timbre: percent(control.timbre),
         });
     }
-    Ok(VocalModeCoefficients { values, automation:None, origin_seconds:0.0,normalization:Vec::new() })
+    Ok(VocalModeCoefficients { values, automation:None, origin_seconds:0.0,normalization:Vec::new(),experimental_range:range })
 }
 
 pub fn for_phrase(voice:&PreparedVoice, phrase:&crate::synthesis::score::PreparedPhrase)
@@ -78,12 +90,12 @@ pub fn for_phrase(voice:&PreparedVoice, phrase:&crate::synthesis::score::Prepare
             }
         }
     }
-    let mut coefficients=resolve_for_voice(voice,Some(&controls))?;
+    let mut coefficients=resolve_for_voice_with_range(voice,Some(&controls),phrase.experimental_style_range)?;
     if has_curves && let Some(coefficients)=&mut coefficients {
         coefficients.automation=phrase.automation.clone();
         coefficients.origin_seconds=phrase.start_seconds;
     }
-    if let Some(coefficients)=&mut coefficients {
+    if let Some(coefficients)=&mut coefficients && voice.family!=VoiceFamily::Sv1 {
         let tree=voice.model("timbre")?;
         let node=tree.node(tree.root_index())?.children[1];
         let node=crate::synthesis::voice::speakers::style(tree,node,voice.speaker)?;
@@ -98,34 +110,40 @@ pub fn for_phrase(voice:&PreparedVoice, phrase:&crate::synthesis::score::Prepare
 }
 
 impl VocalModeCoefficients {
-
     pub fn normalization_at(&self,frame:usize)->f32 {
         let mut logarithm=0.0_f32;
         for (name,coefficient) in &self.normalization {
-            let value=self.at(name,self.values.get(name).map_or(0.0,|v|v.secondary_timbre),frame);
+            let value=self.at(name,self.values.get(name).map_or(0.0,|v|v.secondary_timbre),frame,"timbre");
             logarithm+=value*coefficient;
         }
         logarithm.exp().max(0.000_01)
     }
     pub fn animated(&self)->bool {self.automation.is_some()}
-    fn at(&self,name:&str,base:f32,frame:usize)->f32 {
+    fn at(&self,name:&str,base:f32,frame:usize,component:&str)->f32 {
         match &self.automation {
             None=>base,
-            Some(curves)=>(base+curves.value(&format!("vocalMode_{name}"),
-                self.origin_seconds+frame as f64*crate::synthesis::score::FRAME_SECONDS,0.0)/100.0).clamp(0.0,1.5),
+            Some(curves)=>{
+                let seconds=self.origin_seconds+frame as f64*crate::synthesis::score::FRAME_SECONDS;
+                let mut value=base+curves.value(&format!("vocalMode_{name}"),seconds,0.0)/100.0;
+                if self.experimental_range.is_some() {
+                    let extra=curves.value(&format!("vocalModeComponent_{component}:{name}"),seconds,0.0)/100.0;
+                    if extra!=0.0 {value+=extra;}
+                }
+                let (minimum,maximum)=self.experimental_range.unwrap_or((0.0,1.5));
+                value.clamp(minimum,maximum)
+            },
         }
     }
     pub fn pitch_weights_at(&self,names:&[String],frame:usize)->Vec<f32> {
-        names.iter().map(|name|self.at(name,self.values.get(name).map_or(0.0,|v|v.pitch),frame)).collect()
+        names.iter().map(|name|self.at(name,self.values.get(name).map_or(0.0,|v|v.pitch),frame,"pitch")).collect()
     }
     pub fn weights_at(&self,names:&[String],primary:bool,frame:usize)->Vec<f32> {
         names.iter().map(|name|self.at(name,self.values.get(name).map_or(0.0,|v|
-            if primary {v.primary_ppg}else{v.secondary_timbre}),frame)).collect()
+            if primary {v.primary_ppg}else{v.secondary_timbre}),frame,if primary {"pronunciation"}else{"timbre"})).collect()
     }
     pub fn pitch_weights(&self, model_names: &[String]) -> Vec<f32> {
         model_names.iter().map(|name| self.values.get(name).map_or(0.0, |v| v.pitch)).collect()
     }
-
     pub fn weights(&self, model_names: &[String], primary: bool) -> Vec<f32> {
         model_names.iter().map(|name| self.values.get(name).map_or(0.0, |v|
             if primary {v.primary_ppg} else {v.secondary_timbre})).collect()
@@ -152,7 +170,6 @@ fn from_voice_options(instance: &crate::model::Extra,
         }
         validate_public(local)?;
     }
-
     Ok(local)
 }
 

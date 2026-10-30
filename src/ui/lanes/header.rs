@@ -10,17 +10,45 @@ use crate::{
 use eframe::egui::*;
 
 pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
-    let modes = app
+    let mut modes = app
         .voice_inventory()
         .and_then(|v| v.configuration.as_ref())
         .map(|v| v.vocal_mode_names().to_vec())
         .unwrap_or_default();
+    let settings=app.synthesis.library.settings.experiments;
+    let mut extra=Vec::new();
+    if settings.active(settings.dds_controls) {
+        if let Ok((_,controls))=app.editor.experiment_controls() {
+            if controls.dds.default_as_style {extra.push(Parameter::Experimental {key:"ddsDefaultStyle".into(),label:"Default vocal mode offset".into()});}
+            for (index,slot) in controls.dds.phonemes.iter().enumerate() {
+                extra.push(Parameter::Experimental {key:format!("ddsPhoneMix_{}",slot.id),label:format!("{} · {}",index+1,slot.token)});
+            }
+        }
+    }
+    if settings.active(settings.growl) {
+        for (key,label) in [("growl_amplitude","嘶吼幅度"),("growl_frequency","嘶吼频率")] {
+            extra.push(Parameter::Experimental {key:key.into(),label:label.into()});
+        }
+    }
+    if settings.active(settings.component_curves) {
+        for name in &modes {for (key,label) in [("pitch","音高"),("timbre","音色"),("pronunciation","发音")] {
+            if key!="timbre" && app.voice_inventory().and_then(|v|v.configuration.as_ref()).is_some_and(|c|c.family!=crate::synthesis::voice::VoiceFamily::Sv2) {continue;}
+            extra.push(Parameter::Experimental {key:format!("vocalModeComponent_{key}:{name}"),label:format!("{name} · {}",crate::i18n::t(label))});
+        }}
+    }
+    if settings.active(settings.voice_blending) {
+        if let Ok((_,controls))=app.editor.experiment_controls() {for target in controls.voices {
+            let name=app.synthesis.library.entry(&target.voice).map_or_else(||target.voice.revision.to_string(),|e|format!("{} · {}",e.display_name,e.revision));
+            extra.push(Parameter::Experimental {key:format!("voiceBlend_{}:{}",target.voice.database_id,target.voice.revision),label:format!("{} · {name}",crate::i18n::t("歌声混合"))});
+        }}
+    }
+    if !settings.enabled && app.voice_inventory().and_then(|v|v.configuration.as_ref()).is_some_and(|c|c.family==crate::synthesis::voice::VoiceFamily::Sv1) {modes.clear();}
     ui.spacing_mut().item_spacing.x = 0.0;
     ui.horizontal(|ui| {
         let (r, response) = ui.allocate_exact_size(vec2(48.0, 30.0), Sense::drag());
         Icon::Curve.paint(ui, r.shrink2(vec2(17.0, 8.0)), MUTED);
         response.dnd_set_drag_payload(DragPayload::Lane(lane.id));
-        selector(ui, &mut lane.foreground, &modes);
+        selector(ui, &mut lane.foreground, &modes,&extra);
         if ui
             .add(
                 IconButton::new(Icon::Swap, crate::i18n::t("交换前景与背景参数"))
@@ -31,7 +59,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
         {
             std::mem::swap(&mut lane.foreground, &mut lane.background);
         }
-        selector(ui, &mut lane.background, &modes);
+        selector(ui, &mut lane.background, &modes,&extra);
 
         ui.add_enabled_ui(lane.foreground != Parameter::Rap, |ui| {
         ui.add_space(10.0);
@@ -90,15 +118,16 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
     });
 }
 
-fn selector(ui: &mut Ui, parameter: &mut Parameter, modes: &[String]) {
+fn selector(ui: &mut Ui, parameter: &mut Parameter, modes: &[String],extra:&[Parameter]) {
     ui.menu_button(RichText::new(crate::ui::parameter_label(parameter)).color(TEXT), |ui| {
         let font = TextStyle::Button.resolve(ui.style());
 
         let text_width = Parameter::ALL
             .iter()
-            .map(crate::ui::parameter_label)
-            .chain(modes.iter().map(String::as_str))
-            .chain([crate::i18n::t("基本参数"), crate::i18n::t("唱法")])
+            .map(|p|crate::ui::parameter_label(p).into_owned())
+            .chain(modes.iter().cloned())
+            .chain(extra.iter().map(|p|crate::ui::parameter_label(p).into_owned()))
+            .chain([crate::i18n::t("基本参数"), crate::i18n::t("唱法")].map(str::to_owned))
             .map(|label| {
                 ui.painter()
                     .layout_no_wrap(label.into(), font.clone(), TEXT)
@@ -113,7 +142,7 @@ fn selector(ui: &mut Ui, parameter: &mut Parameter, modes: &[String]) {
                 ui.set_width(width);
                 ui.label(RichText::new(crate::i18n::t("基本参数")).color(MUTED));
                 for p in Parameter::ALL {
-                    let label = crate::ui::parameter_label(&p).to_owned();
+                    let label = crate::ui::parameter_label(&p).into_owned();
                     parameter_option(ui, parameter, p, &label, width);
                 }
             });
@@ -128,6 +157,10 @@ fn selector(ui: &mut Ui, parameter: &mut Parameter, modes: &[String]) {
                         name,
                         width,
                     );
+                }
+                if !extra.is_empty() {
+                    ui.separator();ui.label(RichText::new(crate::i18n::t("实验功能")).color(MUTED));
+                    for value in extra {parameter_option(ui,parameter,value.clone(),&crate::ui::parameter_label(value),width);}
                 }
             });
         });

@@ -1,17 +1,19 @@
 use super::{Runtime, events::WakeOnExit, mixer};
 use crate::{
     model::Project,
-    synthesis::audio::{self, ChannelLayout, WaveFormat},
+    synthesis::audio::{AudioFileFormat, ChannelLayout, WaveFormat},
 };
-use std::{path::PathBuf, sync::mpsc, thread};
+use std::{path::{Path, PathBuf}, sync::mpsc, thread};
 
 pub struct ExportRequest {
     pub outputs: Vec<(PathBuf, Option<u64>)>,
     format: WaveFormat,
+    file_format: AudioFileFormat,
+    converter: Option<PathBuf>,
 }
 
 impl ExportRequest {
-    pub fn from_project(project: &Project) -> Result<Self, String> {
+    pub fn from_project(project: &Project, project_path: Option<&Path>, converter: Option<&Path>) -> Result<Self, String> {
         let config = &project.render_config;
         crate::synthesis::mixing_options::validate_export_bypass(config)?;
         crate::synthesis::mixing_options::validate_project_mixer(
@@ -33,7 +35,7 @@ impl ExportRequest {
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or(0)
         };
-        let directory = PathBuf::from(text("destination"));
+        let directory = export_directory(text("destination"), project_path)?;
         if !directory.is_dir() {
             return Err("请选择有效的目标文件夹".into());
         }
@@ -46,7 +48,10 @@ impl ExportRequest {
         {
             return Err("文件名称为空或含有无效字符".into());
         }
-        let stem = name.strip_suffix(".wav").unwrap_or(name);
+        let file_format = AudioFileFormat::from_id(config.get("audioFormat").and_then(serde_json::Value::as_str).unwrap_or("wav"))?;
+        let stem = name.rsplit_once('.').filter(|(_, extension)| {
+            AudioFileFormat::ALL.iter().any(|format| extension.eq_ignore_ascii_case(format.id())) || extension.eq_ignore_ascii_case("aif")
+        }).map_or(name, |(stem, _)| stem);
         if stem.is_empty() || reserved_name(stem) {
             return Err("请使用有效的文件名称".into());
         }
@@ -54,6 +59,13 @@ impl ExportRequest {
         let bit_depth = number("bitDepth");
         if ![44100, 48000, 96000].contains(&sample_rate) || ![16, 24, 32].contains(&bit_depth) {
             return Err("请选择有效的采样率和位深度".into());
+        }
+        if file_format == AudioFileFormat::Flac && bit_depth == 32 {
+            return Err("FLAC 请选择 16 位或 24 位".into());
+        }
+        if (file_format == AudioFileFormat::Opus && sample_rate != 48000)
+            || (file_format == AudioFileFormat::Mp3 && sample_rate > 48000) {
+            return Err("请选择此文件格式支持的采样率".into());
         }
         let layout = match number("numChannels") {
             1 => ChannelLayout::Mono,
@@ -69,7 +81,7 @@ impl ExportRequest {
             .and_then(serde_json::Value::as_bool)
             == Some(true)
         {
-            outputs.push((directory.join(format!("{stem}.wav")), None));
+            outputs.push((directory.join(format!("{stem}.{}", file_format.id())), None));
         }
         for (index, track) in project.tracks.iter().enumerate() {
             if track
@@ -93,9 +105,10 @@ impl ExportRequest {
                 .collect();
             outputs.push((
                 directory.join(format!(
-                    "{stem}-{:02}-{}.wav",
+                    "{stem}-{:02}-{}.{}",
                     index + 1,
-                    safe.trim_end_matches(['.', ' '])
+                    safe.trim_end_matches(['.', ' ']),
+                    file_format.id(),
                 )),
                 Some(track.id),
             ));
@@ -105,6 +118,8 @@ impl ExportRequest {
         }
         Ok(Self {
             outputs,
+            file_format,
+            converter: file_format.converter(converter)?,
             format: WaveFormat {
                 sample_rate: sample_rate as u32,
                 layout,
@@ -112,6 +127,15 @@ impl ExportRequest {
             },
         })
     }
+}
+
+pub fn export_directory(destination: &str, project_path: Option<&Path>) -> Result<PathBuf, String> {
+    let destination = Path::new(if destination.is_empty() { "." } else { destination });
+    if destination.is_absolute() { return Ok(destination.to_owned()); }
+    let project = project_path.ok_or("请先保存工程，或选择绝对路径作为导出文件夹")?;
+    let project = std::path::absolute(project).map_err(|e| e.to_string())?;
+    let parent = project.parent().ok_or("无法确定工程文件夹")?;
+    Ok(parent.join(destination))
 }
 
 fn reserved_name(name: &str) -> bool {
@@ -182,7 +206,7 @@ impl Runtime {
                     }
                     let mut written = Vec::new();
                     for (path, audio) in sources {
-                        audio::save_wav_as(&path, &audio, request.format)
+                        request.file_format.save(&path, &audio, request.format, request.converter.as_deref())
                             .map_err(|e| format!("{e}（此前已完成 {} 个文件）", written.len()))?;
                         written.push(path);
                     }

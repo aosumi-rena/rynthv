@@ -102,7 +102,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
         });
     }
     let offset = reference.blick_offset;
-    let group_clip = super::group_geometry::clip_rect(&reference, canvas, &app.view.piano);
+    let group_clip = canvas;
     if lane.background == Parameter::Rap {rap::show(app,ui,&response,canvas,false);}
     for (parameter, color, editable) in [
         (&lane.background, MUTED.gamma_multiply(0.5), false),
@@ -115,7 +115,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
         let (low, high) = geometry::range(parameter, lane.zoom);
         let map = |(t, v): (i64, f64)| {
             pos2(
-                x_at(canvas, &app.view.piano, beats(t + offset)),
+                x_at(canvas, &app.view.piano, beats(t.saturating_add(offset))),
                 canvas.bottom() - ((v - low) / (high - low)) as f32 * canvas.height(),
             )
         };
@@ -158,7 +158,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
                         (0..=steps)
                             .map(|i| {
                                 let time = pair[0].0 as f64
-                                    + (pair[1].0 - pair[0].0) as f64 * i as f64 / steps as f64;
+                                    + (i128::from(pair[1].0) - i128::from(pair[0].0)) as f64 * i as f64 / steps as f64;
                                 map((
                                     time.round() as i64,
                                     f64::from(curve.sample(
@@ -188,11 +188,10 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
         return;
     }
     let point_from = |p: Pos2, app: &App| {
-        let time = ticks(beat_at(canvas, &app.view.piano, p.x))
-            .clamp(reference.blick_absolute_begin, reference.visible_end() - 1)
-            - offset;
+        let time = ticks(beat_at(canvas, &app.view.piano, p.x)).max(0).saturating_sub(offset);
+        let (allowed_low,allowed_high)=lane.foreground.range();
         let value = (min + (canvas.bottom() - p.y) as f64 / canvas.height() as f64 * (max - min))
-            .clamp(min, max);
+            .clamp(allowed_low,allowed_high);
         (time, value as f32 as f64)
     };
     let nearest = |p: Pos2, app: &App| {
@@ -205,8 +204,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
                     .points
                     .iter()
                     .find(|(t, v)| {
-                        reference.contains(*t + offset)
-                            && pos2(x_at(canvas, &app.view.piano, beats(*t + offset)), y_for(*v))
+                        pos2(x_at(canvas, &app.view.piano, beats(t.saturating_add(offset))), y_for(*v))
                                 .distance(p)
                                 < 8.0
                     })

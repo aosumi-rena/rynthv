@@ -48,9 +48,11 @@ impl Frontend<'_> {
             noise_ids.push(noise_id);
         }
         let mut normalized = Sequence::zeros(phones.len(), self.width)?;
-        self.linguistic
-            .normalize(&raw.values, &mut normalized.values, true)
-            .map_err(error)?;
+        if self.contract == Contract::Native {
+            self.linguistic.normalize_native(&raw.values, &mut normalized.values, true)
+        } else {
+            self.linguistic.normalize(&raw.values, &mut normalized.values, true)
+        }.map_err(error)?;
         if self.contract == Contract::Native {
 
             for (row, id) in normalized

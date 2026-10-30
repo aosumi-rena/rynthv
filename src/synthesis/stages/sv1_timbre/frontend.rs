@@ -1,4 +1,6 @@
 mod context;
+mod quadrature;
+mod language;
 mod input;
 
 use super::Contract;
@@ -136,9 +138,11 @@ impl<'a> Frontend<'a> {
             ));
         }
         let mut output = vec![0.0; log_hz.len()];
-        self.pitch
-            .normalize(log_hz, &mut output, true)
-            .map_err(error)?;
+        if self.contract == Contract::Native {
+            self.pitch.normalize_native(log_hz, &mut output, true)
+        } else {
+            self.pitch.normalize(log_hz, &mut output, true)
+        }.map_err(error)?;
         if let Some(bounds) = self.pitch_bounds {
             for value in &mut output {
                 *value = value.clamp(bounds[0], bounds[1]);

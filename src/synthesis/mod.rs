@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod engine;
+pub mod experiments;
 pub mod execution;
 pub mod inference;
 pub mod instrumental;

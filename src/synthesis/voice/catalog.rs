@@ -3,6 +3,7 @@ mod artwork;
 mod metadata;
 mod nofs;
 mod resource;
+mod flat;
 
 use std::{
     fs,
@@ -55,10 +56,29 @@ pub struct VoiceCatalog {
 impl VoiceCatalog {
 
     pub fn scan(root: &Path) -> Result<Self> {
+        let selected=root.canonicalize()?;
+        let databases=selected.join("databases");
+        let resolved=if databases.is_dir() {databases.canonicalize()?}else{selected};
+        let root=resolved.as_path();
         let mut catalog = Self::default();
+        let manifest=if root.is_dir() {root.join("manifest.json")}else{root.to_owned()};
+        if super::materialized_flat::is_manifest(&manifest) {
+            catalog.entries.push(flat::entry(&manifest)?);return Ok(catalog);
+        }
         if super::nofs::is_file(root) {
             catalog.entries.push(nofs::entry(root)?);
             return Ok(catalog);
+        }
+        if let Some(parent)=root.parent() && root.file_name().and_then(|n|n.to_str()).is_some_and(|n|n.parse::<VoiceRevision>().is_ok())
+            && let Some(id)=parent.file_name().and_then(|n|n.to_str()).and_then(|n|uuid::Uuid::parse_str(n).ok()) {
+            let metadata=MetadataIndex::load(parent.parent().unwrap_or(parent));
+            dnni::scan(parent,id,&mut catalog,&metadata)?;
+            catalog.entries.retain(|e|e.directory==root);return Ok(catalog);
+        }
+        if let Some(id)=root.file_name().and_then(|n|n.to_str()).and_then(|n|uuid::Uuid::parse_str(n).ok()) {
+            let metadata=MetadataIndex::load(root.parent().unwrap_or(root));
+            dnni::scan(root,id,&mut catalog,&metadata)?;
+            if !catalog.entries.is_empty() {return Ok(catalog);}
         }
         for path in super::nofs::paths(root)? {
             catalog.entries.push(nofs::entry(&path)?);
@@ -67,6 +87,11 @@ impl VoiceCatalog {
         for database in fs::read_dir(root)? {
             let database = database?;
             if !database.file_type()?.is_dir() {
+                continue;
+            }
+            let manifest=database.path().join("manifest.json");
+            if super::materialized_flat::is_manifest(&manifest) {
+                match flat::entry(&manifest) {Ok(entry)=>catalog.entries.push(entry),Err(e)=>catalog.warnings.push(e.to_string())}
                 continue;
             }
             if let Ok(database_id) = uuid::Uuid::parse_str(&database.file_name().to_string_lossy())

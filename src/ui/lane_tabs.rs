@@ -8,6 +8,12 @@ use crate::app::App;
 use eframe::egui::*;
 
 pub(super) fn show(app: &mut App, ui: &mut Ui) {
+    let experiments_available=app.voice_inventory().and_then(|v|v.configuration.as_ref())
+        .is_some();
+    for lane in &mut app.view.lanes {
+        if !lane.foreground.is_visible() || (!experiments_available && matches!(lane.foreground,crate::model::Parameter::Experimental{..})) {lane.foreground=crate::model::Parameter::Pitch;}
+        if !lane.background.is_visible() || (!experiments_available && matches!(lane.background,crate::model::Parameter::Experimental{..})) {lane.background=crate::model::Parameter::Loudness;}
+    }
     let mut close = None;
     ScrollArea::horizontal()
         .id_salt("lane-tabs-scroll")

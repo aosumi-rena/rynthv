@@ -69,6 +69,8 @@ pub struct ExplicitScore {
 
 #[derive(Clone, Debug)]
 pub struct PreparedPhrase {
+    pub experimental_dds_expression:bool,
+    pub experimental_style_range: Option<(f32,f32)>,
 
     pub(crate) unison_notes: Vec<FrontendNote>,
     pub unison: crate::synthesis::unison::UnisonSettings,
@@ -243,6 +245,8 @@ impl ExplicitScore {
         super::records::link_sustains(&mut records, &notes)?;
         super::records::redistribute_onsets(duration_tree, &mut records, &mut notes,&mut phone_sources, family)?;
         Ok(PreparedPhrase {
+            experimental_dds_expression:false,
+            experimental_style_range: None,
             unison_notes,
             unison:Default::default(),
             note_errors: source.iter().filter_map(|n| n.source_note_id.zip(n.note_error.clone())).collect(),

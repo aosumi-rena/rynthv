@@ -63,6 +63,9 @@ impl Generator {
         } else {
             VecDeque::new()
         };
+        if contract == Contract::Native {
+            queue.push_back(SeedEntry { remaining: 0, seed: 5489 });
+        }
         Ok(Self {
             normal: Normal::new(5489),
             queue,

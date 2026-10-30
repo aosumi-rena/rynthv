@@ -2,7 +2,7 @@ use super::controls::*;
 use crate::{
     app::App,
     model::Extra,
-    synthesis::runtime::ExportRequest,
+    synthesis::{runtime::{ExportRequest, export_directory}, audio::AudioFileFormat},
     ui::{theme::*, track_color::TrackColors},
 };
 use eframe::egui::*;
@@ -42,8 +42,8 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
             );
             if folder_button(ui).clicked() {
                 let mut picker = rfd::FileDialog::new().set_title(crate::i18n::t("选择导出文件夹"));
-                if !directory.is_empty() {
-                    picker = picker.set_directory(&directory);
+                if let Ok(path) = export_directory(&directory, app.path.as_deref()) {
+                    picker = picker.set_directory(path);
                 }
                 if let Some(path) = picker.pick_folder() {
                     directory = path.display().to_string();
@@ -51,6 +51,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
             }
         });
         config.insert("destination".into(), directory.into());
+        ui.weak(crate::i18n::t("相对路径以工程文件夹为基准"));
         ui.weak(crate::i18n::t("文件名称"));
         let mut name = string(&config, "filename");
         field(ui, &mut name);
@@ -126,6 +127,21 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
         });
     });
     section(ui, crate::i18n::t("格式"), |ui| {
+        ui.weak(crate::i18n::t("文件格式"));
+        let mut file_format = config.get("audioFormat").and_then(serde_json::Value::as_str).unwrap_or("wav").to_owned();
+        let formats: Vec<_> = AudioFileFormat::ALL.iter().map(|format| (format.id().to_owned(), format.label())).collect();
+        combo(ui, "audio-file-format", &mut file_format, &formats);
+        let flac = file_format == "flac";
+        let opus = file_format == "opus";
+        let mp3 = file_format == "mp3";
+        config.insert("audioFormat".into(), file_format.into());
+        if flac && config.get("bitDepth").and_then(serde_json::Value::as_u64) == Some(32) {
+            config.insert("bitDepth".into(), 24.into());
+        }
+        if (opus && config.get("sampleRate").and_then(serde_json::Value::as_u64) != Some(48000))
+            || (mp3 && config.get("sampleRate").and_then(serde_json::Value::as_u64) == Some(96000)) {
+            config.insert("sampleRate".into(), 48000.into());
+        }
         numeric(
             ui,
             &mut config,
@@ -142,23 +158,26 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
             &[("noAspiration".to_owned(), crate::i18n::t("无"))],
         );
         config.insert("aspirationFormat".into(), aspiration.into());
+        let depths = [(16, crate::i18n::t("16 位")), (24, crate::i18n::t("24 位")), (32, crate::i18n::t("32 位浮点"))];
         numeric(
             ui,
             &mut config,
             "bitDepth",
             crate::i18n::t("位深度"),
-            &[(16, crate::i18n::t("16 位")), (24, crate::i18n::t("24 位")), (32, crate::i18n::t("32 位浮点"))],
+            if flac { &depths[..2] } else { &depths },
         );
         numeric(
             ui,
             &mut config,
             "sampleRate",
             crate::i18n::t("采样率"),
-            &[
+            if opus { &[(48000, "48000 Hz")] }
+            else if mp3 { &[(44100, "44100 Hz"), (48000, "48000 Hz")] }
+            else { &[
                 (44100, "44100 Hz"),
                 (48000, "48000 Hz"),
                 (96000, "96000 Hz"),
-            ],
+            ] },
         );
     });
     if config != app.editor.project.render_config || tracks != original_tracks {
@@ -180,7 +199,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
 }
 
 fn start_export(app: &mut App) {
-    let request = match ExportRequest::from_project(&app.editor.project) {
+    let request = match ExportRequest::from_project(&app.editor.project, app.path.as_deref(), app.synthesis.library.settings.audio_converter.as_deref()) {
         Ok(request) => request,
         Err(message) => {
             app.synthesis.export_result = Some(Err(message));

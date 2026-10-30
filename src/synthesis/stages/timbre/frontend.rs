@@ -18,6 +18,7 @@ use super::{
 };
 
 pub struct TimbreRequest<'a> {
+    pub dds:Option<&'a crate::synthesis::experiments::DdsFrameControls>,
 
     pub mode_coefficients: Option<&'a crate::synthesis::vocal_modes::VocalModeCoefficients>,
     pub notes: &'a [FrontendNote],
@@ -62,8 +63,8 @@ impl<'tree> TimbreNetwork<'tree> {
         #[cfg(feature = "synth-profile")]
         let _profile = crate::synthesis::profiling::span("timbre.render_prepared");
         let frames =
-            Arc::new(self.prepare_frame_features_with_modes(
-                request.notes, request.phones, features, request.mode_coefficients)?);
+            Arc::new(self.prepare_frame_features_with_defaults(
+                request.notes, request.phones, features, request.mode_coefficients,request.dds.and_then(|d|d.default_weights.as_deref()))?);
         self.start_prepared(request, config, frames)?
             .collect_until(end_frame)
     }
@@ -84,6 +85,13 @@ impl<'tree> TimbreNetwork<'tree> {
         features: &PreparedTimbreFeatures,
         modes: Option<&crate::synthesis::vocal_modes::VocalModeCoefficients>,
     ) -> Result<PreparedTimbreFrames> {
+        self.prepare_frame_features_with_defaults(notes,phones,features,modes,None)
+    }
+
+    fn prepare_frame_features_with_defaults(
+        &self,notes:&[FrontendNote],phones:&[TimedPhone],features:&PreparedTimbreFeatures,
+        modes:Option<&crate::synthesis::vocal_modes::VocalModeCoefficients>,defaults:Option<&[f32]>,
+    )->Result<PreparedTimbreFrames> {
         let input = self.feature_inputs(notes, phones)?;
         let feature_config = input.network.configuration();
         if feature_config.frame_channels != 128 {
@@ -123,7 +131,7 @@ impl<'tree> TimbreNetwork<'tree> {
         let positions = convert(&input.notes.frame_positions)?;
         let style = self.feature_style(notes.len())?;
         let frame_count = input.notes.frame_counts.iter().sum();
-        let mode_styles = self.mode_styles(modes,0..frame_count)?;
+        let mode_styles = self.mode_styles(modes,0..frame_count,defaults)?;
         let frame_style = (feature_config.condition_channels != 0).then(||
             mode_styles.as_ref().map_or_else(||self.styles.neutral.repeat(frame_count),
                 |styles|styles.primary.values.clone()));
@@ -200,7 +208,7 @@ impl<'tree> TimbreNetwork<'tree> {
             controls: request.frame_controls,
             requested_frame: request.requested_frame,
         })?;
-        let styles = self.mode_styles(request.mode_coefficients,records.low_rate_positions.iter().copied())?;
+        let styles = self.mode_styles(request.mode_coefficients,records.low_rate_positions.iter().copied(),request.dds.and_then(|d|d.default_weights.as_deref()))?;
         TimbreStream::from_prepared(self, features, &records, styles.as_ref())
     }
 
@@ -208,23 +216,27 @@ impl<'tree> TimbreNetwork<'tree> {
         &self,
         modes: Option<&crate::synthesis::vocal_modes::VocalModeCoefficients>,
         positions: impl IntoIterator<Item=usize>,
+        defaults:Option<&[f32]>,
     ) -> Result<Option<super::styles::AcousticStyles>> {
-        let Some(modes) = modes else { return Ok(None); };
+        if modes.is_none() && defaults.is_none() {return Ok(None);}
         let style_node = crate::synthesis::voice::speakers::style(
             self.tree, self.layout.styles, self.speaker)?;
         let names = crate::synthesis::vocal_modes::ordered_style_names(
             self.tree, style_node, self.styles.variants.len())?;
         let mut primary=Vec::new();let mut secondary=Vec::new();
 
-        let constant=(!modes.animated()).then(||Ok::<_,VoiceError>((
+        let constant=modes.filter(|m|!m.animated()).map(|modes|Ok::<_,VoiceError>((
             self.styles.blend(&modes.weights(&names,true))?,
             self.styles.blend(&modes.weights(&names,false))?))).transpose()?;
         for frame in positions {
-            if let Some((a,b))=&constant {primary.extend_from_slice(a);secondary.extend_from_slice(b);}
-            else {
-                primary.extend(self.styles.blend(&modes.weights_at(&names,true,frame))?);
-                secondary.extend(self.styles.blend(&modes.weights_at(&names,false,frame))?);
+            let (mut a,mut b)=if let Some((a,b))=&constant {(a.clone(),b.clone())}
+                else if let Some(modes)=modes {(self.styles.blend(&modes.weights_at(&names,true,frame))?,self.styles.blend(&modes.weights_at(&names,false,frame))?)}
+                else {(self.styles.neutral.to_vec(),self.styles.neutral.to_vec())};
+            if let Some(defaults)=defaults {
+                let weight=*defaults.get(frame).filter(|v|v.is_finite()).ok_or_else(||VoiceError::new("Default acoustic style frames are not aligned"))?;
+                if weight!=1.0 {for row in [&mut a,&mut b] {for (value,&neutral) in row.iter_mut().zip(self.styles.neutral.iter()) {*value+=neutral*(weight-1.0);}}}
             }
+            primary.extend(a);secondary.extend(b);
         }
         Ok(Some(super::styles::AcousticStyles {
             primary:crate::synthesis::inference::Sequence::from_values(self.styles.neutral.len(),primary)?,

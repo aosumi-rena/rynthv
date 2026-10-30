@@ -1,4 +1,5 @@
 pub(crate) mod conversion;
+mod export;
 pub mod live;
 pub mod metronome;
 mod piano;
@@ -7,6 +8,7 @@ mod source;
 mod wav;
 
 pub use live::LiveAudio;
+pub use export::AudioFileFormat;
 pub use piano::PianoControl;
 pub(crate) use playback::LoopControl;
 pub use playback::{OutputFormat, PlaybackControl, Player};

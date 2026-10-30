@@ -11,6 +11,7 @@ mod project_import;
 mod note_properties;
 mod performance;
 mod parameters;
+mod experiments;
 mod unison;
 mod phonemes;
 mod automation;

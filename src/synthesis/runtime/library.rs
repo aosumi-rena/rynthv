@@ -59,8 +59,9 @@ fn scan_roots(settings: &SynthesisSettings) -> LibraryScan {
     }) {
         if duplicates.len() > 1 {
             let message = format!(
-                "声库 {}/{} 对应多个文件，请检查声库目录配置。",
-                duplicates[0].database_id, duplicates[0].revision
+                "声库 {}/{} 对应多个文件，请检查声库目录配置。\n{}",
+                duplicates[0].database_id, duplicates[0].revision,
+                duplicates.iter().map(|e|e.directory.display().to_string()).collect::<Vec<_>>().join("\n")
             );
             errors.push(message.clone());
             for entry in duplicates {
@@ -87,6 +88,7 @@ impl VoiceLibrary {
             Err(error) => (SynthesisSettings::default(), Some(error)),
         };
         let invalid_settings = settings_error.is_some();
+        settings.experiments.publish_ui();
         let mut library = Self {
             settings,
             catalog: None,
@@ -185,6 +187,33 @@ impl VoiceLibrary {
 }
 
 impl Runtime {
+    pub fn set_voice_sources(&mut self,paths:Vec<PathBuf>) {
+        let mut settings=self.library.settings.clone();
+        settings.databases=None;
+        settings.sv1_databases=None;
+        settings.voice_sources=paths;
+        if settings!=self.library.settings && self.library.update(settings) {self.rescan_voices();}
+    }
+    pub fn set_experiments(&mut self, experiments:crate::synthesis::experiments::ExperimentalSettings) {
+        let mut settings=self.library.settings.clone();
+        settings.experiments=experiments;
+        if self.library.update(settings) {
+            experiments.publish_ui();
+            self.request_serial=self.request_serial.wrapping_add(1);
+            self.last_revision=None;
+            self.export_owners.clear();
+            self.playback.clear();
+            for voice in self.voices.values_mut() {
+                if let Some(worker)=&voice.worker {worker.send(super::worker::Command::Reset);}
+                voice.plan=Default::default();voice.live=None;voice.audio=None;
+                voice.owners.clear();voice.failures.clear();voice.stats=Default::default();
+                voice.progress=None;voice.revision=self.request_serial;
+                if voice.ready {voice.error=None;}
+            }
+            self.visuals.clear();
+            self.phonemes.clear();
+        }
+    }
     pub fn set_voice_duration_key_override(&mut self, voice: VoiceSelection, enabled: bool, value: u64) {
         let mut settings = self.library.settings.clone();
         settings.set_voice_duration_key_override(voice.clone(), enabled, value);
@@ -210,6 +239,11 @@ impl Runtime {
 
     pub fn dictionaries(&self) -> Option<&Path> {
         self.library.settings.dictionaries.as_deref()
+    }
+    pub fn set_audio_converter(&mut self, path: Option<PathBuf>) {
+        let mut settings = self.library.settings.clone();
+        settings.audio_converter = path;
+        self.library.update(settings);
     }
     pub fn set_databases(&mut self, path: PathBuf) {
         let mut settings = self.library.settings.clone();

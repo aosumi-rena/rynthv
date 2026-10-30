@@ -11,8 +11,16 @@ pub(super) fn synthesize(
     voice: &PreparedVoice,
     identity: Option<u64>,
     phrase: &PreparedPhrase,
-    mut checkpoint: impl FnMut(RenderStage) -> Result<()>,
+    checkpoint: impl FnMut(RenderStage) -> Result<()>,
 ) -> Result<RenderResult> {
+    synthesize_with(voice,identity,phrase,checkpoint,|v,i,p,c|super::render::synthesize_member(v,i,p,c))
+}
+
+pub(super) fn synthesize_with(
+    voice:&PreparedVoice,identity:Option<u64>,phrase:&PreparedPhrase,
+    mut checkpoint:impl FnMut(RenderStage)->Result<()>,
+    mut render:impl FnMut(&PreparedVoice,Option<u64>,&PreparedPhrase,&mut dyn FnMut(RenderStage)->Result<()>)->Result<RenderResult>,
+)->Result<RenderResult> {
     let seating=phrase.unison.seating(&voice.speakers)?;
     let mut mixed = Mix::default();
     let mut lead = None;
@@ -30,7 +38,7 @@ pub(super) fn synthesize(
         let _member_trace=crate::synthesis::stages::duration::diagnostic::member_scope(index,speaker.map(|s|s.id));
         let member=selected.as_ref().unwrap_or(voice);
         let member_phrase = &member_phrases[index];
-        let result = super::render::synthesize_member(member, identity, member_phrase, &mut checkpoint)?;
+        let result = render(member, identity, member_phrase, &mut checkpoint)?;
         if seating.count>1 {pitch.add(&result.visuals.pitch)?;}
         mixed.add(
             &result.state.components,

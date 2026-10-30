@@ -26,7 +26,7 @@ fn library(state:&mut PresetLibrary)->Result<&mut (PathBuf,StylePresets),String>
 }
 fn defaults(revision:&str)->StylePreset {
     let voice=serde_json::json!({"vocalModeInherited":true,"vocalModePreset":""}).as_object().unwrap().clone();
-    StylePreset {revision:revision.into(),modes:Default::default(),voice:voice.into_iter().collect()}
+    StylePreset {revision:revision.into(),modes:Default::default(),voice:voice.into_iter().collect(),experiments:None}
 }
 fn equivalent(a:&StylePreset,b:&StylePreset)->bool {
     fn canonical(p:&StylePreset)->serde_json::Value {

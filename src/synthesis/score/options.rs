@@ -44,11 +44,12 @@ pub(super) fn validate_owner(input: &OwnerInput, family: VoiceFamily) -> Result<
     ] {
         for (key, value) in values {
             let supported = match key.as_str() {
+                "rynthvExperiments" => true,
                 "isInstrumental" => value.as_bool() == Some(false),
                 "dictionary" => value.is_string(),
                 "voicePresetName" => value.as_str() == Some(""),
                 "voice" => {
-                    validate_voice(value, label, family)?;
+                    validate_voice(value, label, family,input.experiments.settings.active(input.experiments.settings.dds_controls))?;
                     true
                 }
                 "takes" => {
@@ -122,6 +123,7 @@ pub(super) fn validate_note(note: &NoteInput, family: VoiceFamily) -> Result<()>
     for (key, value) in &note.extensions {
         let supported = match key.as_str() {
             "accent" => matches!(value.as_str(), Some("" | "1" | "2" | "3" | "4" | "5")),
+            "rynthvBlendWeights" => value.is_object(),
             "detune" => value.as_f64().is_some_and(f64::is_finite),
 
             "instantMode" if family==VoiceFamily::Sv2 => value.is_boolean(),
@@ -191,7 +193,7 @@ pub(super) fn muted(attributes: &Extra) -> Result<bool> {
     }
 }
 
-fn validate_voice(value: &Value, scope: &str, family: VoiceFamily) -> Result<()> {
+fn validate_voice(value: &Value, scope: &str, family: VoiceFamily,dds:bool) -> Result<()> {
     let Some(object) = value.as_object() else {
         return unsupported(format!("{scope} non-object voice"));
     };
@@ -199,11 +201,11 @@ fn validate_voice(value: &Value, scope: &str, family: VoiceFamily) -> Result<()>
     for (key, value) in object {
         let supported = match key.as_str() {
 
-            "paramLoudness" if family == VoiceFamily::Sv2 => value.as_f64()
-                .is_some_and(|v| v.is_finite() && (-12.0..=12.0).contains(&v)),
-            "paramToneShift" if family==VoiceFamily::Sv2 => value.as_f64()
+            "paramLoudness" if family == VoiceFamily::Sv2 || dds => value.as_f64()
+                .is_some_and(|v| v.is_finite() && (-24.0..=24.0).contains(&v)),
+            "paramToneShift" if family==VoiceFamily::Sv2 || dds => value.as_f64()
                 .is_some_and(|v|v.is_finite()&&v.abs()<=800.0),
-            "paramTension"|"paramBreathiness"|"paramGender" if family==VoiceFamily::Sv2 => value.as_f64()
+            "paramTension"|"paramBreathiness"|"paramGender" if family==VoiceFamily::Sv2 || dds => value.as_f64()
                 .is_some_and(|v|v.is_finite()&&(-2.0..=2.0).contains(&v)),
             "transposeCents" | "transposeSemitones" => value.as_f64()
                 .is_some_and(|v|v.is_finite() && v.abs()<=1_000_000.0),

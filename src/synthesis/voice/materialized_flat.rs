@@ -4,7 +4,6 @@ use super::{
     preparation::{PreparedFile, PreparedModel},
 };
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, fs::File, io::Read, path::Path, sync::Arc};
 
 const MAX_MANIFEST_BYTES: usize = 1024 * 1024;
@@ -13,13 +12,31 @@ const MAX_TOTAL_BYTES: usize = 256 * 1024 * 1024;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Manifest {
+pub(super) struct Manifest {
     format: String,
     family: String,
     engine_profile: String,
     name: String,
+    #[serde(default)]
+    voice_version:String,
+    #[serde(default)]
+    language:String,
+    #[serde(default)]
+    vendor:String,
+    #[serde(default)]
+    style_names:Vec<String>,
     f0_enhancement: f32,
+    #[serde(default)]
+    language_storage: LanguageStorage,
     models: Vec<Model>,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum LanguageStorage {
+    #[default]
+    Float32,
+    Float16,
 }
 
 #[derive(Deserialize)]
@@ -27,7 +44,6 @@ struct Model {
     role: String,
     file: String,
     bytes: usize,
-    sha256: String,
 }
 
 fn role(name: &str) -> Result<(&'static str, [u8; 16])> {
@@ -57,8 +73,6 @@ fn validate(manifest: &Manifest) -> Result<()> {
         if !roles.insert(name)
             || model.file != format!("{name}.dnni")
             || !(28..=MAX_MODEL_BYTES).contains(&model.bytes)
-            || model.sha256.len() != 64
-            || !model.sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
         {
             return Err(VoiceError::new("Invalid, duplicated or nonlocal Flat model entry"));
         }
@@ -100,26 +114,43 @@ pub fn load_materialized_flat(manifest_path: &Path) -> Result<PreparedVoice> {
             return Err(VoiceError::new("Materialized model target escapes its directory"));
         }
         let bytes = read_bounded(&path, model.bytes)?;
-        if bytes.len() != model.bytes
-            || !super::hex(&Sha256::digest(&bytes)).eq_ignore_ascii_case(&model.sha256)
-        {
+        if bytes.len() != model.bytes {
             return Err(VoiceError::new(format!("Materialized {role} bytes differ from manifest")));
         }
 
         if embedded::root_type(&bytes)? != expected_type {
             return Err(VoiceError::new(format!("Materialized {role} root has the wrong native type")));
         }
-        let tree = PreparedTree::prepare_embedded(&bytes)?;
+        let tree = PreparedTree::prepare_embedded_execution(
+            &bytes, matches!(role, "f0" | "timbre" | "vocoder"))?;
         files.push(PreparedFile {
             name: model.file.clone(),
             trees: vec![PreparedModel { role, tree: Arc::new(tree) }],
         });
     }
-    let voice = PreparedVoice::new(files, VoiceFamily::Sv1, Some(manifest.f0_enhancement), Vec::new());
+    let mut voice = PreparedVoice::new(files, VoiceFamily::Sv1, Some(manifest.f0_enhancement), Vec::new())
+        .with_dds_half_precision_language(matches!(manifest.language_storage, LanguageStorage::Float16))?;
+    let tree=voice.model("timbre")?;
+    let node=tree.node(tree.root_index())?.children[1];
+    let count=tree.node(tree.node(node)?.children[0])?.children.len().checked_sub(1).ok_or_else(||VoiceError::new("Flat style map is empty"))?;
+    let names=crate::synthesis::vocal_modes::ordered_style_names(tree,node,count)?;
+    voice=voice.with_vocal_modes(Some(names))?;
     if let Some(error) = &voice.summary().stage_preparation_error {
         return Err(VoiceError::new(format!("Materialized Flat stage preparation: {error}")));
     }
     Ok(voice)
+}
+
+pub(super) fn metadata(path:&Path)->Result<super::config::VoiceConfiguration> {
+    let manifest:Manifest=serde_json::from_slice(&read_bounded(path,MAX_MANIFEST_BYTES)?).map_err(|e|VoiceError::new(e.to_string()))?;
+    validate(&manifest)?;
+    let mut configuration=super::config::VoiceConfiguration::from_materialized(manifest.name,manifest.voice_version,manifest.vendor,manifest.language,manifest.f0_enhancement)?;
+    let names=manifest.style_names.into_iter().filter(|n|!matches!(n.as_str(),"(base)"|"(default)")).collect::<Vec<_>>();
+    configuration.styles=names.clone();configuration.resolve_embedded_styles(&names)?;Ok(configuration)
+}
+
+pub(super) fn is_manifest(path:&Path)->bool {
+    path.file_name().is_some_and(|s|s.eq_ignore_ascii_case("manifest.json")) && path.is_file()
 }
 
 #[cfg(test)]
@@ -129,10 +160,13 @@ mod tests {
     fn manifest() -> Manifest {
         Manifest {
             format: "svflat-original-materialized-dds-v1".into(), family: "Sv1".into(),
+            voice_version:"1".into(),language:"japanese".into(),vendor:String::new(),
+            style_names:Vec::new(),
             engine_profile: "native-flat-1.3.4".into(), name: "metadata-only-test".into(),
+            language_storage: LanguageStorage::Float32,
             f0_enhancement: 1.0,
             models: ["duration", "f0", "timbre", "vocoder"].into_iter().map(|role| Model {
-                role: role.into(), file: format!("{role}.dnni"), bytes: 28, sha256: "0".repeat(64),
+                role: role.into(), file: format!("{role}.dnni"), bytes: 28,
             }).collect(),
         }
     }

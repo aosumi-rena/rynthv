@@ -15,12 +15,64 @@ pub fn prepare_owner(
     duration_tree: &PreparedTree,
     family: VoiceFamily,
 ) -> Result<PreparedPhrase> {
-    let mut phrase = ExplicitScore::from_owner(input, lexicon, duration_tree, family)?
+    let mut clean=input.clone();
+    clean.automation.retain(|key,_|!key.starts_with("dds")&&!key.starts_with("vocalModeComponent_")&&!key.starts_with("voiceBlend_")&&!matches!(key.as_str(),"growl_frequency"|"growl_amplitude"));
+    if family==VoiceFamily::Sv1 && !input.experiments.settings.enabled {clean.automation.retain(|key,_|!key.starts_with("vocalMode_"));}
+    for options in [&mut clean.voice.instance_options,&mut clean.voice.track_default_options] {
+        if let Some(voice)=options.get_mut("voice").and_then(serde_json::Value::as_object_mut) {
+            if family!=VoiceFamily::Sv2 {
+                if family==VoiceFamily::Sv1 {voice.remove("vocalModeParams");}
+                if !input.experiments.settings.active(input.experiments.settings.dds_controls) {
+                    for spec in crate::synthesis::parameters::VOICE_CONTROLS {if voice.contains_key(spec.key) {voice.insert(spec.key.into(),serde_json::json!(0.0));}}
+                }
+            }
+            if let Some(modes)=voice.get_mut("vocalModeParams").and_then(serde_json::Value::as_object_mut) {
+                for mode in modes.values_mut() {
+                    if let Some(value)=mode.as_f64() {*mode=serde_json::json!(value.clamp(0.0,150.0));}
+                    else if let Some(lanes)=mode.as_object_mut() {for value in lanes.values_mut() {
+                        if let Some(number)=value.as_f64() {*value=serde_json::json!(number.clamp(0.0,150.0));}
+                    }}
+                }
+            }
+            if input.voice.instance_options.get("rynthvExperiments")
+                .and_then(|v|v.get("extended_expression")).and_then(serde_json::Value::as_bool)==Some(true) {
+                let factor=input.experiments.settings.expression_factor();
+                for spec in crate::synthesis::parameters::VOICE_CONTROLS {
+                    if let Some(number)=voice.get(spec.key).and_then(serde_json::Value::as_f64) {
+                        let value=(number as f32).clamp(-spec.limit*factor,spec.limit*factor);
+                        voice.insert(spec.key.into(),serde_json::json!(value));
+                    }
+                }
+            }
+        }
+    }
+    let mut phrase = ExplicitScore::from_owner(&clean, lexicon, duration_tree, family)?
         .prepare(duration_tree, family, lexicon.default_language_key())?;
     phrase.pitch_controls = super::PreparedPitchControls::new(input)?;
-    phrase.automation = super::PreparedAutomation::new(input);
+    if input.experiments.settings.active(input.experiments.settings.component_curves) {
+        clean.automation=input.automation.clone();
+        clean.automation.retain(|key,_|!key.starts_with("dds")&&!key.starts_with("voiceBlend_")&&!matches!(key.as_str(),"growl_frequency"|"growl_amplitude"));
+    }
+    if input.experiments.settings.active(input.experiments.settings.growl) {
+        super::PreparedAutomation::add_growl(input,&mut clean.automation)?;
+    }
+    phrase.automation = super::PreparedAutomation::new(&clean);
     phrase.performance_controls = super::PreparedPerformanceControls::new(input)?;
-    phrase.voice_parameters=crate::synthesis::parameters::VoiceParameters::from_input(&input.voice)?;
+    phrase.voice_parameters=crate::synthesis::parameters::VoiceParameters::from_input(&clean.voice)?;
+    phrase.experimental_dds_expression=family!=VoiceFamily::Sv2 && input.experiments.settings.active(input.experiments.settings.dds_controls);
+    if input.experiments.settings.enabled {
+        let (low,high)=input.experiments.settings.style_range();
+        phrase.experimental_style_range=Some((low as f32/100.0,high as f32/100.0));
+        if let Some(raw)=input.voice.instance_options.get("voice").and_then(|v|v.get("vocalModeParams")) {
+            let mut modes:crate::model::PublicModeMap=serde_json::from_value(raw.clone()).map_err(|e|VoiceError::new(e.to_string()))?;
+            for control in modes.values_mut() {
+                for value in [&mut control.pitch,&mut control.timbre,&mut control.pronunciation] {
+                    if let Some(value)=value {*value=value.clamp(low,high);}
+                }
+            }
+            phrase.vocal_modes=Some(modes);
+        }
+    }
     phrase.phoneme_controls=super::phonemes::from_owner(input)?;
     phrase.unison=crate::synthesis::unison::UnisonSettings::from_input(&input.voice)?;
 

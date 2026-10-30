@@ -78,6 +78,7 @@ pub struct PlanSummary {
 }
 
 pub struct Planner {
+    pub experiments: crate::synthesis::experiments::ExperimentalContext,
     plan: RenderPlan,
     next_epoch: u64,
     revision: ProjectRevision,
@@ -88,6 +89,7 @@ impl Default for Planner {
     fn default() -> Self {
         Self {
             plan: RenderPlan::default(),
+            experiments: Default::default(),
             next_epoch: 0,
             revision: ProjectRevision(0),
             output_changed_owners: 0,
@@ -116,7 +118,15 @@ impl Planner {
                     continue;
                 };
                 let identity = voice_identity(OwnerId::new(reference.id));
-                let input = OwnerInput::new(project, track, reference, group, identity.as_deref());
+                let mut input = OwnerInput::new(project, track, reference, group, identity.as_deref());
+                input.experiments.settings=self.experiments.settings;
+                if self.experiments.settings.enabled {
+                    if let Ok(controls)=crate::synthesis::experiments::ExperimentControls::from_extra(&reference.extra) {
+                        input.experiments.sources=self.experiments.sources.iter().filter(|source|
+                            (self.experiments.settings.voice_blending && controls.voices.iter().any(|v|v.voice==source.voice))
+                            || (self.experiments.settings.dds_controls && controls.dds.vocoder.as_ref()==Some(&source.voice))).cloned().collect();
+                    }
+                }
                 for (section, input) in input.sections() {
                 let Some(coverage) = input.coverage() else {
                     continue;
@@ -201,7 +211,7 @@ impl Planner {
                     note_count: r.input.notes.len(),
                     coverage: r.coverage,
                     dependency_policy: r.dependency_policy,
-                    voice_available: r.input.voice.model_content_identity.is_some(),
+                    voice_available: r.input.voice.model_source_identity.is_some(),
                     reused_request: !self.plan.changes.iter().any(|c| c.owner == r.owner),
                     output: self.plan.output_controls[&r.owner].clone(),
                 })

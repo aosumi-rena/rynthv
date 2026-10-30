@@ -28,7 +28,8 @@ pub(super) fn dds_pitch(voice: &PreparedVoice) -> Result<Sv1F0Stage<'_>> {
 pub(super) fn dds_timbre(voice: &PreparedVoice) -> Result<Sv1TimbreNetwork<'_>> {
     let tree = voice.model("timbre")?;
     match voice.family {
-        VoiceFamily::Sv1 => Sv1TimbreNetwork::prepare_native(tree),
+        VoiceFamily::Sv1 => Sv1TimbreNetwork::prepare_native_with_language_precision(
+            tree, voice.dds_half_precision_language),
         VoiceFamily::Sv2Compatible => Sv1TimbreNetwork::prepare(tree),
         VoiceFamily::Sv2 => Err(VoiceError::new(
             "SV2 voice does not use the DDS acoustic program",

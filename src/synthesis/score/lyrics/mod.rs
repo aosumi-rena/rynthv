@@ -36,6 +36,9 @@ enum Lexicon {
 }
 
 impl LyricFrontend {
+    pub fn for_voice(&self,default_language:&str,supported:&[String])->Result<Self> {
+        Self::new(&self.directory,default_language,supported)
+    }
     pub(super) fn default_language(&self) -> Language {
         self.default_language
     }

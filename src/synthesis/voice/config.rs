@@ -33,6 +33,15 @@ pub struct VoiceConfiguration {
 }
 
 impl VoiceConfiguration {
+    pub(super) fn from_materialized(name:String,version:String,vendor:String,language:String,f0:f32)->Result<Self> {
+        let mut fields=BTreeMap::from([
+            (".type".into(),"mu".into()),("f0model-configs".into(),"_ _ _ _ _ _ _ _".into()),
+            (".name".into(),name),(".version".into(),version),(".vendor".into(),if vendor.is_empty(){"Flat".into()}else{vendor}),
+            (".language".into(),language),(".feature_f0_enhancement".into(),f0.to_string()),
+        ]);
+        if fields[".version"].is_empty() {fields.insert(".version".into(),"0".into());}
+        Self::from_nofs(fields)
+    }
 
     pub fn additional_metadata(&self) -> &BTreeMap<String, String> { &self._uninterpreted }
 
@@ -173,7 +182,7 @@ impl VoiceConfiguration {
             .transpose()?;
         if name.is_empty()
             || vendor.is_empty()
-            || version.parse::<u32>().is_err()
+            || version.parse::<super::VoiceRevision>().is_err()
             || !supported_languages.contains(&default_language)
             || f0_enhancement.is_some_and(|value| !value.is_finite() || value < 0.0)
         {

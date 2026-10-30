@@ -1,6 +1,7 @@
 mod performance;
 mod retake_buttons;
 mod retakes;
+mod blend;
 use super::controls::*;
 use crate::{
     app::App,
@@ -26,6 +27,9 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
     }
     section(ui, crate::i18n::t("演绎"), |ui| performance::expression(app, ui));
     section(ui, crate::i18n::t("AI 重录"), |ui| retakes::show(app, ui));
+    if blend::available(app) {
+        section(ui,crate::i18n::t("局部歌声混合"),|ui|blend::show(app,ui));
+    }
     let notes: Vec<_> = app
         .editor
         .notes()

@@ -43,9 +43,13 @@ impl PreparedRender {
         let started = Instant::now();
         let prepared = &self.acoustic.prepared;
         let phrase = &prepared.phrase;
-        let requested_frame = ((plan.requested_seconds - phrase.start_seconds) / FRAME_SECONDS)
-            .floor()
-            .max(0.0) as usize;
+        let requested_frame = if voice.family == crate::synthesis::voice::VoiceFamily::Sv1 {
+            0
+        } else {
+            ((plan.requested_seconds - phrase.start_seconds) / FRAME_SECONDS)
+                .floor()
+                .max(0.0) as usize
+        };
         if self.timbre_frames.get().is_none() {
             let frames = network.prepare_frames(&self.acoustic)?;
             let _ = self.timbre_frames.set(frames);
@@ -65,7 +69,8 @@ impl PreparedRender {
             Some(crate::synthesis::stages::vocoder::noise_seeds::for_phrase(phrase,timbre.first_frame())?.into())
         }else{None};
         let vocoder = pipeline::Pipeline::new(voice.shared_model("vocoder")?,effects,
-            voice.family==crate::synthesis::voice::VoiceFamily::Sv2Compatible,seeds)?;
+            voice.family==crate::synthesis::voice::VoiceFamily::Sv2Compatible,
+            voice.family==crate::synthesis::voice::VoiceFamily::Sv1,seeds)?;
         Ok(Some(Cursor {
             timbre,
             vocoder,

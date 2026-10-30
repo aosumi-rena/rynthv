@@ -8,6 +8,8 @@ mod pitch;
 mod prepared;
 pub mod progressive;
 mod render;
+pub mod experimental;
+mod acoustic_mix;
 
 pub use acoustics::{
     AcousticRender, PreparedRenderAcoustics, StageTimings, prepare_acoustics, synthesize_acoustics,

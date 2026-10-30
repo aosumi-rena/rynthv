@@ -1,4 +1,4 @@
-mod conditioning;
+pub(super) mod conditioning;
 mod prepare;
 
 pub use prepare::prepare_acoustics;
@@ -66,7 +66,7 @@ pub(super) fn synthesize_acoustics_with_host(
     let impulses = render.impulses();
     let frame_controls=render.frame_controls();
     let acoustic_pitch = render.acoustic_pitch()?;
-    let request = TimbreRequest {
+    let request = TimbreRequest { dds:None,
         mode_coefficients: render.prepared.phrase.mode_coefficients.as_ref(),
         notes: &render.prepared.phrase.notes,
         phones: &render.prepared.phones,

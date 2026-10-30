@@ -270,7 +270,8 @@ impl Default for Project {
             library: Vec::new(),
             tracks: vec![Track::new(0)],
             render_config: BTreeMap::from([
-                ("destination".into(), json!("")),
+                ("destination".into(), json!("./")),
+                ("audioFormat".into(), json!("wav")),
                 ("filename".into(), json!("未命名")),
                 ("numChannels".into(), json!(1)),
                 ("aspirationFormat".into(), json!("noAspiration")),

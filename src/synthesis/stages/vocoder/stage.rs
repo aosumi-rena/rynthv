@@ -21,6 +21,7 @@ pub struct VocoderStage<'a> {
     pub(crate) positional: Option<PositionalGru>,
     pub(crate) effects:Option<super::effects::EffectTimeline>,
     pub(crate) compatible_dispatch:bool,
+    pub(crate) native_dds: bool,
     pub(crate) independent_branches:bool,
     pub(crate) streamed_frame_noise:bool,
     pub(crate) editor_seed_source:Option<std::sync::Arc<[u64]>>,
@@ -83,6 +84,7 @@ impl<'a> VocoderStage<'a> {
             positional,
             effects:None,
             compatible_dispatch:false,
+            native_dds: false,
             independent_branches:false,
             streamed_frame_noise:false,
             editor_seed_source:None,
@@ -94,6 +96,10 @@ impl<'a> VocoderStage<'a> {
     }
 
     pub fn set_compatible_dispatch(&mut self) {self.compatible_dispatch=true;self.independent_branches=true;}
+    pub fn set_native_dds(&mut self) {
+        self.native_dds = true;
+        self.independent_branches = true;
+    }
     pub fn set_editor_seed_source(&mut self,seeds:std::sync::Arc<[u64]>) {
         self.editor_seed_source=Some(seeds);self.streamed_frame_noise=true;self.independent_branches=true;
     }

@@ -1,4 +1,5 @@
 mod pages;
+mod experiments;
 mod preferences;
 mod shortcuts;
 mod widgets;
@@ -26,16 +27,18 @@ enum Page {
     Recording,
     Rendering,
     Shortcuts,
+    Experiments,
 }
 
 impl Page {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 7] = [
         Self::General,
         Self::Audio,
         Self::Editing,
         Self::Recording,
         Self::Rendering,
         Self::Shortcuts,
+        Self::Experiments,
     ];
     fn label(self) -> &'static str {
         match self {
@@ -44,6 +47,7 @@ impl Page {
             Self::Editing => crate::i18n::t("编辑器"),
             Self::Recording => crate::i18n::t("录制"),
             Self::Rendering => crate::i18n::t("渲染"),
+            Self::Experiments => crate::i18n::t("实验功能"),
             Self::Shortcuts => crate::i18n::t("快捷键"),
         }
     }
@@ -137,6 +141,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                         Page::Editing => pages::editing(app, ui),
                         Page::Recording => pages::recording(ui),
                         Page::Rendering => pages::rendering(app, ui),
+                        Page::Experiments => experiments::show(app,ui),
                         Page::Shortcuts => shortcuts::show(ui),
                     }
                 });
@@ -158,6 +163,7 @@ fn navigation(ui: &mut Ui, page: Page, selected: bool) -> Response {
     }
     let icon = Rect::from_center_size(rect.left_center() + vec2(19.0, 0.0), Vec2::splat(18.0));
     match page {
+        Page::Experiments => Icon::Settings.paint(ui,icon,MUTED),
         Page::General => Icon::Settings.paint(ui, icon, MUTED),
         Page::Editing => Icon::Notes.paint(ui, icon, MUTED),
         Page::Recording => {

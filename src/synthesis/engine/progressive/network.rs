@@ -58,7 +58,7 @@ impl<'tree> Network<'tree> {
                 let modulation = acoustic.modulation();
                 let acoustic_pitch = acoustic.acoustic_pitch()?;
                 let frames = network.prepare_frame_features(
-                    &TimbreRequest {
+                    &TimbreRequest { dds:None,
                         mode_coefficients: prepared.phrase.mode_coefficients.as_ref(),
                         notes: &prepared.phrase.notes,
                         phones: &prepared.phones,
@@ -94,7 +94,7 @@ impl<'tree> Network<'tree> {
         let impulses = acoustic.impulses();
         let frame_controls=acoustic.frame_controls();
         let acoustic_pitch=acoustic.acoustic_pitch()?;
-        let request = TimbreRequest {
+        let request = TimbreRequest { dds:None,
             mode_coefficients: prepared.phrase.mode_coefficients.as_ref(),
             notes: &prepared.phrase.notes,
             phones: &prepared.phones,
@@ -110,7 +110,7 @@ impl<'tree> Network<'tree> {
                 .map(|stream| Stream::Dds(Box::new(stream))),
             (Self::Sv2(network), PreparedFrames::Sv2(frames)) => network
                 .start_prepared(
-                    &TimbreRequest {
+                    &TimbreRequest { dds:None,
                         phone_impulses: Some(&impulses),
                         ..request
                     },

@@ -12,7 +12,8 @@ impl Editor {
         let modes: PublicModeMap = serde_json::from_value(voice.remove("vocalModeParams")
             .unwrap_or_else(||serde_json::json!({}))).map_err(|e|e.to_string())?;
         let name = reference.extra.get("voicePresetName").and_then(|v|v.as_str()).unwrap_or("").to_owned();
-        Ok((reference.id, name, StylePreset { revision:revision.into(), modes, voice:voice.into_iter().collect() }))
+        let experiments=reference.extra.get("rynthvExperiments").map(|_|crate::synthesis::experiments::ExperimentControls::from_extra(&reference.extra)).transpose().map_err(|e|e.to_string())?;
+        Ok((reference.id, name, StylePreset { revision:revision.into(), modes, voice:voice.into_iter().collect(),experiments }))
     }
 
     pub fn apply_voice_preset(&mut self, reference: EntityId, catalogue: &[String], preset: &StylePreset, name: &str) -> Result<bool,String> {
@@ -26,6 +27,14 @@ impl Editor {
         voice.insert("vocalModeParams".into(),serde_json::to_value(&preset.modes).map_err(|e|e.to_string())?);
         extra.insert("voice".into(),serde_json::Value::Object(voice));
         extra.insert("voicePresetName".into(),name.into());
+        if let Some(controls)=&preset.experiments {extra.insert("rynthvExperiments".into(),serde_json::to_value(controls).map_err(|e|e.to_string())?);}
+        else {extra.remove("rynthvExperiments");}
+        if crate::synthesis::parameters::VOICE_CONTROLS.iter().any(|spec|
+            preset.voice.get(spec.key).and_then(|v|v.as_f64()).is_some_and(|v|v.abs()>f64::from(spec.limit))) {
+            let mut controls=crate::synthesis::experiments::ExperimentControls::from_extra(&extra).map_err(|e|e.to_string())?;
+            controls.extended_expression=true;
+            extra.insert("rynthvExperiments".into(),serde_json::to_value(controls).map_err(|e|e.to_string())?);
+        }
         if extra == target.extra { return Ok(false); }
         self.begin("应用歌声预设");
         let track = self.project.tracks.iter_mut().find(|t|t.id==self.track).expect("validated track");

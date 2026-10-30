@@ -29,6 +29,11 @@ pub(super) fn entry(path: &Path) -> Result<VoiceCatalogEntry> {
         portrait: None,
         availability: VoiceAvailability::Loadable,
     };
+    if crate::synthesis::voice::flat::is_profile(path) {
+        return match super::flat::profile_entry(path) {
+            Ok(value)=>Ok(value),Err(error)=>{entry.database_id=entry.database_id.replacen("sv1:","flat:",1);entry.availability=VoiceAvailability::Unsupported(error.to_string());Ok(entry)}
+        };
+    }
     let description =
         nofs::NofsArchive::open(path).and_then(|mut archive| nofs::describe(&mut archive));
     match description {

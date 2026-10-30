@@ -10,7 +10,6 @@ use std::{
 };
 
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 
 use super::{
     Result, VoiceError,
@@ -27,7 +26,8 @@ pub struct VoiceInventory {
     pub database_id: String,
     pub directory: PathBuf,
     pub display_name: String,
-    pub content_hash: String,
+    #[serde(skip)]
+    pub source_identity: String,
     pub resource_count: usize,
     pub graph_count: usize,
     pub tensor_count: usize,
@@ -58,8 +58,6 @@ enum LoadedTree {
 pub struct VoiceFile {
     pub name: String,
     pub bytes: usize,
-    pub sha256: String,
-    pub sha256_scope: &'static str,
     pub resources: usize,
     pub borrowed_resources: usize,
     pub encoded_resources: usize,
@@ -92,6 +90,12 @@ pub struct TensorSummary {
 }
 
 impl VoiceInventory {
+    fn from_prepared(path:&Path,configuration:VoiceConfiguration,voice:PreparedVoice)->Result<Self> {
+        let ready=OnceLock::new();let _=ready.set(Ok(Arc::new(voice)));
+        Ok(Self {database_id:super::nofs::database_id(path)?.replacen("sv1:","flat:",1),directory:path.to_owned(),
+            display_name:configuration.name.clone(),source_identity:source_identity(path),resource_count:0,graph_count:4,tensor_count:0,
+            files:Vec::new(),configuration:Some(configuration),_models:Vec::new(),preparation:ready})
+    }
     pub fn prepare(&self) -> Result<Arc<PreparedVoice>> {
         self.preparation
             .get_or_init(|| {
@@ -105,8 +109,10 @@ impl VoiceInventory {
                             .iter()
                             .enumerate()
                             .map(|(index, graph)| {
-                                let legacy_integer=self.configuration.as_ref().is_some_and(|c|
-                                    c.family==super::VoiceFamily::Sv2Compatible && matches!(graph.role,"f0"|"timbre"));
+                                let native_dds = self.configuration.as_ref().is_some_and(|c|
+                                    c.family == super::VoiceFamily::Sv1 && matches!(graph.role, "f0" | "timbre" | "vocoder"));
+                                let legacy_integer = native_dds || self.configuration.as_ref().is_some_and(|c|
+                                    c.family == super::VoiceFamily::Sv2Compatible && matches!(graph.role, "f0" | "timbre"));
                                 let tree = match model {
                                     LoadedModel::Dnni { archive, trees } => match &trees[index] {
                                         LoadedTree::Indexed(tree) => {
@@ -120,7 +126,7 @@ impl VoiceInventory {
                                         }
                                     },
                                     LoadedModel::Nofs { trees } => {
-                                        PreparedTree::prepare_embedded(&trees[index])?
+                                        PreparedTree::prepare_embedded_execution(&trees[index],native_dds)?
                                     }
                                 };
                                 Ok(PreparedModel {
@@ -155,10 +161,21 @@ impl VoiceInventory {
     }
 
     pub fn identity(&self) -> &str {
-        &self.content_hash
+        &self.source_identity
     }
 
     pub fn load(directory: &Path) -> Result<Self> {
+        if super::flat::is_profile(directory) {
+            let (voice,configuration)=super::flat::load(directory)?;
+            return Self::from_prepared(directory,configuration,voice);
+        }
+        let manifest=if directory.is_dir() {directory.join("manifest.json")}else{directory.to_owned()};
+        if super::materialized_flat::is_manifest(&manifest) {
+            let mut configuration=super::materialized_flat::metadata(&manifest)?;
+            let voice=super::load_materialized_flat(&manifest)?;
+            configuration.resolve_embedded_styles(voice.vocal_modes.as_deref().unwrap_or_default())?;
+            return Self::from_prepared(&manifest,configuration,voice);
+        }
         if super::nofs::is_file(directory) {
             return nofs::load(directory);
         }
@@ -184,7 +201,7 @@ impl VoiceInventory {
                     "目录同时包含 SV1 与 SV2 模型，请选择明确的声库文件或版本目录",
                 ));
             }
-            return nofs::load(&nofs_files[0]);
+            return Self::load(&nofs_files[0]);
         }
         let context = FormatContext::dnni_v3();
         let mut paths = fs::read_dir(directory)?
@@ -214,7 +231,7 @@ impl VoiceInventory {
             files: Vec::new(),
             configuration: None,
             display_name: String::new(),
-            content_hash: String::new(),
+            source_identity: source_identity(directory),
             resource_count: 0,
             graph_count: 0,
             tensor_count: 0,
@@ -245,11 +262,7 @@ impl VoiceInventory {
                 .expect("checked configuration")
                 .resolve_embedded_styles(&names)?;
         }
-        let mut identity = Sha256::new();
         for file in &inventory.files {
-            identity.update((file.name.len() as u64).to_le_bytes());
-            identity.update(file.name.as_bytes());
-            identity.update(file.sha256.as_bytes());
             inventory.resource_count += file.resources;
             inventory.graph_count += file.graphs.len();
             inventory.tensor_count += file
@@ -258,11 +271,17 @@ impl VoiceInventory {
                 .map(|tensor| tensor.resources)
                 .sum::<usize>();
         }
-        inventory.content_hash = super::hex(&identity.finalize());
         inventory.display_name = inventory.configuration.as_ref().map_or_else(
             || "未识别声库".to_owned(),
             |configuration| configuration.name.clone(),
         );
         Ok(inventory)
     }
+}
+
+fn source_identity(path: &Path) -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static LOAD: AtomicU64 = AtomicU64::new(1);
+    let path = path.canonicalize().unwrap_or_else(|_| path.to_owned());
+    format!("{}#{}", path.display(), LOAD.fetch_add(1, Ordering::Relaxed))
 }

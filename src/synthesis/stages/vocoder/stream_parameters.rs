@@ -78,7 +78,11 @@ impl<'a> ParameterStream<'a> {
         }
         physical.validate()?;
         let metadata = metadata::from_timbre(controls, physical.frames)?;
-        let normalized = self.stage.condition.normalize(physical)?;
+        let normalized = if self.stage.native_dds {
+            self.stage.condition.normalize_native(physical)?
+        } else {
+            self.stage.condition.normalize(physical)?
+        };
         let input_frames = self
             .input_frames
             .checked_add(physical.frames)

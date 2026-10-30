@@ -105,9 +105,8 @@ pub(super) fn interaction(
     }
 }
 fn sample(app: &App, canvas: Rect, lane: &Lane, reference: &GroupRef, p: Pos2) -> (i64, f64) {
-    let time = ticks(beat_at(canvas, &app.view.piano, p.x))
-        .clamp(reference.blick_absolute_begin, reference.visible_end() - 1)
-        - reference.blick_offset;
+    let time = ticks(beat_at(canvas, &app.view.piano, p.x)).max(0)
+        .saturating_sub(reference.blick_offset);
     let (lo, hi) = geometry::lane_range(lane);
     let (allowed_lo, allowed_hi) = lane.foreground.range();
     let value = (lo + f64::from((canvas.bottom() - p.y) / canvas.height()) * (hi - lo))
@@ -117,8 +116,8 @@ fn sample(app: &App, canvas: Rect, lane: &Lane, reference: &GroupRef, p: Pos2) -
 fn apply(app: &mut App, g: &CurveGesture) {
     let left = *g.points.first_key_value().unwrap().0;
     let right = *g.points.last_key_value().unwrap().0;
-    let begin = g.reference.blick_absolute_begin - g.reference.blick_offset;
-    let end = g.reference.visible_end() - 1 - g.reference.blick_offset;
+    let begin = 0_i64.saturating_sub(g.reference.blick_offset);
+    let end = i64::MAX.saturating_sub(g.reference.blick_offset);
     let low = left.saturating_sub(g.guard).max(begin);
     let high = right.saturating_add(g.guard).min(end);
     let mut curve = g.original.clone();

@@ -7,13 +7,17 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
     ui.spacing_mut().item_spacing.y = 0.0;
     for spec in VOICE_CONTROLS {control(app,ui,spec);}
 }
-pub(super) fn control(app:&mut App,ui:&mut Ui,spec:ParameterSpec) {
+pub(super) fn control(app:&mut App,ui:&mut Ui,mut spec:ParameterSpec) {
+    if crate::synthesis::parameters::VOICE_CONTROLS.iter().any(|s|s.key==spec.key) {
+        spec.limit*=app.synthesis.library.settings.experiments.expression_factor();
+    }
+    let additional=VOICE_CONTROLS.iter().chain(crate::synthesis::parameters::TUNING_CONTROLS.iter()).any(|s|s.key==spec.key);
     let supported = app.voice_inventory().and_then(|v| v.configuration.as_ref())
-        .is_some_and(|v| v.family == VoiceFamily::Sv2);
+        .is_some_and(|v| v.family == VoiceFamily::Sv2 || (additional && app.synthesis.library.settings.experiments.active(app.synthesis.library.settings.experiments.dds_controls)));
     match app.editor.voice_parameter(spec) {
         Ok((reference, value)) if supported => {
             let id = ui.make_persistent_id((spec.key, reference, app.editor.revision));
-            let mut current = ui.ctx().data_mut(|d| d.get_temp::<f32>(id)).unwrap_or(value);
+            let mut current = ui.ctx().data_mut(|d| d.get_temp::<f32>(id)).unwrap_or(value.clamp(-spec.limit,spec.limit));
             let response = slider(ui, &mut current,spec);
             if response.dragged() { ui.ctx().data_mut(|d| d.insert_temp(id, current)); }
             if response.drag_stopped() || response.clicked() || response.double_clicked() {

@@ -23,6 +23,11 @@ impl Editor {
         next.entry("voice".into()).or_insert_with(|| Value::Object(Map::new()))
             .as_object_mut().ok_or("voice 字段必须是对象")?
             .insert(spec.key.into(), Value::from(value));
+        if crate::synthesis::parameters::VOICE_CONTROLS.iter().any(|s|s.key==spec.key && spec.limit>s.limit) {
+            let mut controls=crate::synthesis::experiments::ExperimentControls::from_extra(&next).map_err(|e|e.to_string())?;
+            controls.extended_expression=true;
+            next.insert("rynthvExperiments".into(),serde_json::to_value(controls).map_err(|e|e.to_string())?);
+        }
         self.begin(&format!("调整歌声{}",spec.label));
         let track = self.project.tracks.iter_mut().find(|track| track.id == self.track).expect("selected track exists");
         std::iter::once(&mut track.main_ref).chain(&mut track.groups)

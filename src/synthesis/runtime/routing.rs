@@ -55,6 +55,15 @@ impl Runtime {
                 continue;
             }
             for reference in track.references() {
+                let features=self.library.settings.experiments;
+                if features.enabled {
+                    if let Ok(controls)=crate::synthesis::experiments::ExperimentControls::effective(&reference.extra,features) {
+                        if let Some(group)=project.group(&reference.group_id) {
+                            if features.voice_blending {required.extend(controls.voices.into_iter().filter(|v|v.active(&group.parameters,group.notes.iter().map(|n|&n.extra)).unwrap_or(false)).map(|v|v.voice));}
+                            if features.dds_controls {required.extend(controls.dds.vocoder);}
+                        }
+                    }
+                }
                 match self.resolve_voice(track, reference) {
                     Ok(Some(key)) => {
                         required.insert(key.clone());
@@ -125,10 +134,20 @@ impl Runtime {
             .iter()
             .filter_map(|(&owner, key)| {
                 self.inventory(key)
-                    .map(|voice| (owner, voice.content_hash.clone()))
+                    .map(|voice| (owner, voice.source_identity.clone()))
             })
             .collect();
         self.metronome.update(project);
+        self.planner.experiments.settings=self.library.settings.experiments;
+        self.planner.experiments.sources=self.voices.iter().filter_map(|(key,_)| {
+            let inventory=self.inventory(key)?;
+            let config=inventory.configuration.as_ref()?;
+            Some(crate::synthesis::experiments::BlendSource {
+                voice:key.clone(),source_identity:inventory.source_identity.clone(),name:config.name.clone(),
+                default_language:config.default_language.clone(),supported_languages:config.supported_languages.clone(),
+                prepared:inventory.preparation()?.clone(),identity_override:self.library.settings.duration_key_override_for(key),
+            })
+        }).collect();
         self.planner
             .update(project, revision, |owner| identities.get(&owner).cloned());
         self.sync_visuals();

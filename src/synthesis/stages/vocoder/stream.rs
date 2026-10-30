@@ -13,6 +13,7 @@ pub struct VocoderStream<'a> {
     neural:NeuralStream<'a>,
     compatible:Option<super::compatible_dispatch::CompatibleDispatch>,
     sv2:Option<super::sv2_packets::Sv2Packets>,
+    dds_smoothing: Option<crate::synthesis::stages::sv1_smoothing::Smoother>,
 }
 
 pub(super) struct NeuralStream<'a> {
@@ -26,11 +27,15 @@ pub(super) struct NeuralStream<'a> {
 
 impl<'a> VocoderStage<'a> {
     pub fn into_stream(self) -> Result<VocoderStream<'a>> {
+        if self.native_dds && (self.compatible_dispatch || self.editor_seed_source.is_some()) {
+            return Err(VoiceError::new("Conflicting DDS vocoder programs"));
+        }
         if self.compatible_dispatch&&self.editor_seed_source.is_some() {return Err(VoiceError::new("Conflicting vocoder packet programs"));}
         let signals = SignalStream::new(&self)?;
-        let compatible=self.compatible_dispatch.then(super::compatible_dispatch::CompatibleDispatch::new);
+        let compatible=(self.compatible_dispatch || self.native_dds).then(super::compatible_dispatch::CompatibleDispatch::new);
         let sv2=self.editor_seed_source.clone().map(super::sv2_packets::Sv2Packets::new);
-        Ok(VocoderStream {compatible,sv2,neural:NeuralStream {
+        let dds_smoothing = self.native_dds.then(crate::synthesis::stages::sv1_smoothing::Smoother::new);
+        Ok(VocoderStream {compatible,sv2,dds_smoothing,neural:NeuralStream {
             parameters: ParameterStream::new(self)?,
             signals,
             metadata: VecDeque::new(),
@@ -43,6 +48,12 @@ impl<'a> VocoderStage<'a> {
 
 impl VocoderStream<'_> {
     pub fn process(&mut self,physical:&Sequence,controls:Option<&Sequence>,final_batch:bool)->Result<VocoderOutput> {
+        if let Some(smoother) = &mut self.dds_smoothing {
+            if controls.is_some() { return Err(VoiceError::new("DDS smoothing requires paired native controls")); }
+            let smoothed = smoother.process(physical, final_batch)?;
+            return self.compatible.as_mut().expect("DDS dispatch prepared")
+                .process(&mut self.neural, &smoothed, None, final_batch);
+        }
         if let Some(packets)=&mut self.sv2 {return packets.process(&mut self.neural,physical,controls,final_batch);}
         match &mut self.compatible {
             Some(adapter)=>adapter.process(&mut self.neural,physical,controls,final_batch),

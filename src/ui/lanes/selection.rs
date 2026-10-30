@@ -33,13 +33,8 @@ pub(super) fn editable(app: &App, target: &Parameter) -> bool {
 }
 pub(super) fn editable_bounds(app: &App) -> Option<(i64, i64)> {
     let reference = app.editor.active_ref()?;
-    let begin = reference
-        .blick_absolute_begin
-        .checked_sub(reference.blick_offset)?;
-    let end = reference
-        .visible_end()
-        .checked_sub(1)?
-        .checked_sub(reference.blick_offset)?;
+    let begin = 0_i64.saturating_sub(reference.blick_offset);
+    let end = i64::MAX.saturating_sub(reference.blick_offset);
     (begin <= end).then_some((begin, end))
 }
 pub(super) fn reconcile(app: &mut App) {

@@ -128,6 +128,24 @@ pub(super) fn rendering(app: &mut App, ui: &mut Ui) {
         }
     });
     section(ui, crate::i18n::t("音频导出"));
+    row(ui, crate::i18n::t("音频转换器（FFmpeg）"), |ui| {
+        if let Some(path) = &app.synthesis.library.settings.audio_converter {
+            ui.add(Label::new(path.display().to_string()).wrap());
+        } else {
+            ui.weak(crate::i18n::t("自动查找"));
+        }
+        ui.horizontal(|ui| {
+            if ui.button(crate::i18n::t("选择文件…")).clicked()
+                && let Some(path) = rfd::FileDialog::new().set_title("FFmpeg").pick_file() {
+                app.synthesis.set_audio_converter(Some(path));
+            }
+            if app.synthesis.library.settings.audio_converter.is_some()
+                && ui.button(crate::i18n::t("自动查找")).clicked() {
+                app.synthesis.set_audio_converter(None);
+            }
+        });
+    });
+    ui.weak(crate::i18n::t("其他格式先生成 WAV，再由 FFmpeg 转换。"));
     row(ui, crate::i18n::t("导出设置"), |ui| {
         if ui.button(crate::i18n::t("打开渲染面板")).clicked() {
             if !app.view.columns.contains(&Column::Render) {

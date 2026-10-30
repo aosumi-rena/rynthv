@@ -11,6 +11,8 @@ pub struct StylePreset {
 
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub voice: BTreeMap<String, serde_json::Value>,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub experiments:Option<crate::synthesis::experiments::ExperimentControls>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -20,6 +22,9 @@ pub struct StylePresets {
 }
 
 fn bank_id(bank: &str) -> Result<String, String> {
+    if let Some(tail)=bank.strip_prefix("sv1:").or_else(||bank.strip_prefix("flat:")) {
+        if !tail.is_empty() && tail.len()<=1024 && !tail.chars().any(|c|c.is_control() || matches!(c,'/'|'\\')) {return Ok(bank.to_owned());}
+    }
     uuid::Uuid::parse_str(bank).map(|v| v.to_string()).map_err(|_| "歌声 K1 无效".into())
 }
 fn name(value: &str) -> Result<&str, String> {
@@ -31,9 +36,10 @@ fn name(value: &str) -> Result<&str, String> {
 
 impl StylePreset {
     pub fn validate_for(&self, revision: &str, catalogue: &[String]) -> Result<(), String> {
+        if let Some(controls)=&self.experiments {controls.validate().map_err(|e|e.to_string())?;}
         if self.revision.is_empty() { return Err("预设缺少来源版本".into()); }
         for (mode, control) in &self.modes {
-            control.validate()?;
+            control.validate_storage()?;
             if !catalogue.contains(mode) {
                 return Err(format!("预设来自版本 {}，当前版本 {revision} 不支持唱法「{mode}」；未应用", self.revision));
             }
@@ -56,7 +62,8 @@ impl StylePresets {
             for (label, preset) in presets {
                 if !label.is_empty() { name(label)?; }
                 if preset.revision.is_empty() { return Err("唱法预设缺少来源版本".into()); }
-                for control in preset.modes.values() { control.validate()?; }
+                if let Some(controls)=&preset.experiments {controls.validate().map_err(|e|e.to_string())?;}
+                for control in preset.modes.values() { control.validate_storage()?; }
             }
         }
         Ok(store)
@@ -120,7 +127,7 @@ mod tests {
         let path = std::env::temp_dir().join(format!("rynthv-presets-{}.json", uuid::Uuid::new_v4()));
         let modes = serde_json::from_value(serde_json::json!({"Bright":{"pitch":0.0,"timbre":51.25,"pronunciation":27.5},"Smooth":{}})).unwrap();
         let catalogue = vec!["Bright".into(),"Smooth".into()];
-        let preset = StylePreset {revision:"202".into(),modes,voice:Default::default()};
+        let preset = StylePreset {revision:"202".into(),modes,voice:Default::default(),experiments:None};
         let mut store = StylePresets::default();
         store.insert(&bank,"Mixed",preset.clone(),&catalogue).unwrap();
         assert!(store.insert(&bank,"Mixed",preset.clone(),&catalogue).is_err());

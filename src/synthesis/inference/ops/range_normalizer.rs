@@ -100,6 +100,26 @@ impl RangeNormalizer {
         Ok(())
     }
 
+    pub fn normalize_native(&self, input: &[f32], output: &mut [f32], clip: bool) -> Result<(), RangeError> {
+        self.check_buffers(input, output)?;
+        for (position, (&value, target)) in input.iter().zip(output.iter_mut()).enumerate() {
+            let channel = position % self.channels();
+            let lower = self.minimum[channel];
+            let range = self.maximum[channel] - lower;
+            let numerator = value - lower;
+            let denominator = if range > 1.0e-5 { range } else { 1.0e-5 };
+            let ratio = numerator / denominator;
+            let span = self.output_maximum - self.output_minimum;
+            let mut result = ratio * span + self.output_minimum;
+            if clip {
+                if !(self.output_maximum > result) { result = self.output_maximum; }
+                if !(result > self.output_minimum) { result = self.output_minimum; }
+            }
+            *target = result;
+        }
+        Ok(())
+    }
+
     fn normalize_value(&self, channel: usize, value: f32, clip: bool) -> f32 {
         let minimum = self.minimum[channel];
         let mut ratio = (value - minimum) / ((self.maximum[channel] - minimum) + 1.0e-5);

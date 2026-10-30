@@ -49,7 +49,7 @@ pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
             .text(
                 label_rect.left_center() + vec2(0.0, 12.0),
                 Align2::LEFT_CENTER,
-                family_name(entry),
+                source_hint(entry),
                 FontId::proportional(10.5),
                 MUTED,
             );
@@ -318,7 +318,7 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
         content.min + vec2(0.0, 23.0),
         Align2::LEFT_TOP,
         match &entry.availability {
-            VoiceAvailability::Loadable => entry.genres.join(", "),
+            VoiceAvailability::Loadable => source_hint(entry),
             VoiceAvailability::Unsupported(reason) => reason.clone(),
         },
         FontId::proportional(12.0),
@@ -353,10 +353,15 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
                 entry.display_name,
                 family_name(entry),
                 entry.revision,
-                entry.vendor
+                format!("{}\n{}",entry.vendor,entry.directory.display())
             ),
             VoiceAvailability::Unsupported(reason) => format!("{}\n{reason}", entry.display_name),
         })
+}
+
+pub(super) fn source_hint(entry:&VoiceCatalogEntry)->String {
+    let family=if entry.database_id.starts_with("flat:") {"SV1 Flat"}else{family_name(entry)};
+    format!("{} · {} · {}",family,entry.revision,entry.directory.display())
 }
 
 fn language_tag(language: &str) -> &str {

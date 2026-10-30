@@ -107,8 +107,6 @@ pub(super) fn file(path: &Path, archive: &Archive) -> Result<(VoiceFile, Vec<Loa
             .to_string_lossy()
             .into_owned(),
         bytes: archive.file_bytes(),
-        sha256: archive.sha256.clone(),
-        sha256_scope: "file",
         resources: archive.resources.len(),
         borrowed_resources,
         encoded_resources: archive.resources.len() - borrowed_resources,

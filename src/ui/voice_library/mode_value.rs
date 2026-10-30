@@ -28,7 +28,7 @@ pub(super) fn show(ui: &mut Ui, rect: Rect, id: Id, source: [Option<f64>;3],
     let mut child = crate::ui::child(ui,rect,id.with("value-editor"));
     let response = child.add_sized(rect.size(), TextEdit::singleline(&mut entry.text)
         .id(input_id).font(FontId::proportional(12.0)).margin(vec2(2.0,0.0))
-        .horizontal_align(Align::Center).vertical_align(Align::Center).char_limit(3));
+        .horizontal_align(Align::Center).vertical_align(Align::Center).char_limit(4));
     if entry.focus {
         response.request_focus();
         if let Some(mut state) = TextEdit::load_state(ui.ctx(),input_id) {
@@ -46,8 +46,9 @@ pub(super) fn show(ui: &mut Ui, rect: Rect, id: Id, source: [Option<f64>;3],
         return (true,None);
     }
     if enter || response.lost_focus() {
-        if let Ok(number) = entry.text.trim().parse::<u16>() {
-            if number <= 150 {
+        if let Ok(number) = entry.text.trim().parse::<i32>() {
+            let (low,high)=crate::synthesis::experiments::ExperimentalSettings::ui().style_range();
+            if (low..=high).contains(&f64::from(number)) {
                 response.surrender_focus();
                 ui.ctx().data_mut(|data| data.remove::<Entry>(input_id));
                 return (true,Some(f64::from(number)));

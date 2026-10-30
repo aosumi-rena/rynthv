@@ -6,6 +6,7 @@ pub struct PreparedVoice {
     files: Vec<PreparedFile>,
     pub family: VoiceFamily,
     pub f0_enhancement: Option<f32>,
+    pub(crate) dds_half_precision_language: bool,
     pub(crate) retained_acoustic_noise_only: bool,
     pub(crate) vocal_modes: Option<Vec<String>>,
     pub speakers: Vec<super::Speaker>,
@@ -57,6 +58,7 @@ impl PreparedVoice {
             files,
             family,
             f0_enhancement,
+            dds_half_precision_language: false,
             retained_acoustic_noise_only: false,
             vocal_modes: None,
             speakers,
@@ -101,6 +103,15 @@ impl PreparedVoice {
         Ok(self)
     }
 
+    pub fn with_dds_half_precision_language(mut self, enabled: bool) -> Result<Self> {
+        if self.family != VoiceFamily::Sv1 {
+            return Err(VoiceError::new("Language precision requires a native DDS voice"));
+        }
+        self.dds_half_precision_language = enabled;
+        self.summary = OnceLock::new();
+        Ok(self)
+    }
+
     pub(super) fn with_acoustic_version(mut self, version: &str) -> Self {
         self.retained_acoustic_noise_only = self.family == VoiceFamily::Sv2
             && super::noise_cadence::retained_only(version);
@@ -142,7 +153,8 @@ impl PreparedVoice {
                     )
                 })?;
                 Sv1F0Stage::prepare_native(self.model("f0")?, enhancement)?;
-                Sv1TimbreNetwork::prepare_native(self.model("timbre")?)?;
+                Sv1TimbreNetwork::prepare_native_with_language_precision(
+                    self.model("timbre")?, self.dds_half_precision_language)?;
             }
             VoiceFamily::Sv2Compatible => {
                 CompatibleDurationStage::validate(duration)?;
@@ -180,6 +192,7 @@ impl PreparedVoice {
             files: self.files.clone(),
             family: self.family,
             f0_enhancement: self.f0_enhancement,
+            dds_half_precision_language: self.dds_half_precision_language,
             retained_acoustic_noise_only: self.retained_acoustic_noise_only,
             vocal_modes: Some(catalogue.public_names.clone()),
             member_vocal_modes: Arc::clone(&self.member_vocal_modes),
@@ -190,6 +203,17 @@ impl PreparedVoice {
     }
 
     pub fn selected_speaker(&self) -> Option<usize> {self.speaker}
+
+    pub(crate) fn with_vocoder(&self,source:&Self)->Result<Self> {
+        if source.family!=self.family {return Err(VoiceError::new("Vocoder selection requires matching voice generations"));}
+        let tree=source.shared_model("vocoder")?;
+        let mut files=self.files.clone();
+        for model in files.iter_mut().flat_map(|f|&mut f.trees) {if model.role=="vocoder" {model.tree=Arc::clone(&tree);}}
+        Ok(Self {files,family:self.family,f0_enhancement:self.f0_enhancement,
+            dds_half_precision_language:self.dds_half_precision_language,retained_acoustic_noise_only:self.retained_acoustic_noise_only,
+            vocal_modes:self.vocal_modes.clone(),speakers:self.speakers.clone(),member_vocal_modes:Arc::clone(&self.member_vocal_modes),
+            speaker:self.speaker,summary:OnceLock::new()})
+    }
 
     pub fn model(&self, role: &str) -> Result<&PreparedTree> {
         Ok(self.find_model(role)?.tree.as_ref())

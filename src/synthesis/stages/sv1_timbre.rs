@@ -51,7 +51,15 @@ impl<'a> Sv1TimbreNetwork<'a> {
         Self::prepare_contract(tree, Contract::Native)
     }
 
+    pub fn prepare_native_with_language_precision(tree: &'a PreparedTree, half: bool) -> Result<Self> {
+        Self::prepare_execution(tree, Contract::Native, half)
+    }
+
     fn prepare_contract(tree: &'a PreparedTree, contract: Contract) -> Result<Self> {
+        Self::prepare_execution(tree, contract, false)
+    }
+
+    fn prepare_execution(tree: &'a PreparedTree, contract: Contract, half_language: bool) -> Result<Self> {
         let root = tree.node(tree.root_index())?;
         if root.type_id != types::TIMBRE_TYPE_ID
             || !tree.payload(tree.root_index())?.is_empty()
@@ -80,7 +88,7 @@ impl<'a> Sv1TimbreNetwork<'a> {
             contract,
             tree,
             frontend: Frontend::prepare(tree, nodes[0], contract)?,
-            context: Context::prepare(tree, nodes[2])?,
+            context: Context::prepare(tree, nodes[2], contract == Contract::Native, half_language)?,
             sampler: Sampler::prepare(tree, nodes[3])?,
             bank,
             styles: TimbreStyles::prepare(tree, root.children[1])?,

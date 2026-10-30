@@ -60,6 +60,11 @@ fn synthesize_member_with_host(
     host_pitch: Option<&mut super::pitch::HostPitchSampler<'_>>,
 ) -> Result<RenderResult> {
     let acoustic = super::acoustics::synthesize_acoustics_with_host(voice, duration_identity, phrase, &mut checkpoint, host_pitch)?;
+    publish_acoustic(voice,phrase,acoustic,checkpoint)
+}
+
+pub(super) fn publish_acoustic(voice:&PreparedVoice,phrase:&PreparedPhrase,acoustic:super::AcousticRender,
+    mut checkpoint:impl FnMut(RenderStage)->Result<()>)->Result<RenderResult> {
     checkpoint(RenderStage::Vocoder)?;
     let started = Instant::now();
     #[cfg(feature = "synth-profile")]
@@ -73,6 +78,15 @@ fn synthesize_member_with_host(
         vocoder.set_editor_seed_source(seeds.into());
     }
     if voice.family==crate::synthesis::voice::VoiceFamily::Sv2Compatible {vocoder.set_compatible_dispatch();}
+    if acoustic.prepared.phrase.experimental_dds_expression {
+        let p=acoustic.prepared.phrase.voice_parameters;
+        let curves=acoustic.prepared.phrase.automation.as_ref();
+        if p.loudness!=0.0 || p.tension!=0.0 || p.breathiness!=0.0 || p.gender!=0.0
+            || curves.is_some_and(|a|["loudness","tension","breathiness","gender","voicing"].iter().any(|k|a.has(k))) {
+            vocoder.set_editor_controls(&acoustic.prepared.phrase,origin);
+        }
+    }
+    if voice.family==crate::synthesis::voice::VoiceFamily::Sv1 {vocoder.set_native_dds();}
     let output = vocoder.render_components(
         &acoustic.timbre.acoustics,
         acoustic.timbre.controls.as_ref(),

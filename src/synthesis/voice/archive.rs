@@ -8,7 +8,6 @@ use std::{
 };
 
 use num_bigint::BigUint;
-use sha2::{Digest, Sha256};
 use xxhash_rust::xxh3::{Xxh3, xxh3_128};
 
 use super::{Result, VoiceError, array, format::FormatContext, product, range, stream, u32_at};
@@ -31,7 +30,6 @@ pub(super) struct Archive {
     material: [u8; 32],
     pub resources: Vec<Resource>,
     indices: HashMap<ResourceId, usize>,
-    pub sha256: String,
 }
 
 impl Archive {
@@ -111,7 +109,6 @@ impl Archive {
             });
         }
         Ok(Self {
-            sha256: super::hex(&Sha256::digest(&bytes)),
             bytes,
             constants: context.constants,
             material,

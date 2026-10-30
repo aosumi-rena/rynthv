@@ -19,9 +19,12 @@ pub fn prepare(
     base: Option<&CompletedOwner>,
     mut checkpoint: impl FnMut(RenderStage) -> Result<()>,
 ) -> Result<PreparedRender> {
-    let phrase = score::prepare_owner(input, lexicon, voice.model("duration")?, voice.family)?;
-    if !voice.speakers.is_empty() || phrase.unison.count>1 {
-        let result = super::super::ensemble::synthesize(voice, identity, &phrase, checkpoint)?;
+    let mut phrase = score::prepare_owner(input, lexicon, voice.model("duration")?, voice.family)?;
+    super::super::experimental::prepare_modes(voice,input,&mut phrase)?;
+    let experimental=super::super::experimental::needs_complete(input,voice.family)?;
+    if experimental || !voice.speakers.is_empty() || phrase.unison.count>1 {
+        let result = if experimental {super::super::experimental::synthesize(voice,identity,input,&phrase,lexicon,checkpoint)?}
+            else {super::super::ensemble::synthesize(voice, identity, &phrase, checkpoint)?};
         let pcm = PcmStore::complete(&result.state.components)?;
         return Ok(PreparedRender {
             acoustic: PreparedRenderAcoustics {
@@ -38,7 +41,7 @@ pub fn prepare(
     }
 
     let base = base.filter(|base| {
-        voice.family == VoiceFamily::Sv2
+        !input.experiments.settings.enabled && voice.family == VoiceFamily::Sv2
             && base.clip.state.prepared.phrase.unison.count==1
             && matches!(
                 base.clip.state.prepared.features,
@@ -98,6 +101,9 @@ pub fn prepare(
             PreparedModelFeatures::Sv2 { .. } => Some(acoustic.pitch.pitch.len()),
         }
         .ok_or_else(|| VoiceError::new("Progressive acoustic frame count overflow"))?;
+        let frames = if voice.family == crate::synthesis::voice::VoiceFamily::Sv1 {
+            frames.saturating_sub(crate::synthesis::stages::sv1_smoothing::LOOKAHEAD)
+        } else { frames };
         let samples = frames
             .checked_mul(HOP_SAMPLES)
             .ok_or_else(|| VoiceError::new("Progressive PCM size overflow"))?;

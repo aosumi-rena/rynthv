@@ -41,7 +41,7 @@ impl TryFrom<ModeRepresentation> for PublicModeControl {
                 pitch: value.pitch, timbre: value.timbre, pronunciation: value.pronunciation,
             },
         };
-        value.validate()?;
+        value.validate_storage()?;
         Ok(value)
     }
 }
@@ -65,6 +65,12 @@ impl PublicModeControl {
             if !value.is_finite() || !(0.0..=150.0).contains(&value) {
                 return Err("Vocal-mode public controls must be finite in 0..150".into());
             }
+        }
+        Ok(())
+    }
+    pub fn validate_storage(&self)->Result<(),String> {
+        if [self.pitch,self.timbre,self.pronunciation].into_iter().flatten().any(|v|!v.is_finite() || !(-300.0..=300.0).contains(&v)) {
+            return Err("Stored vocal modes must be finite in -300..300".into());
         }
         Ok(())
     }

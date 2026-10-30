@@ -20,9 +20,14 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     });
     section(ui, crate::i18n::t("语言"), |ui| language::show(app, ui));
     section(ui, crate::i18n::t("齐唱"), |ui| super::unison::show(app, ui));
-    section(ui, crate::i18n::t("唱法"), |ui| vocal_modes::show(app, ui));
+    if app.synthesis.library.settings.experiments.enabled || !app.voice_inventory().and_then(|v|v.configuration.as_ref()).is_some_and(|c|c.family==crate::synthesis::voice::VoiceFamily::Sv1) {
+        section(ui, crate::i18n::t("唱法"), |ui| vocal_modes::show(app, ui));
+    }
     section(ui, crate::i18n::t("参数"), |ui| super::parameters::show(app, ui));
     section(ui, crate::i18n::t("调音"), |ui| super::tuning::show(app,ui));
+    if super::experiments::available(app) {
+        section(ui,crate::i18n::t("实验功能"),|ui|super::experiments::show(app,ui));
+    }
     section(ui, crate::i18n::t("调式音阶"), |ui| {
         crate::ui::scale::controls::panel(app, ui);
     });

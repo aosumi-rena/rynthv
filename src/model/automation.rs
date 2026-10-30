@@ -15,6 +15,7 @@ pub enum Parameter {
     Mouth,
     Rap,
     VocalMode(String),
+    Experimental { key:String, label:String },
 }
 impl Parameter {
     pub const ALL: [Self; 10] = [
@@ -42,6 +43,7 @@ impl Parameter {
             Self::Mouth => "mouthOpening",
             Self::Rap => "rapIntonation",
             Self::VocalMode(key) => key,
+            Self::Experimental {key,..} => key,
         }
     }
     pub fn label(&self) -> &str {
@@ -57,6 +59,7 @@ impl Parameter {
             Self::Mouth => "口型",
             Self::Rap => "说唱语调",
             Self::VocalMode(key) => key.strip_prefix("vocalMode_").unwrap_or(key),
+            Self::Experimental {label,..} => label,
         }
     }
     pub fn range(&self) -> (f64, f64) {
@@ -67,12 +70,31 @@ impl Parameter {
             Self::Vibrato => (0.0, 2.0),
             Self::Voicing | Self::Rap => (0.0, 1.0),
             Self::Mouth => (-1.0, 1.0),
-            Self::VocalMode(_) => (-150.0, 150.0),
+            Self::VocalMode(_) => {
+                let (_,high)=crate::synthesis::experiments::ExperimentalSettings::ui().style_range();
+                (-high,high)
+            },
+            Self::Experimental {key,..} if key=="growl_frequency" => (30.0,90.0),
+            Self::Experimental {key,..} if key=="ddsDefaultStyle" => (-3.0,3.0),
+            Self::Experimental {key,..} if key.starts_with("ddsPhoneMix_") => (0.0,1.0),
+            Self::Experimental {key,..} if key=="growl_amplitude" || key.starts_with("voiceBlend_") => (0.0,1.0),
+            Self::Experimental {..} => crate::synthesis::experiments::ExperimentalSettings::ui().style_range(),
             _ => (-2.0, 2.0),
         }
     }
     pub fn default_value(&self) -> f64 {
+        if self.key()=="growl_frequency" {return 60.0;}
         if matches!(self, Self::Vibrato | Self::Voicing) { 1.0 } else { 0.0 }
+    }
+    pub fn is_visible(&self)->bool {
+        let settings=crate::synthesis::experiments::ExperimentalSettings::ui();
+        match self {
+            Self::Experimental {key,..} if matches!(key.as_str(),"growl_frequency"|"growl_amplitude") => settings.active(settings.growl),
+            Self::Experimental {key,..} if key=="ddsDefaultStyle" || key.starts_with("ddsPhoneMix_") => settings.active(settings.dds_controls),
+            Self::Experimental {key,..} if key.starts_with("voiceBlend_") => settings.active(settings.voice_blending),
+            Self::Experimental {..} => settings.active(settings.component_curves),
+            _=>true,
+        }
     }
 }
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

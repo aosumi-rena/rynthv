@@ -211,6 +211,7 @@ pub(super) fn prepare_acoustics_with_host(
         crate::synthesis::engine::pitch::apply_host_dds_pitch(&prepared_phrase, &mut pitch, sampler)?;
     }
     crate::synthesis::engine::pitch::apply_deviation(&prepared_phrase,&mut pitch);
+    crate::synthesis::engine::pitch::apply_growl(&prepared_phrase,&mut pitch)?;
     let pitch_ms = started.elapsed().as_secs_f64() * 1000.0;
     #[cfg(feature = "synth-profile")]
     drop(profile);

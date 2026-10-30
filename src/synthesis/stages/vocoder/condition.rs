@@ -96,6 +96,14 @@ impl VocoderCondition {
     }
 
     pub fn normalize(&self, physical: &Sequence) -> Result<Sequence> {
+        self.normalize_profile(physical, false)
+    }
+
+    pub(crate) fn normalize_native(&self, physical: &Sequence) -> Result<Sequence> {
+        self.normalize_profile(physical, true)
+    }
+
+    fn normalize_profile(&self, physical: &Sequence, native: bool) -> Result<Sequence> {
         physical.validate()?;
         if physical.channels != CHANNELS {
             return Err(VoiceError::new(
@@ -108,6 +116,14 @@ impl VocoderCondition {
                 return Err(VoiceError::new(
                     "Vocoder conditions require finite values and positive F0",
                 ));
+            }
+            if native {
+                let mut row = *frame;
+                row[PITCH_CHANNEL] = row[PITCH_CHANNEL].ln();
+                self.normalizer.normalize_native(&row,
+                    &mut normalized.values[frame_index * CHANNELS..(frame_index + 1) * CHANNELS], true)
+                    .map_err(|error| VoiceError::new(error.to_string()))?;
+                continue;
             }
             for (channel, &value) in frame.iter().enumerate() {
                 let value = if channel == PITCH_CHANNEL {

@@ -23,7 +23,7 @@ use super::{
     voice::VoiceInventory,
 };
 pub use context::{ContextImport, ContextImportDialog, ContextImportPhase, ContextImportSource};
-pub use export::ExportRequest;
+pub use export::{ExportRequest, export_directory};
 pub use library::VoiceLibrary;
 use std::{
     collections::{BTreeMap, BTreeSet},
