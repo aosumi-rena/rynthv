@@ -3,7 +3,7 @@ use super::{Frontend, PhoneInput, error};
 use crate::synthesis::{
     inference::Sequence,
     stages::f0::TimedPhone,
-    voice::{Result, VoiceError, resolve_explicit},
+    voice::{Result, VoiceError, resolve_alphabet},
 };
 
 impl Frontend<'_> {
@@ -14,7 +14,7 @@ impl Frontend<'_> {
         let mut silence=Vec::with_capacity(phones.len());
         for (phone, row) in phones.iter().zip(raw.values.chunks_exact_mut(self.width)) {
             let resolved =
-                resolve_explicit(&self.languages, self.unified, &phone.language, &phone.token)?;
+                resolve_alphabet(&self.languages, self.unified, &phone.language, &phone.token,phone.xsampa)?;
             silence.push(resolved.source_class.unwrap_or("silence")=="silence");
             if resolved.unified_phone_index >= self.width - 1 {
                 return Err(VoiceError::new(
@@ -26,7 +26,7 @@ impl Frontend<'_> {
             row[self.width - 1] = (seconds + 0.05).ln();
             language_ids.push(resolved.language_index);
 
-            let source = (!phone.language.is_empty())
+            let source = (!phone.xsampa && !phone.language.is_empty())
                 .then(|| {
                     self.languages
                         .iter()

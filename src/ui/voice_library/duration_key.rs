@@ -8,7 +8,6 @@ pub(super) fn settings(app: &mut App, ui: &mut Ui) {
         .unwrap_or((settings.duration_key_override_enabled, settings.duration_key_override_value.to_string()));
     ui.add_space(12.0);
     ui.label(RichText::new(crate::i18n::t("时长模型键值")).strong());
-    ui.small(crate::i18n::t("优先级：所选声库版本覆盖 > 全局覆盖 > 自动。"));
     ui.checkbox(&mut draft.0, crate::i18n::t("覆盖 DUR key"));
     ui.add_enabled_ui(draft.0, |ui| {
         ui.label(crate::i18n::t("DUR key（无符号 64 位整数）"));
@@ -35,7 +34,6 @@ pub(super) fn voice_settings(app: &mut App, ui: &mut Ui, entry: &VoiceCatalogEnt
         .unwrap_or((initial.0, initial.1.to_string()));
     ui.separator();
     ui.label(RichText::new(crate::lformat!("时长模型键值 · {}", entry.revision)).strong());
-    ui.small(crate::i18n::t("仅覆盖此声库的当前版本，优先于全局设置；关闭后使用全局或自动条件。"));
     ui.checkbox(&mut draft.0, crate::i18n::t("覆盖此版本 DUR key"));
     ui.add_enabled_ui(draft.0, |ui| {
         ui.label(crate::i18n::t("DUR key（无符号 64 位整数）"));

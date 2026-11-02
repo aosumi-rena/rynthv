@@ -36,6 +36,8 @@ impl Editor {
             .push(reference);
         self.track = track_id;
         self.reference = Some(id);
+        self.track_focus=false;
+        self.track_anchor=track_id;
         self.selected.clear();
         id
     }
@@ -194,29 +196,6 @@ impl Editor {
         }
         self.finish();
     }
-    pub fn delete_track(&mut self, id: EntityId) {
-        if self.project.tracks.len() <= 1 {
-            return;
-        }
-        let Some(index) = self.project.tracks.iter().position(|t| t.id == id) else {
-            return;
-        };
-        self.begin("删除音轨");
-        let track = self.project.tracks.remove(index);
-        let affected: Vec<_> = track.groups.iter().map(|r| r.group_id.clone()).collect();
-        if self
-            .project
-            .tracks
-            .iter()
-            .flat_map(Track::references)
-            .any(|r| r.group_id == track.main_group.uuid)
-        {
-            self.project.library.push(track.main_group);
-        }
-        self.remove_unreferenced_groups(&affected);
-        self.update_track_order();
-        self.finish();
-    }
     pub fn reorder_track(&mut self, id: EntityId, delta: isize) {
         let Some(index) = self.project.tracks.iter().position(|t| t.id == id) else {
             return;
@@ -232,12 +211,12 @@ impl Editor {
         self.update_track_order();
         self.finish();
     }
-    fn update_track_order(&mut self) {
+    pub(super) fn update_track_order(&mut self) {
         for (index, track) in self.project.tracks.iter_mut().enumerate() {
             track.disp_order = index as i32;
         }
     }
-    fn remove_unreferenced_groups(&mut self, affected: &[String]) {
+    pub(super) fn remove_unreferenced_groups(&mut self, affected: &[String]) {
         let ids: std::collections::BTreeSet<_> = self
             .project
             .tracks

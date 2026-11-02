@@ -4,7 +4,7 @@ mod portuguese;
 mod german;
 pub(in crate::synthesis::score) use onset::split;
 
-use super::dictionary::{PhoneTable,read};
+use super::dictionary::{PhoneTable};
 use crate::{model::Language,synthesis::voice::{Result,VoiceError}};
 use std::path::Path;
 
@@ -21,13 +21,13 @@ impl European {
 
     pub fn load(directory:&Path,language:Language)->Result<Self> {
         let name=match language {
-            Language::French=>"french-xsampa-dict.txt",
-            Language::German=>"german-xsampa-dict.txt",
-            Language::Portuguese=>"portuguese-brazil-xsampa-dict.txt",
+            Language::French=>"french-dict.txt",
+            Language::German=>"german-dict.txt",
+            Language::Portuguese=>"portuguese-brazil-dict.txt",
+            Language::Italian=>"italian-dict.txt",
             _=>return Err(VoiceError::new("无效的欧洲语言发音前端")),
         };
-        let classes=read(&directory.join(format!("{}-phones.txt",language.phone_set())))?
-            .lines().filter_map(|line|{let mut f=line.split_whitespace();Some((f.next()?.to_owned(),f.next()?.to_owned()))}).collect();
+        let classes=crate::model::PhonemeCatalog::load(directory).map_err(VoiceError::new)?.classes(language);
         Ok(Self {language,words:PhoneTable::load(&directory.join(name),false)?,classes})
     }
 

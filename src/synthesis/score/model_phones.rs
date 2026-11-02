@@ -3,20 +3,29 @@ use crate::{model::Language, synthesis::voice::{PreparedTree, Result}};
 
 pub(super) fn materialize(
     syllables: Vec<Vec<String>>, language: Language, frontend: &LyricFrontend,
-    tree: &PreparedTree, partition: bool,
+    tree: &PreparedTree, xsampa: bool, partition: bool,
 ) -> Result<Vec<Vec<ScorePhone>>> {
     let mut output = Vec::new();
     for syllable in syllables {
         let mut changed = false;
         let mut phones = Vec::with_capacity(syllable.len());
         for token in syllable {
-            let missing = tree.resolve_phone(language.id(), &token)?.used_silence_fallback
+            let missing = frontend.resolve_token(language, &token,tree)?.used_silence_fallback
                 && frontend.unmapped_phone_class(language, &token)?.is_some();
             changed |= missing;
+            let display=if missing {token.clone()}else{frontend.display_token(language,&token,xsampa,tree)?};
+            let seed=if xsampa && !matches!(display.as_str(),"sil"|"cl"|"vf"|"br") {
+                format!("xsampa:{display}")
+            }else{display.clone()};
+            let global=token.strip_prefix("xsampa:");
+            let stored=global.unwrap_or(&token);
             phones.push(ScorePhone {
+                xsampa:global.is_some(),
                 language: language.id().to_owned(),
-                token: if missing { "sil".into() } else { token.clone() },
-                display_token: missing.then_some(token), onset_offset_seconds: None,
+                token: if missing { "sil".into() } else { stored.to_owned() },
+                display_token: (missing || display!=stored).then_some(display),
+                vocoder_token: (!missing && seed!=stored).then_some(seed),
+                onset_offset_seconds: None,
             });
         }
         if !changed || !partition {
@@ -26,7 +35,7 @@ pub(super) fn materialize(
 
         let mut nuclei = Vec::new();
         for (i, phone) in phones.iter().enumerate() {
-            let resolved = tree.resolve_phone(language.id(), &phone.token)?;
+            let resolved = tree.resolve_phone_alphabet(language.id(), &phone.token,phone.xsampa)?;
             if matches!(phone.token.as_str(), "sil" | "pau") || matches!(resolved.source_class,
                 Some("vowel" | "diphthong" | "silence" | "breath")) {
                 nuclei.push(i);

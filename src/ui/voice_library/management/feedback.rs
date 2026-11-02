@@ -19,7 +19,6 @@ pub(super) fn status(
         }
         VoiceState::Loaded(_) if app.synthesis.voice_error(selection).is_none() => {
             text(ui, RichText::new(crate::i18n::t("已加载")).color(GREEN));
-            weak(ui, crate::i18n::t("编辑音符后自动合成，按空格键试听。"));
         }
         _ => {}
     }
@@ -45,8 +44,8 @@ pub(super) fn status(
 }
 
 pub(super) fn diagnostics(app: &App, ui: &mut Ui, entry: &VoiceCatalogEntry) {
-    weak(ui, crate::i18n::t("声库目录"));
-    text(ui, entry.directory.display().to_string());
+    ui.label(crate::i18n::t("声库目录"))
+        .on_hover_text(entry.directory.display().to_string());
     if let Some(voice) = app.synthesis.inventory(&entry.selection()) {
         weak(
             ui,

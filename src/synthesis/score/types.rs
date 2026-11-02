@@ -13,11 +13,16 @@ use crate::synthesis::{
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ScorePhone {
+    #[serde(default)]
+    pub xsampa: bool,
     pub language: String,
     pub token: String,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub display_token: Option<String>,
+    /// Editor spelling used only by the source-noise record hash.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vocoder_token: Option<String>,
     #[serde(default)]
     pub onset_offset_seconds: Option<f64>,
 }
@@ -77,6 +82,7 @@ pub struct PreparedPhrase {
     pub note_errors: std::collections::BTreeMap<u64, String>,
 
     pub phone_labels: std::collections::BTreeMap<PhoneSource,String>,
+    pub vocoder_phone_labels: std::collections::BTreeMap<PhoneSource,String>,
     pub automation: Option<super::PreparedAutomation>,
     pub voice_parameters:crate::synthesis::parameters::VoiceParameters,
     pub vocal_modes: Option<crate::model::PublicModeMap>,
@@ -161,7 +167,7 @@ impl ExplicitScore {
                         "Score record {index} contains an invalid explicit phone"
                     )));
                 }
-                let resolved = duration_tree.resolve_phone(&phone.language, &phone.token)?;
+                let resolved = duration_tree.resolve_phone_alphabet(&phone.language, &phone.token, phone.xsampa)?;
                 let silent_variant=note.kind==1 && super::pronunciation::special::numbered_breath(&phone.token);
                 if resolved.used_silence_fallback && silent_variant {silent_variants.insert((index,phone_index));}
 
@@ -206,6 +212,7 @@ impl ExplicitScore {
                     .iter()
                     .enumerate()
                     .map(|(phone_index,phone)| ExplicitPhone {
+                        xsampa:phone.xsampa,
                         language: phone.language.clone(),
                         token: if silent_variants.contains(&(index,phone_index)) {"sil".into()}else{phone.token.clone()},
                         onset_offset_seconds: phone.onset_offset_seconds,
@@ -232,10 +239,14 @@ impl ExplicitScore {
             })
         }).collect()).collect();
         let mut phone_labels=std::collections::BTreeMap::new();
+        let mut vocoder_phone_labels=std::collections::BTreeMap::new();
         for (record,note) in source.iter().enumerate() {
             for (phone,p) in note.phones.iter().enumerate() {
                 if let Some((source,label))=phone_sources[record][phone].zip(p.display_token.clone()) {
                     phone_labels.insert(source,label);
+                }
+                if let Some((source,label))=phone_sources[record][phone].zip(p.vocoder_token.clone()) {
+                    vocoder_phone_labels.insert(source,label);
                 }
             }
         }
@@ -251,6 +262,7 @@ impl ExplicitScore {
             unison:Default::default(),
             note_errors: source.iter().filter_map(|n| n.source_note_id.zip(n.note_error.clone())).collect(),
             phone_labels,
+            vocoder_phone_labels,
             automation: None,
             voice_parameters:Default::default(),
             vocal_modes: self.vocal_modes.clone(),

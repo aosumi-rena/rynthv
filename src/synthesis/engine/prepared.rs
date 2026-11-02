@@ -54,6 +54,7 @@ impl OwnerSynthesis {
             .saturating_add(vector_bytes(&phrase.notes))
             .saturating_add(vector_bytes(&phrase.source_note_ids))
             .saturating_add(vector_bytes(&phrase.phone_sources))
+            .saturating_add(phrase.vocoder_phone_labels.values().map(|s|std::mem::size_of::<crate::synthesis::score::PhoneSource>()+std::mem::size_of::<String>()+s.capacity()).sum::<usize>())
             .saturating_add(phrase.phone_sources.iter().map(|p|vector_bytes(p)).sum::<usize>())
             .saturating_add(vector_bytes(&phrase.retake_seeds))
             .saturating_add(vector_bytes(&prepared.phones));

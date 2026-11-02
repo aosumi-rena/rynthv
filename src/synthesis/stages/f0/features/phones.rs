@@ -4,7 +4,7 @@ use crate::{
     synthesis::{
         inference::ops::embedding::Embedding,
         stages::f0::TimedPhone,
-        voice::{PhoneticMap, PreparedModule, Result, VoiceError},
+        voice::{PhoneticMap, Result, VoiceError},
     },
 };
 
@@ -22,6 +22,18 @@ pub struct FeaturePhones {
     pub(super) values: PhoneValues,
 }
 
+impl FeaturePhones {
+    pub fn noise_tokens(&self,phones:&[TimedPhone])->Result<Vec<String>> {
+        match &self.values {
+            // Use model phone IDs for categorical noise seeds.
+            PhoneValues::Categorical(ids) if ids.len()==phones.len()=>Ok(ids.iter().map(usize::to_string).collect()),
+            PhoneValues::Categorical(_)=>Err(VoiceError::new("F0 phone identities differ from the timeline")),
+            // Descriptor inputs retain their model tokens.
+            PhoneValues::Phonetic(_)=>Ok(phones.iter().map(|phone|phone.token.clone()).collect()),
+        }
+    }
+}
+
 impl FeatureNetwork<'_> {
     pub fn prepare_phones(&self, phones: &[TimedPhone]) -> Result<FeaturePhones> {
         let mut language_ids = Vec::with_capacity(phones.len());
@@ -30,27 +42,8 @@ impl FeatureNetwork<'_> {
             PhoneEncoder::Categorical(_) => {
                 let mut ids = Vec::with_capacity(phones.len());
                 for phone in phones {
-                    let resolved = self.tree.resolve_phone(&phone.language, &phone.token)?;
-                    let table = self
-                        .tree
-                        .nodes()
-                        .iter()
-                        .find_map(|node| match &node.module {
-                            PreparedModule::PhoneSet(table)
-                                if table.name == resolved.selected_phone_set =>
-                            {
-                                Some(table)
-                            }
-                            _ => None,
-                        })
-                        .ok_or_else(|| {
-                            VoiceError::new("Shared phone classification table is missing")
-                        })?;
-                    vowels.push(
-                        table
-                            .lookup(&phone.token)
-                            .is_some_and(|p| matches!(p.class, "vowel" | "diphthong")),
-                    );
+                    let resolved = self.tree.resolve_phone_alphabet(&phone.language, &phone.token,phone.xsampa)?;
+                    vowels.push(matches!(resolved.source_class,Some("vowel"|"diphthong")));
                     ids.push(resolved.unified_phone_index);
                     language_ids.push(resolved.language_index);
                 }

@@ -1,5 +1,14 @@
 use std::{path::PathBuf,process::ExitCode};
 use serde_json::{Value,json};
+use rynthv::{model,midi,storage,synthesis};
+#[allow(dead_code,unused_imports)]
+#[path="../editor/mod.rs"]
+mod editor;
+#[allow(dead_code)]
+#[path="../i18n/mod.rs"]
+mod i18n;
+#[path="project_check/clipboard.rs"]
+mod project_clipboard;
 use rynthv::{model::Automation,synthesis::{plan::Planner,score::{self,LyricFrontend},voice::VoiceInventory}};
 #[path="project_check/storage.rs"]
 mod project_storage;
@@ -9,6 +18,22 @@ fn main()->ExitCode {
 }
 fn run()->Result<Value,Box<dyn std::error::Error>> {
     let args:Vec<_>=std::env::args_os().skip(1).collect();
+    if args.first().is_some_and(|a|a=="--clipboard-apply" || a=="--clipboard-capture") {
+        return project_clipboard::run(&args);
+    }
+    if args.len()>=4 && args[0]=="--frontend" {
+        let directory=PathBuf::from(&args[1]);
+        let language=rynthv::model::Language::parse(&args[2].to_string_lossy()).ok_or("Unsupported language")?;
+        let frontend=LyricFrontend::new(&directory,language.id(),&[language.id().to_owned()])?;
+        let catalog=rynthv::model::PhonemeCatalog::load(&directory)?;
+        let lyrics:Vec<_>=args[3..].iter().map(|s|s.to_string_lossy()).collect();
+        let words:Vec<_>=lyrics.iter().map(|s|s.as_ref()).collect();
+        let phones=frontend.lexical_group(language,&words,false)?;
+        let xsampa=phones.iter().map(|syllables|syllables.iter().map(|phones|
+            catalog.convert(language,&phones.join(" "),true)).collect::<Result<Vec<_>,_>>()).collect::<Result<Vec<_>,_>>()?;
+        return Ok(json!({"language":language.id(),"lyrics":lyrics,"system":phones,"xsampa":xsampa,
+            "inventory":catalog.for_language(language).map(|entry|json!({"symbol":entry.symbol,"xsampa":entry.xsampa,"category":entry.category,"example":entry.example})).collect::<Vec<_>>() }));
+    }
     if args.len()==3 && args[0]=="--bindings" {
         return project_storage::bindings(&PathBuf::from(&args[1]),&PathBuf::from(&args[2]));
     }

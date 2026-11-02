@@ -100,8 +100,6 @@ pub(super) fn editing(app: &mut App, ui: &mut Ui) {
     toggle(ui, crate::i18n::t("显示波形"), &mut app.show_waveform);
     toggle(ui, crate::i18n::t("编排位于上方"), &mut app.view.arrangement_first);
     toggle(ui, crate::i18n::t("显示曲速和拍号轨"), &mut app.show_time_tracks);
-    ui.add_space(10.0);
-    ui.weak(crate::i18n::t("拖动标题可调整工具列顺序，拖动分隔线可调整区域尺寸。"));
     section(ui, crate::i18n::t("装饰"));
     toggle(ui, crate::i18n::t("显示角色图像"), &mut app.preferences.display_background_image);
     row(ui, crate::i18n::t("图像透明度"), |ui| {
@@ -145,7 +143,6 @@ pub(super) fn rendering(app: &mut App, ui: &mut Ui) {
             }
         });
     });
-    ui.weak(crate::i18n::t("其他格式先生成 WAV，再由 FFmpeg 转换。"));
     row(ui, crate::i18n::t("导出设置"), |ui| {
         if ui.button(crate::i18n::t("打开渲染面板")).clicked() {
             if !app.view.columns.contains(&Column::Render) {
@@ -154,5 +151,4 @@ pub(super) fn rendering(app: &mut App, ui: &mut Ui) {
             app.settings = false;
         }
     });
-    ui.weak(crate::i18n::t("目标文件夹、音轨、声道、位深度和采样率在渲染面板中设置。"));
 }

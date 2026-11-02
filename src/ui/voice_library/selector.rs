@@ -60,6 +60,9 @@ pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
         MUTED,
     );
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, crate::i18n::t("选择歌声")));
+    let response = if let Some(entry) = entry {
+        response.on_hover_text(entry.directory.display().to_string())
+    } else { response };
     popup(app, &response.on_hover_cursor(CursorIcon::Default));
 }
 
@@ -355,13 +358,13 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
                 entry.revision,
                 format!("{}\n{}",entry.vendor,entry.directory.display())
             ),
-            VoiceAvailability::Unsupported(reason) => format!("{}\n{reason}", entry.display_name),
+            VoiceAvailability::Unsupported(reason) => format!("{}\n{reason}\n{}", entry.display_name, entry.directory.display()),
         })
 }
 
 pub(super) fn source_hint(entry:&VoiceCatalogEntry)->String {
     let family=if entry.database_id.starts_with("flat:") {"SV1 Flat"}else{family_name(entry)};
-    format!("{} · {} · {}",family,entry.revision,entry.directory.display())
+    format!("{} · {}",family,entry.revision)
 }
 
 fn language_tag(language: &str) -> &str {
@@ -372,6 +375,7 @@ fn language_tag(language: &str) -> &str {
         "spanish" | "spanish-xsampa" | "es" => "ES",
         "cantonese" | "cantonese-xsampa" | "yue" => "YUE",
         "korean" | "korean-xsampa" | "ko" => "KO",
+        "italian" | "italian-xsampa" => "IT",
         "french" | "french-xsampa" => "FR",
         "german" | "german-xsampa" => "DE",
         "portuguese" | "portuguese-xsampa" => "PT-BR",

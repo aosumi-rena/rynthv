@@ -19,8 +19,6 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         toggle(ui,crate::i18n::t("嘶吼"),&mut settings.growl);
         toggle(ui,crate::i18n::t("R2_FLAT_CONTROLS"),&mut settings.dds_controls);
         toggle(ui,crate::i18n::t("谐波、气声和环形调制"),&mut settings.component_effects);
-        ui.add_space(12.0);
-        ui.weak(crate::i18n::t("启用的控件显示在歌声面板和参数编辑器中。"));
     }
     if settings!=before {app.synthesis.set_experiments(settings);}
     if let Some(error)=app.synthesis.library.settings_error() {ui.colored_label(eframe::egui::Color32::LIGHT_RED,crate::i18n::message(error));}

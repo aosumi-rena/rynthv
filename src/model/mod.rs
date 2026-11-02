@@ -2,6 +2,7 @@ mod automation;
 mod dictionary;
 mod instrumental;
 mod language;
+mod phoneme_catalog;
 mod performance;
 pub mod pitch;
 mod project;
@@ -14,6 +15,7 @@ pub use automation::*;
 pub use dictionary::*;
 pub use instrumental::*;
 pub use language::*;
+pub use phoneme_catalog::*;
 pub use performance::*;
 pub use pitch::{PitchControl, PitchCurve, PitchPoint};
 pub use project::*;
@@ -24,7 +26,7 @@ pub use vocal_modes::*;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 pub type EntityId = u64;
-pub const SVP_VERSION: i32 = 197;
+pub const SVP_VERSION: i32 = 203;
 pub fn new_id() -> EntityId {
     static NEXT: AtomicU64 = AtomicU64::new(1);
     NEXT.fetch_add(1, Ordering::Relaxed)

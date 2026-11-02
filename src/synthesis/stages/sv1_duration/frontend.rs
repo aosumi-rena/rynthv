@@ -57,7 +57,7 @@ pub(super) fn prepare(
                     "SV1 synthesis does not yet support phoneme onset offsets",
                 ));
             }
-            let resolved = tree.resolve_phone(&phone.language, &phone.token)?;
+            let resolved = tree.resolve_phone_alphabet(&phone.language, &phone.token,phone.xsampa)?;
             output.push(PhoneFeatures {
                 unified_phone_index: resolved.unified_phone_index,
                 language_index: resolved.language_index,

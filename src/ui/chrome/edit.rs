@@ -8,8 +8,16 @@ fn anchors(app: &App) -> bool {
     app.piano_tool == piano::Tool::PitchAnchor
 }
 
+pub(crate) fn request_group_paste(app:&mut App,ctx:&Context,track:crate::model::EntityId,at:i64,linked:bool){
+    app.commit_lyric();app.editor.select_track(track);app.editor.group_focus=true;
+    ctx.data_mut(|d|d.insert_temp(eframe::egui::Id::new("arrangement-clipboard-target"),(track,at,linked)));
+    ctx.send_viewport_cmd(ViewportCommand::RequestPaste);
+}
+
 pub(super) fn selected(app: &App) -> bool {
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus{return !app.editor.selected_tracks.is_empty();}
+    if app.editor.group_focus{return !app.editor.selected_groups.is_empty();}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         false
     } else if lanes::parameter_active(app) {
         lanes::parameter_has_selection(app)
@@ -21,19 +29,24 @@ pub(super) fn selected(app: &App) -> bool {
 }
 
 pub(crate) fn can_paste(app: &App) -> bool {
-    if phonemes::phoneme_active(app) {
+    if !rynthv::clipboard::can_paste(){return false;}
+    if app.editor.track_focus{return false;}
+    if app.editor.group_focus{return !app.editor.is_editing();}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         false
     } else if lanes::parameter_active(app) {
         lanes::parameter_can_paste(app)
     } else if anchors(app) {
-        piano::anchor_has_clipboard(app)
+        app.editor.group().is_some() && !app.editor.is_editing()
     } else {
-        !app.editor.current_track().is_instrumental() && !app.editor.is_editing()
+        !app.editor.is_editing()
     }
 }
 
 pub(super) fn select_all(app: &mut App) {
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus {app.editor.selected_tracks=app.editor.project.tracks.iter().map(|t|t.id).collect();return;}
+    if app.editor.group_focus{app.editor.select_all_groups();return;}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         return;
     }
     if lanes::parameter_active(app) {
@@ -46,7 +59,9 @@ pub(super) fn select_all(app: &mut App) {
 }
 
 pub(super) fn clear(app: &mut App) {
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus {app.editor.selected_tracks.clear();return;}
+    if app.editor.group_focus{app.editor.selected_groups.clear();return;}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         phonemes::phoneme_deactivate(app);
     } else if lanes::parameter_active(app) {
         lanes::parameter_clear(app);
@@ -58,7 +73,9 @@ pub(super) fn clear(app: &mut App) {
 }
 
 pub(super) fn delete(app: &mut App) {
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus {app.editor.delete_tracks();return;}
+    if app.editor.group_focus{app.editor.delete_clipboard_groups();return;}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         return;
     }
     if lanes::parameter_active(app) {
@@ -71,39 +88,44 @@ pub(super) fn delete(app: &mut App) {
 }
 
 pub(crate) fn copy(app: &mut App, ctx: &Context) {
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus{return;}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         return;
     }
-    if lanes::parameter_active(app) {
+    if app.editor.group_focus {copy_notes(app,ctx);}
+    else if lanes::parameter_active(app) {
         lanes::parameter_copy(app, ctx);
     } else if anchors(app) {
-        piano::anchor_copy(app);
+        piano::anchor_copy(app,ctx);
     } else {
         copy_notes(app, ctx);
     }
 }
 
 pub(crate) fn cut(app: &mut App, ctx: &Context) {
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus{return;}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         return;
     }
-    if lanes::parameter_active(app) {
+    if app.editor.group_focus {if copy_notes(app,ctx){app.editor.delete_clipboard_groups();}}
+    else if lanes::parameter_active(app) {
         lanes::parameter_cut(app, ctx);
     } else if anchors(app) {
-        piano::anchor_cut(app);
+        piano::anchor_cut(app,ctx);
     } else if copy_notes(app, ctx) {
-        app.editor.delete_selected();
+        if app.editor.group_focus{app.editor.delete_clipboard_groups();}else{app.editor.delete_selected();}
     }
 }
 
 pub(crate) fn paste(app: &mut App, ctx: &Context) {
-    if phonemes::phoneme_active(app) {
+    if app.editor.group_focus && can_paste(app){ctx.send_viewport_cmd(ViewportCommand::RequestPaste);return;}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         return;
     }
     if lanes::parameter_active(app) {
         lanes::parameter_paste(app, ctx);
     } else if anchors(app) {
-        piano::anchor_paste(app);
+        ctx.send_viewport_cmd(ViewportCommand::RequestPaste);
     } else if can_paste(app) {
 
         ctx.send_viewport_cmd(ViewportCommand::RequestPaste);
@@ -111,7 +133,7 @@ pub(crate) fn paste(app: &mut App, ctx: &Context) {
 }
 
 fn copy_notes(app: &mut App, ctx: &Context) -> bool {
-    match app.editor.copy() {
+    match app.editor.copy(app.preferences.sync_note_parameters) {
         Ok(Some(text)) => {
             ctx.copy_text(text);
             app.status = crate::i18n::t("已复制音符").into();
@@ -126,9 +148,6 @@ fn copy_notes(app: &mut App, ctx: &Context) -> bool {
 }
 
 pub(super) fn clipboard_events(app: &mut App, ctx: &Context) -> bool {
-    if anchors(app) && !lanes::parameter_active(app) && !phonemes::phoneme_active(app) {
-        return false;
-    }
     let events = ctx.input_mut(|input| {
         let mut commands = Vec::new();
         input.events.retain(|event| {
@@ -142,7 +161,7 @@ pub(super) fn clipboard_events(app: &mut App, ctx: &Context) -> bool {
         commands
     });
     let handled = !events.is_empty();
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus || (!app.editor.group_focus && phonemes::phoneme_active(app)) {
         return handled;
     }
     for event in events {
@@ -150,8 +169,15 @@ pub(super) fn clipboard_events(app: &mut App, ctx: &Context) -> bool {
             Event::Copy => copy(app, ctx),
             Event::Cut => cut(app, ctx),
             Event::Paste(text) => {
-                if lanes::parameter_active(app) {
+                let target=ctx.data_mut(|d|d.remove_temp::<(crate::model::EntityId,i64,bool)>(eframe::egui::Id::new("arrangement-clipboard-target")));
+                if !text.starts_with("SVR2CLIP"){continue;}
+                if let Some((track,at,linked))=target {
+                    let result=app.editor.paste_arrangement_text(&text,track,at,linked);report_paste(app,result);continue;
+                }
+                if !app.editor.group_focus && lanes::parameter_active(app) {
                     lanes::parameter_paste_text(app, &text);
+                } else if anchors(app) && !app.editor.group_focus {
+                    piano::anchor_paste_text(app,&text);
                 } else {
                     let at = app.editor.transport.position;
                     let result = app.editor.paste_text(&text, at);
@@ -165,26 +191,28 @@ pub(super) fn clipboard_events(app: &mut App, ctx: &Context) -> bool {
 }
 
 pub(super) fn duplicate(app: &mut App) {
-    if phonemes::phoneme_active(app) {
+    if app.editor.track_focus {app.editor.duplicate_tracks(false);return;}
+    if !app.editor.group_focus && phonemes::phoneme_active(app) {
         return;
     }
     if lanes::parameter_active(app) {
         lanes::parameter_duplicate(app);
         return;
     }
-    let result = app.editor.duplicate_selected();
+    let result = if app.editor.group_focus{app.editor.duplicate_clipboard_groups()}else{app.editor.duplicate_selected(app.preferences.sync_note_parameters)};
     report_paste(app, result);
 }
 
 fn report_paste(app: &mut App, result: Result<usize, String>) {
     match result {
         Ok(0) => {}
-        Ok(count) => app.status = crate::lformat!("已粘贴 {count} 个音符"),
+        Ok(_) => app.status = crate::i18n::t("粘贴").into(),
         Err(error) => app.status = error,
     }
 }
 
 pub(super) fn transpose(app: &mut App, up: bool) {
+    if app.editor.track_focus{return;}
     if lanes::parameter_active(app) || phonemes::phoneme_active(app) {
         return;
     }
@@ -196,5 +224,5 @@ pub(super) fn transpose(app: &mut App, up: bool) {
 }
 
 pub(super) fn can_transpose(app: &App) -> bool {
-    !lanes::parameter_active(app) && !phonemes::phoneme_active(app) && selected(app)
+    !app.editor.track_focus && !lanes::parameter_active(app) && !phonemes::phoneme_active(app) && selected(app)
 }

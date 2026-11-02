@@ -1,8 +1,10 @@
 mod dictionary;
 pub(super) mod english;
 mod japanese;
+mod korean;
 mod mandarin;
 mod spanish;
+mod alphabet;
 pub(super) mod european;
 
 use crate::{
@@ -21,6 +23,7 @@ use std::{
 };
 
 pub struct LyricFrontend {
+    catalog: crate::model::PhonemeCatalog,
     directory: PathBuf,
     default_language: Language,
     default_language_key:String,
@@ -30,6 +33,7 @@ pub struct LyricFrontend {
 enum Lexicon {
     Mandarin(MandarinLexicon),
     Japanese(japanese::Japanese),
+    Korean(korean::Korean),
     Dictionary(Dictionary),
     Spanish(spanish::Spanish),
     European(european::European),
@@ -60,13 +64,14 @@ impl LyricFrontend {
         let dictionaries = supported
             .iter()
 
-            .filter(|id| !matches!(id.as_str(),"italian"|"italian-xsampa"))
+
             .map(|id| Ok((parse(id)?, OnceLock::new())))
             .collect::<Result<HashMap<_, _>>>()?;
         if !dictionaries.contains_key(&default_language) {
             return Err(VoiceError::new("声库未声明支持其默认语言"));
         }
         Ok(Self {
+            catalog: crate::model::PhonemeCatalog::load(directory.as_ref()).map_err(VoiceError::new)?,
             directory: directory.as_ref().to_owned(),
             default_language,
             default_language_key,
@@ -106,8 +111,9 @@ impl LyricFrontend {
                 Language::Japanese => {
                     japanese::Japanese::load(&self.directory).map(Lexicon::Japanese)
                 }
+                Language::Korean => korean::Korean::load(&self.directory).map(Lexicon::Korean),
                 Language::Spanish => spanish::Spanish::load(&self.directory).map(Lexicon::Spanish),
-                Language::French | Language::German | Language::Portuguese =>
+                Language::French | Language::German | Language::Portuguese | Language::Italian =>
                     european::European::load(&self.directory,language).map(Lexicon::European),
                 _ => Dictionary::load(&self.directory, language).map(Lexicon::Dictionary),
             })
@@ -116,7 +122,7 @@ impl LyricFrontend {
     }
 
     pub(super) fn unmapped_phone_class(&self, language: Language, token: &str) -> Result<Option<&str>> {
-        if !matches!(language, Language::French | Language::German | Language::Portuguese) {
+        if !matches!(language, Language::French | Language::German | Language::Portuguese | Language::Italian) {
             return Ok(None);
         }
         match self.dictionary(language)? {
@@ -126,11 +132,22 @@ impl LyricFrontend {
     }
 
     pub(super) fn resolve(&self, language: Language, lyrics: &str, european: bool) -> Result<Vec<Vec<String>>> {
+        self.resolve_with_inventory(language,lyrics,european,true)
+    }
+
+    pub(super) fn resolve_for_model(&self,language:Language,lyrics:&str,european:bool,
+        tree:&crate::synthesis::voice::PreparedTree)->Result<Vec<Vec<String>>> {
+        let coda_l=language==Language::English && tree.model_phone_token(language.id(),"ll","5").is_ok();
+        self.resolve_with_inventory(language,lyrics,european,coda_l)
+    }
+
+    fn resolve_with_inventory(&self,language:Language,lyrics:&str,european:bool,coda_l:bool)->Result<Vec<Vec<String>>> {
         let dictionary = self.dictionary(language)?;
         let result = match dictionary {
             Lexicon::Mandarin(dictionary) => dictionary.resolve(lyrics),
             Lexicon::Japanese(dictionary) => dictionary.resolve(lyrics),
-            Lexicon::Dictionary(dictionary) => dictionary.resolve(lyrics),
+            Lexicon::Korean(dictionary) => dictionary.resolve(lyrics),
+            Lexicon::Dictionary(dictionary) => dictionary.resolve_with_coda(lyrics,coda_l),
             Lexicon::Spanish(frontend) => frontend.resolve(lyrics, european),
             Lexicon::European(frontend) => frontend.resolve(lyrics),
         }?;

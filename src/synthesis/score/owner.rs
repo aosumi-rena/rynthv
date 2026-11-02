@@ -147,7 +147,7 @@ impl ExplicitScore {
         let mut previous_end_seconds = start_seconds;
         let mut previous_pitch = 60.0;
         for ((begin, end, note), pronunciation) in sources.into_iter().zip(pronunciations) {
-            let super::pronunciation::ResolvedNote { language: note_language, placeholder_language, syllables, kind, error } = pronunciation;
+            let super::pronunciation::ResolvedNote { language: note_language, placeholder_language, syllables, kind, error, xsampa,.. } = pronunciation;
             let begin_seconds = seconds_at(&input.tempo, GlobalBlick(begin))?;
             let end_seconds = seconds_at(&input.tempo, GlobalBlick(end))?;
             let begin_time = if family == VoiceFamily::Sv1 {begin_seconds} else {quantized_seconds(begin_seconds)?};
@@ -199,6 +199,8 @@ impl ExplicitScore {
 
                     pitch: if family != VoiceFamily::Sv1 {pitch} else {previous_pitch},
                     phones: vec![ScorePhone {
+                        vocoder_token:None,
+                        xsampa:false,
                         language: language.id().to_owned(),
                         token: "sil".to_owned(),
                         display_token: None,
@@ -211,7 +213,7 @@ impl ExplicitScore {
                     part_index: 0,
                 });
             }
-            let mut syllables = super::model_phones::materialize(syllables, note_language, lexicon, duration_tree,
+            let mut syllables = super::model_phones::materialize(syllables, note_language, lexicon, duration_tree, xsampa,
                 note.attributes.get("evenSyllableDuration").and_then(serde_json::Value::as_bool) != Some(false))?;
             if placeholder_language.is_some() {
                 for phone in syllables.iter_mut().flatten() {

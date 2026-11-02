@@ -83,12 +83,13 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         let family=app.voice_inventory().and_then(|v|v.configuration.as_ref()).map(|c|c.family);
         let catalog:Vec<_>=app.synthesis.library.catalog().into_iter().flat_map(|c|c.entries.iter())
             .filter(|e|e.family==family && e.availability.is_loadable())
-            .map(|e|(VoiceSelection{database_id:e.database_id.clone(),revision:e.revision},format!("{} · {}",e.display_name,super::selector::source_hint(e)))).collect();
+            .map(|e|(VoiceSelection{database_id:e.database_id.clone(),revision:e.revision},format!("{} · {}",e.display_name,super::selector::source_hint(e)),e.directory.display().to_string())).collect();
         let mut remove=None;
         for (index,target) in controls.voices.iter_mut().enumerate() {
             ui.push_id(index,|ui| {
                 ui.horizontal(|ui| {
-                    ui.label(catalog.iter().find(|(key,_)|key==&target.voice).map_or_else(||target.voice.revision.to_string(),|(_,label)|label.clone()));
+                    let response=ui.label(catalog.iter().find(|(key,_,_)|key==&target.voice).map_or_else(||target.voice.revision.to_string(),|(_,label,_)|label.clone()));
+                    if let Some((_,_,path))=catalog.iter().find(|(key,_,_)|key==&target.voice) {response.on_hover_text(path);}
                     if ui.small_button("×").clicked() {remove=Some(index);}
                 });
                 ui.label(crate::i18n::t("混合比例"));
@@ -111,8 +112,8 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         if let Some(index)=remove {controls.voices.remove(index);}
         if controls.voices.len()<3 {
             ComboBox::from_id_salt(("add-blend",reference)).selected_text(crate::i18n::t("添加歌声…")).show_ui(ui,|ui| {
-                for (voice,label) in &catalog {
-                    if !controls.voices.iter().any(|t|&t.voice==voice) && ui.selectable_label(false,label).clicked() {
+                for (voice,label,path) in &catalog {
+                    if !controls.voices.iter().any(|t|&t.voice==voice) && ui.selectable_label(false,label).on_hover_text(path).clicked() {
                         controls.voices.push(BlendTarget{voice:voice.clone(),weight:0.0,transpose:0,inherit_modes:false,speaker_id:None});ui.close();
                     }
                 }

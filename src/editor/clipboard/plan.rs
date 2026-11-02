@@ -1,18 +1,15 @@
-use super::{Editor, NoteClipboard};
+use super::{Editor, NoteClipboard, curves};
 use crate::model::{EntityId, Group, GroupRef, Note};
 
 pub(super) struct PastePlan {
     track: EntityId,
     target: Target,
     notes: Vec<Note>,
+    overlay: Box<Group>,
 }
 
 enum Target {
-    Existing {
-        reference: EntityId,
-        group: String,
-        end: Option<i64>,
-    },
+    Existing { reference: EntityId, group: String },
     New(Box<(Group, GroupRef)>),
 }
 
@@ -40,14 +37,23 @@ impl PastePlan {
                     .find(|reference| reference.id == id)
             })
         };
-        let (offset, pitch_offset) = reference
-            .map(|reference| (reference.blick_offset, reference.pitch_offset))
-            .unwrap_or((at, 0));
+        let offset = reference
+            .map(|reference| reference.blick_offset)
+            .unwrap_or(at);
         let mut notes = clipboard.notes.clone();
+        let origin = clipboard.origin().ok_or("剪贴板数据无效。")?;
+        let delta = at
+            .checked_sub(offset)
+            .and_then(|v| v.checked_sub(origin))
+            .ok_or("粘贴位置超出可用范围。")?;
         let mut end = at;
         for note in &mut notes {
             let global = at
-                .checked_add(note.onset)
+                .checked_add(
+                    note.onset
+                        .checked_sub(origin)
+                        .ok_or("粘贴位置超出可用范围。")?,
+                )
                 .ok_or("粘贴后的音符时间超出可用范围。")?;
             let global_end = global
                 .checked_add(note.duration)
@@ -58,11 +64,6 @@ impl PastePlan {
             note.onset
                 .checked_add(note.duration)
                 .ok_or("粘贴后的组内结束时间超出可用范围。")?;
-            note.pitch = note
-                .pitch
-                .checked_sub(pitch_offset)
-                .filter(|pitch| (0..=127).contains(pitch))
-                .ok_or("目标音符组的移调使粘贴音高超出 MIDI 范围。")?;
             note.renew_identity();
             end = end.max(global_end);
         }
@@ -74,8 +75,6 @@ impl PastePlan {
             Target::Existing {
                 reference: reference.id,
                 group: reference.group_id.clone(),
-                end: (reference.blick_absolute_end >= 0)
-                    .then_some(reference.blick_absolute_end.max(end)),
             }
         } else {
             let group = Group::new(&track.name);
@@ -88,10 +87,17 @@ impl PastePlan {
             reference.pitch_offset = 0;
             Target::New(Box::new((group, reference)))
         };
+        let mut overlay = match &target {
+            Target::Existing { group, .. } => editor.project.group(group).unwrap().clone(),
+            Target::New(value) => value.0.clone(),
+        };
+        let minimum = offset.checked_neg().ok_or("粘贴位置超出可用范围。")?;
+        curves::paste(&mut overlay, clipboard, delta, minimum)?;
         Ok(Self {
             track: track.id,
             target,
             notes,
+            overlay: Box::new(overlay),
         })
     }
 
@@ -100,30 +106,13 @@ impl PastePlan {
         editor.selected = self.notes.iter().map(|note| note.id).collect();
         editor.track = self.track;
         match self.target {
-            Target::Existing {
-                reference,
-                group,
-                end,
-            } => {
+            Target::Existing { reference, group } => {
                 editor
                     .project
                     .group_mut(&group)
                     .unwrap()
                     .notes
                     .extend(self.notes);
-                let track = editor
-                    .project
-                    .tracks
-                    .iter_mut()
-                    .find(|track| track.id == self.track)
-                    .unwrap();
-                if let Some(end) = end {
-                    let target = std::iter::once(&mut track.main_ref)
-                        .chain(&mut track.groups)
-                        .find(|target| target.id == reference)
-                        .unwrap();
-                    target.blick_absolute_end = end;
-                }
                 editor.reference = Some(reference);
             }
             Target::New(target) => {
@@ -141,6 +130,10 @@ impl PastePlan {
                     .push(reference);
             }
         }
+        let group = editor.group_mut().unwrap();
+        group.parameters = self.overlay.parameters;
+        group.vocal_modes = self.overlay.vocal_modes;
+        group.pitch_controls = self.overlay.pitch_controls;
         count
     }
 }

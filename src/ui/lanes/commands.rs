@@ -1,4 +1,4 @@
-use super::clipboard::ParameterClipboard;
+use rynthv::clipboard::{self,Content};
 use super::{active_lane, editable_bounds, reconcile};
 use crate::{app::App, model::QUARTER};
 use eframe::egui::{Context, ViewportCommand};
@@ -45,7 +45,7 @@ pub fn parameter_has_selection(app: &App) -> bool {
 }
 
 pub fn parameter_can_paste(app: &App) -> bool {
-    parameter_active(app)
+    clipboard::can_paste() && parameter_active(app)
         && editable(app)
         && app.editor.group().is_some()
         && !app.editor.is_editing()
@@ -140,26 +140,15 @@ pub fn parameter_paste_text(app: &mut App, text: &str) {
     if !ready(app) || !parameter_can_paste(app) {
         return;
     }
-    let clipboard = match ParameterClipboard::from_text(text) {
-        Ok(clipboard) => clipboard,
+    let data = match clipboard::read(text) {
+        Ok(data) => data,
         Err(error) => {
             app.error = Some(error);
             return;
         }
     };
-    let Some(reference) = app.editor.active_ref() else {
-        return;
-    };
-    let Some(at) = app
-        .editor
-        .transport
-        .position
-        .checked_sub(reference.blick_offset)
-    else {
-        app.status = "播放位置超出参数控制点的可用时间范围。".into();
-        return;
-    };
-    insert(app, clipboard.points, clipboard.range, at, "粘贴参数控制点");
+    let at=app.editor.transport.position;
+    if let Err(error)=app.editor.paste_content(data,at){app.error=Some(error);}
 }
 
 pub fn parameter_duplicate(app: &mut App) {
@@ -174,8 +163,7 @@ pub fn parameter_duplicate(app: &mut App) {
         app.status = "复制位置超出参数控制点的可用时间范围。".into();
         return;
     };
-    let range = app.parameter_lane.owner.as_ref().unwrap().target.range();
-    insert(app, points, range, at, "重复参数控制点");
+    insert(app, points, at, "重复参数控制点");
 }
 
 pub(super) fn shift_selected(app: &mut App, delta_time: i64, delta_value: f64) {
@@ -254,13 +242,14 @@ fn editable(app: &App) -> bool {
 }
 
 fn clipboard_text(app: &App) -> Result<Option<(String, usize)>, String> {
-    let range = app.parameter_lane.owner.as_ref().unwrap().target.range();
-    let Some(clipboard) = ParameterClipboard::capture(selected(app), range)? else {
-        return Ok(None);
-    };
-    clipboard
-        .to_text()
-        .map(|text| Some((text, clipboard.points.len())))
+    let target=&app.parameter_lane.owner.as_ref().unwrap().target;
+    let points=selected(app);if points.is_empty(){return Ok(None);}
+    let count=points.len();let mut curve=app.editor.automation(target).cloned().unwrap_or_default();curve.points=points;
+    let offset=app.editor.active_ref().ok_or("请先选择音符组。")?.blick_offset;
+    for (position,_) in &mut curve.points{*position=position.checked_add(offset).ok_or("粘贴位置超出可用范围。")?;}
+    let key=if matches!(target,crate::model::Parameter::VocalMode(_)){format!("vocalMode_{}",target.label())}else{target.key().to_owned()};
+    let data=Content{parameters:BTreeMap::from([(key,curve)]),position_set:true,..Default::default()};
+    clipboard::write(&data).map(|text|Some((text,count)))
 }
 
 fn selected(app: &App) -> Vec<(i64, f64)> {
@@ -293,7 +282,7 @@ fn remove(app: &mut App, points: &[(i64, f64)], label: &str) -> bool {
     replace(app, replacement, label)
 }
 
-fn insert(app: &mut App, source: Vec<(i64, f64)>, source_range: (f64, f64), at: i64, label: &str) {
+fn insert(app: &mut App, source: Vec<(i64, f64)>, at: i64, label: &str) {
     let Some(&(first, _)) = source.first() else {
         return;
     };
@@ -301,12 +290,6 @@ fn insert(app: &mut App, source: Vec<(i64, f64)>, source_range: (f64, f64), at: 
         return;
     };
     let target = &app.parameter_lane.owner.as_ref().unwrap().target;
-    let (low, high) = target.range();
-    let (source_low, source_high) = source_range;
-    if !source_low.is_finite() || !source_high.is_finite() || source_low >= source_high {
-        app.error = Some("参数控制点剪贴板的取值范围无效。".into());
-        return;
-    }
     let mut inserted = Vec::with_capacity(source.len());
     for (time, value) in source {
         let shifted = i128::from(at) + i128::from(time) - i128::from(first);
@@ -318,13 +301,7 @@ fn insert(app: &mut App, source: Vec<(i64, f64)>, source_range: (f64, f64), at: 
             app.error = Some("参数控制点剪贴板包含无效的数值。".into());
             return;
         }
-        let mapped = if source_range == (low, high) {
-            value
-        } else {
-            let fraction = ((value - source_low) / (source_high - source_low)).clamp(0.0, 1.0);
-            low + fraction * (high - low)
-        };
-        inserted.push((shifted as i64, mapped));
+        inserted.push((shifted as i64, value));
     }
     let times = inserted.iter().map(|point| point.0).collect();
     let count = inserted.len();

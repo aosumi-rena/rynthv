@@ -12,10 +12,11 @@ pub enum Language {
     French,
     German,
     Portuguese,
+    Italian,
 }
 
 impl Language {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::English,
         Self::Mandarin,
         Self::Japanese,
@@ -25,6 +26,7 @@ impl Language {
         Self::French,
         Self::German,
         Self::Portuguese,
+        Self::Italian,
     ];
 
     pub fn id(self) -> &'static str {
@@ -38,6 +40,7 @@ impl Language {
             Self::French => "french",
             Self::German => "german",
             Self::Portuguese => "portuguese",
+            Self::Italian => "italian",
         }
     }
 
@@ -52,6 +55,7 @@ impl Language {
             Self::French => "french-xsampa",
             Self::German => "german-xsampa",
             Self::Portuguese => "portuguese-xsampa",
+            Self::Italian => "italian-xsampa",
         }
     }
 
@@ -59,8 +63,7 @@ impl Language {
         match self {
             Self::English => "arpabet",
             Self::Japanese => "romaji",
-            Self::Mandarin | Self::Spanish | Self::Cantonese | Self::Korean
-                | Self::French | Self::German | Self::Portuguese => "xsampa",
+            _ => "system",
         }
     }
 
@@ -75,6 +78,7 @@ impl Language {
             Self::French => "法语",
             Self::German => "德语",
             Self::Portuguese => "葡萄牙语",
+            Self::Italian => "意大利语",
         }
     }
 

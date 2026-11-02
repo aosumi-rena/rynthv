@@ -4,6 +4,9 @@ use std::{collections::HashSet, fs, io::Write, path::Path};
 mod identity;
 mod audio;
 
+/// Update native audio-reference metadata in memory; never writes a file.
+pub fn synchronize_audio_references(project: &mut Project) { audio::save(project); }
+
 pub fn load(path: &Path) -> Result<Project, String> {
     if fs::metadata(path).map_err(|e| e.to_string())?.len() > 64 * 1024 * 1024 {
         return Err("工程超过 64 MiB 读取上限".into());
@@ -95,6 +98,9 @@ pub(crate) fn validate(p: &Project) -> Result<(), String> {
         return bad("至少需要一条音轨");
     }
     for (name, dictionary) in &p.dictionaries {
+        if dictionary.xsampa_entries.iter().any(|word|!dictionary.entries.contains_key(word)) {
+            return bad("发音词典的字词或音素无效");
+        }
         if name.trim().is_empty() || name != name.trim() {
             return bad("发音词典名称不能为空或包含首尾空白");
         }

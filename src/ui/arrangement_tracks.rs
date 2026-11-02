@@ -21,7 +21,7 @@ pub fn show(app: &mut App, ui: &mut Ui, timeline_left: f32, scroll: f32) {
         ui.painter().rect_filled(
             head,
             0,
-            if track.id == app.editor.track && !track.is_instrumental() {
+            if app.editor.selected_tracks.contains(&track.id) {
                 Color32::from_rgb(57, 55, 60)
             } else {
                 PANEL
@@ -61,6 +61,8 @@ pub fn show(app: &mut App, ui: &mut Ui, timeline_left: f32, scroll: f32) {
         } else if response.clicked() {
             app.commit_lyric();
             app.editor.select_track(track.id);
+            app.editor.group_focus=true;
+            app.editor.selected_groups.clear();
         }
         response.context_menu(|ui| {
             if ui.button(crate::i18n::t("插入新的音符组")).clicked() {
@@ -73,8 +75,13 @@ pub fn show(app: &mut App, ui: &mut Ui, timeline_left: f32, scroll: f32) {
                 ui.close();
             }
             ui.separator();
-            ui.add_enabled(false, Button::new(crate::i18n::t("粘贴")));
-            ui.add_enabled(false, Button::new(crate::i18n::t("作为链接音符组粘贴")));
+            let enabled=rynthv::clipboard::can_paste_groups() && !app.editor.is_editing();
+            for (label,linked) in [("粘贴",false),("作为链接音符组粘贴",true)] {
+                if ui.add_enabled(enabled,Button::new(crate::i18n::t(label))).clicked(){
+                    let at=ui.ctx().data(|d|d.get_temp::<i64>(context_id)).unwrap_or(0);
+                    super::chrome::edit::request_group_paste(app,ui.ctx(),track.id,at,linked);ui.close();
+                }
+            }
         });
         let mut references: Vec<_> = track.visible_references().collect();
         references.sort_by_key(|r| app.editor.reference == Some(r.id));
@@ -125,7 +132,7 @@ fn group(app: &mut App, ui: &mut Ui, body: Rect, track: &Track, reference: &Grou
     if !clip.is_positive() {
         return;
     }
-    let selected = app.editor.reference == Some(reference.id);
+    let selected = if app.editor.group_focus {app.editor.selected_groups.contains(&(track.id,reference.id))}else{app.editor.reference==Some(reference.id)};
     let missing=app.synthesis.voice_not_installed(track,reference);
     let painter = ui.painter().with_clip_rect(body.intersect(ui.clip_rect()));
     let fill = if selected {
@@ -175,7 +182,12 @@ fn group(app: &mut App, ui: &mut Ui, body: Rect, track: &Track, reference: &Grou
     if missing {response.clone().on_hover_text(crate::i18n::t("未安装"));}
     if response.clicked() || response.secondary_clicked() {
         app.commit_lyric();
-        app.editor.select_reference(track.id, reference.id);
+        let multiple=response.clicked() && ui.input(|i|i.modifiers.command);
+        if response.secondary_clicked() && app.editor.selected_groups.contains(&(track.id,reference.id)) {
+            app.editor.group_focus=true;
+        }else{
+            app.editor.select_group_clipboard(track.id,reference.id,multiple);
+        }
     }
     let kind_at = |p: Pos2| {
         if (p.x - region.left()).abs() < 6.0 {

@@ -107,10 +107,8 @@ pub(super) fn dialog(app: &mut App, ctx: &Context) {
         if importing {
             ui.horizontal(|ui| {
                 ui.spinner();
-                text(ui, crate::i18n::t("正在导入，完成后自动重新加载此歌声…"));
+                text(ui, crate::i18n::t("导入"));
             });
-        } else {
-            weak(ui, crate::i18n::t("仅更新此歌声的上下文，完成后自动重新加载。"));
         }
         if let Some(error) = &dialog.error {
             error_label(ui, error);

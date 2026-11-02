@@ -6,7 +6,7 @@ pub(super) struct Word {
     pub syllables: Vec<Vec<String>>,
 }
 
-pub(super) fn apply(words: &mut [Word], tree: &PreparedTree) -> Result<()> {
+pub(super) fn apply(words: &mut [Word], tree: &PreparedTree,frontend:&super::LyricFrontend) -> Result<()> {
 
     let indices: Vec<_> = words.iter().enumerate().flat_map(|(w, word)|
         (0..word.syllables.len()).map(move |s| (w,s))).collect();
@@ -15,14 +15,14 @@ pub(super) fn apply(words: &mut [Word], tree: &PreparedTree) -> Result<()> {
         let (next_w,next_s) = pair[1];
         if words[w].lyrics.starts_with('.') {continue;}
         let Some(first) = words[next_w].syllables[next_s].first() else {continue;};
-        let following = tree.resolve_phone(Language::English.id(), first)?.source_class;
+        let following = frontend.resolve_token(Language::English,first,tree)?.source_class;
         let same = words[w].syllables[s].last() == Some(first);
         let beats = words[w].beats / words[w].syllables.len() as f64;
         let syllable = &mut words[w].syllables[s];
         let Some(last) = syllable.last() else {continue;};
-        let last_class = tree.resolve_phone(Language::English.id(), last)?.source_class;
+        let last_class = frontend.resolve_token(Language::English,last,tree)?.source_class;
         let previous_class = if syllable.len()>1 {
-            tree.resolve_phone(Language::English.id(), &syllable[syllable.len()-2])?.source_class
+            frontend.resolve_token(Language::English,&syllable[syllable.len()-2],tree)?.source_class
         } else {None};
         if matches!(last.as_str(), "t"|"d") && matches!(following, Some("vowel"|"diphthong")) {
             *syllable.last_mut().expect("nonempty") = "dx".into();

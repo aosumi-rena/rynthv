@@ -1,4 +1,5 @@
 pub mod midi;
+pub mod clipboard;
 pub mod model;
 pub mod platform;
 pub mod storage;

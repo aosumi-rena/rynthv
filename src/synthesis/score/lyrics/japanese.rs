@@ -120,16 +120,15 @@ impl Japanese {
 
 fn romaji(directory: &Path) -> Result<PhoneTable> {
     let mut table = PhoneTable::load(&directory.join("japanese-romaji-dict.txt"), false)?;
-    for line in read(&directory.join("japanese-romaji-phones.txt"))?.lines() {
-        let mut fields = line.trim_start_matches('\u{feff}').split_whitespace();
-        if let (Some(phone), Some(class)) = (fields.next(), fields.next())
-            && matches!(
-                class,
+    let catalog = crate::model::PhonemeCatalog::load(directory).map_err(VoiceError::new)?;
+    for entry in catalog.for_language(crate::model::Language::Japanese) {
+        if matches!(
+                entry.category.as_str(),
                 "stop" | "fricative" | "affricate" | "aspirate" | "liquid" | "nasal" | "semivowel"
             )
         {
 
-            table.include_literal(phone);
+            table.include_literal(&entry.symbol);
         }
     }
     Ok(table)

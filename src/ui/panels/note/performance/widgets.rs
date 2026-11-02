@@ -77,9 +77,7 @@ pub(super) fn expression(ui: &mut Ui, value: &mut [f64; 2], mixed: bool) -> Resp
             MUTED,
         );
     }
-    response.on_hover_cursor(CursorIcon::Crosshair).on_hover_text(
-        crate::i18n::t("拖动调整所选音符的演绎；方向键微调，Shift 加方向键精细调整。双击或 Home 恢复默认，Esc 取消本次拖动。"),
-    )
+    response.on_hover_cursor(CursorIcon::Crosshair)
 }
 
 pub(super) fn slider(

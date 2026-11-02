@@ -17,10 +17,6 @@ pub fn settings(app: &mut App, ui: &mut Ui) {
     if let Some(error) = app.synthesis.library.settings_error() {
         error_label(ui, error);
     }
-    weak(
-        ui,
-        crate::i18n::t("请手动选择资源目录。路径和所选歌声会自动保存，下次启动恢复。"),
-    );
 }
 
 pub(super) fn directory_menu(app:&mut App,ui:&mut Ui) {
@@ -48,7 +44,7 @@ fn source_list(app:&mut App,ui:&mut Ui) {
                     replace=folder_dialog(Some(path)).pick_folder().map(|p|(index,p));
                 }
                 if ui.small_button("×").clicked() {remove=Some(index);}
-                ui.add(Label::new(RichText::new(path.display().to_string()).small().weak()).wrap());
+                path_label(ui,Some(path));
             });
         });
     }
@@ -66,9 +62,13 @@ pub(super) fn choose_dictionaries(app: &mut App) {
     }
 }
 
-fn path_label(ui: &mut Ui, path: Option<&Path>) {
+pub(super) fn path_label(ui: &mut Ui, path: Option<&Path>) {
     match path {
-        Some(path) => weak(ui, path.display().to_string()),
+        Some(path) => {
+            let name=path.file_name().unwrap_or(path.as_os_str()).to_string_lossy();
+            ui.add(Label::new(RichText::new(name).small().weak()).wrap())
+                .on_hover_text(path.display().to_string());
+        },
         None => weak(ui, crate::i18n::t("尚未指定")),
     }
 }

@@ -97,26 +97,8 @@ pub fn show(app: &mut App, ctx: &Context) {
                         });
                 });
             ui.checkbox(&mut edit.repeat, crate::i18n::t("循环填入"));
-            ui.checkbox(&mut edit.by_character, crate::i18n::t("逐字填入"))
-                .on_hover_text(crate::i18n::t("拆分汉字、假名和韩文音节；拼音、罗马字及英文按空格分词。"));
+            ui.checkbox(&mut edit.by_character, crate::i18n::t("逐字填入"));
             words = split_lyrics(&edit.text, edit.by_character);
-            let notes = edit.selection.len();
-            let hint = if words.is_empty() {
-                crate::lformat!("已选择 {notes} 个音符，请输入歌词。")
-            } else if edit.repeat {
-                crate::lformat!("{} 个字词 · 循环填入 {notes} 个音符", words.len())
-            } else if words.len() > notes {
-                crate::lformat!(
-                    "填入 {notes} 个音符 · 多出的 {} 个字词不填入",
-                    words.len() - notes
-                )
-            } else if words.len() < notes {
-                crate::lformat!("填入 {} / {notes} 个音符 · 其余保留原歌词", words.len())
-            } else {
-                crate::lformat!("{} 个字词 · 填入 {notes} 个音符", words.len())
-            };
-            ui.label(RichText::new(hint).size(11.0).color(MUTED))
-                .on_hover_text(crate::i18n::t("更改歌词时会清除对应音符的自定义音素，以便重新生成发音。"));
             ui.add_space(8.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let size = vec2(106.0, 34.0);
@@ -127,7 +109,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                             .fill(GREEN)
                             .min_size(size),
                     )
-                    .on_hover_text(format!("{} 确定", crate::ui::chrome::shortcut_text("Ctrl+Enter")))
+                    .on_hover_text(crate::ui::chrome::shortcut_text(crate::i18n::t("Ctrl+Enter 确定")))
                     .clicked();
                 cancel = ui
                     .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))

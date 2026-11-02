@@ -51,6 +51,5 @@ pub fn render_status(app: &mut App, ui: &mut Ui) {
             "本次变化 {} 组 · 保留 {} 组请求",
             summary.changed_owners, summary.unchanged_owners
         ));
-        ui.weak(crate::i18n::t("优先准备播放位置的音频，其余部分在后台继续合成；无改动区段复用已有结果。"));
     });
 }

@@ -1,5 +1,4 @@
 mod geometry;
-mod clipboard;
 mod commands;
 mod selection;
 mod point_drag;
@@ -41,6 +40,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
         Id::new(("parameter-canvas", id)),
         Sense::click_and_drag(),
     );
+    if response.clicked() || response.drag_started() || response.secondary_clicked(){app.editor.track_focus=false;}
     scroll(ui, &response, canvas, &mut app.view.piano,10.0..=500.0);
     let pan=app.view_pan.drag(ui,super::view_pan::Target::Parameter(id),canvas,
         app.gesture.is_none() && app.group_gesture.is_none());

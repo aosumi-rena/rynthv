@@ -26,6 +26,10 @@ pub fn note_rect(note: &Note, offset: i64, pitch_offset: i32, rect: Rect, app: &
 }
 pub fn show(app: &mut App, ui: &mut Ui) {
     let all = ui.max_rect();
+    if ui.input(|i|i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|p|all.contains(p))) {
+        app.editor.group_focus=false;
+        app.editor.track_focus=false;
+    }
     ui.painter().rect_filled(all, 0, PANEL);
     let ruler = Rect::from_min_max(
         pos2(all.left() + GUTTER, all.top()),
@@ -48,6 +52,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         (app.view.piano.start - pan.x as f64 / app.view.piano.beat_width as f64).max(0.0);
     let response = ui.interact(canvas, Id::new("piano-canvas"), Sense::click_and_drag());
     if response.clicked() || response.drag_started() {
+        app.editor.track_focus=false;
         crate::ui::lanes::parameter_deactivate(app);
         crate::ui::phonemes::phoneme_deactivate(app);
     }
@@ -194,7 +199,7 @@ fn interaction(
             let text=super::phonemes::text(app,&reference,&note);
             app.editor.select_reference(app.editor.track,reference.id);
             app.editor.selected=BTreeSet::from([note.id]);
-            app.lyric=Some(super::LyricEdit {id:note.id,text,focus:true,phonemes:true});
+            app.lyric=Some(super::LyricEdit {id:note.id,original:text.clone(),text,focus:true,phonemes:true});
         } else if let Some((reference, note)) = hit {
             app.editor.select_reference(app.editor.track, reference.id);
             app.editor.selected = BTreeSet::from([note.id]);

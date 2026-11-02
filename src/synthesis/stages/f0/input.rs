@@ -48,7 +48,7 @@ impl F0Stage<'_> {
         let phone_features=self.features.prepare_phones(phones)?;
         let mut phone_to_note = Vec::with_capacity(phones.len());
         let mut phone_frames = Vec::with_capacity(phones.len());
-        let mut tokens = Vec::with_capacity(phones.len());
+        let tokens = phone_features.noise_tokens(phones)?;
         let mut vowel_mask = Vec::with_capacity(frames);
         let mut last_note = 0;
         let mut per_note_frames = vec![0_usize; notes.len()];
@@ -65,7 +65,6 @@ impl F0Stage<'_> {
             vowel_mask.extend(std::iter::repeat_n(is_vowel, phone.frames));
             phone_to_note.push(phone.note_index);
             phone_frames.push(phone.frames);
-            tokens.push(phone.token.clone());
         }
 
         if vowel_mask.len() != frames {

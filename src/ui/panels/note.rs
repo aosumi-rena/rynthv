@@ -172,17 +172,21 @@ fn phonemes(app: &mut App, ui: &mut Ui) {
     }
     let mixed = draft.source.windows(2).any(|pair| pair[0] != pair[1]);
     ui.weak(crate::i18n::t("音素"));
-    let response = ui.add_sized(
-        vec2(ui.available_width(), 28.0),
-        TextEdit::singleline(&mut draft.text)
+    let output = TextEdit::singleline(&mut draft.text)
             .id(id.with("input"))
             .hint_text(if mixed { crate::i18n::t("多个值") } else { crate::i18n::t("自动") })
             .vertical_align(Align::Center)
             .margin(vec2(7.0, 5.0))
-            .background_color(crate::ui::theme::BORDER),
-    );
+            .background_color(crate::ui::theme::BORDER).desired_width(ui.available_width()).show(ui);
+    let language=notes.first().and_then(|note|crate::ui::phoneme_candidates::language(app,note));
+    let xsampa=notes.first().is_some_and(|note|note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa"));
+    let candidates=crate::ui::phoneme_candidates::show(app,ui,&output,&mut draft.text,language,xsampa);
+    let response=(*output.response).clone();
+    draft.dirty |= candidates.changed;
     draft.dirty |= response.changed();
-    if (response.has_focus() || response.lost_focus()) && ui.input(|i| i.key_pressed(Key::Escape)) {
+    if candidates.handled {
+        // Candidate acceptance edits the draft; Enter afterwards commits it.
+    } else if (response.has_focus() || response.lost_focus()) && ui.input(|i| i.key_pressed(Key::Escape)) {
         draft.text = if mixed {
             String::new()
         } else {
@@ -200,9 +204,14 @@ fn phonemes(app: &mut App, ui: &mut Ui) {
         draft.dirty = false;
         response.surrender_focus();
     }
-    response.on_hover_text(
-        crate::i18n::t("音素以空格分隔；回车或移开焦点应用到所选音符，清空恢复自动发音。Esc 取消输入。"),
-    );
+    let mut use_xsampa=xsampa;
+    let mixed_alphabet=notes.iter().any(|note|(note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa"))!=xsampa);
+    if ui.add(Checkbox::new(&mut use_xsampa,crate::i18n::t("使用 X-SAMPA 音素符号")).indeterminate(mixed_alphabet)).changed() {
+        if let (Some(language),Ok(catalog))=(crate::ui::phoneme_candidates::inherited_language(app),crate::ui::phoneme_candidates::catalog(app,ui.ctx())) {
+            app.commit_lyric();
+            if let Err(error)=app.editor.set_note_phoneme_alphabet(use_xsampa,&catalog,language) {app.error=Some(error);}
+        }
+    }
     let even = |note: &Note| {
         note.attributes
             .get("evenSyllableDuration")

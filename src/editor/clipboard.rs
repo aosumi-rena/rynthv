@@ -1,140 +1,129 @@
+mod capture;
+mod curves;
+mod groups;
 mod plan;
+mod regions;
 
 use super::Editor;
-use crate::model::{Note, NotePerformance, TakeSet};
+use crate::model::*;
 use plan::PastePlan;
-use serde::{Deserialize, Serialize};
-
-const PREFIX: &str = "RynthV notes\n";
-const MAX_BYTES: usize = 16 * 1024 * 1024;
-const MAX_NOTES: usize = 100_000;
-
-#[derive(Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct NoteClipboard {
-    notes: Vec<Note>,
-}
-
-impl NoteClipboard {
-    fn validate(&self) -> Result<(), String> {
-        if self.notes.is_empty() || self.notes.len() > MAX_NOTES {
-            return Err(format!("音符剪贴板须包含 1 到 {MAX_NOTES} 个音符。"));
-        }
-        if self.notes.iter().map(|note| note.onset).min() != Some(0) {
-            return Err("音符剪贴板的起始时间无效。".into());
-        }
-        for note in &self.notes {
-            if note.onset < 0 || note.duration <= 0 {
-                return Err("音符剪贴板包含无效的起始时间或时长。".into());
-            }
-            if !(0..=127).contains(&note.pitch) {
-                return Err("音符剪贴板的音高超出 MIDI 范围。".into());
-            }
-            note.onset
-                .checked_add(note.duration)
-                .ok_or("音符剪贴板的时间超出可用范围。")?;
-            NotePerformance::from_note(note)
-                .map_err(|error| format!("音符剪贴板的演绎参数无效：{error}"))?;
-            TakeSet::from_extra(&note.extra)
-                .map_err(|error| format!("音符剪贴板的重录采样无效：{error}"))?;
-        }
-        Ok(())
-    }
-
-    fn to_text(&self) -> Result<String, String> {
-        let json = serde_json::to_string(self).map_err(|error| format!("无法复制音符：{error}"))?;
-        if json.len() > MAX_BYTES - PREFIX.len() {
-            return Err("所选音符数据过大，无法复制。".into());
-        }
-        Ok(format!("{PREFIX}{json}"))
-    }
-
-    fn from_text(text: &str) -> Result<Self, String> {
-        if text.len() > MAX_BYTES {
-            return Err("剪贴板数据过大，无法粘贴音符。".into());
-        }
-        let json = text
-            .strip_prefix(PREFIX)
-            .ok_or("剪贴板中没有 RynthV 音符，请先复制音符。")?;
-        let clipboard: Self =
-            serde_json::from_str(json).map_err(|error| format!("音符剪贴板数据无效：{error}"))?;
-        clipboard.validate()?;
-        Ok(clipboard)
-    }
-}
+use rynthv::clipboard::{self, Content};
+type NoteClipboard = Content;
 
 impl Editor {
-
-    pub fn copy(&self) -> Result<Option<String>, String> {
-        let Some(clipboard) = self.capture_note_selection()? else {
-            return Ok(None);
-        };
-        clipboard.to_text().map(Some)
+    pub fn copy(&self, parameters: bool) -> Result<Option<String>, String> {
+        let data = self.copy_content(parameters)?;
+        data.as_ref().map(clipboard::write).transpose()
     }
-
+    pub fn copy_content(&self, parameters: bool) -> Result<Option<Content>, String> {
+        if self.group_focus {
+            self.capture_groups()
+        } else {
+            self.capture_note_selection(parameters)
+        }
+    }
     pub fn paste_text(&mut self, text: &str, at: i64) -> Result<usize, String> {
-        let clipboard = NoteClipboard::from_text(text)?;
-        let plan = PastePlan::prepare(self, &clipboard, at, false)?;
-        Ok(self.apply_note_paste(plan, "粘贴音符"))
+        self.paste_content(clipboard::read(text)?, at)
     }
-
-    pub fn duplicate_selected(&mut self) -> Result<usize, String> {
-        let Some(clipboard) = self.capture_note_selection()? else {
+    pub fn paste_content(&mut self, data: Content, at: i64) -> Result<usize, String> {
+        data.validate()?;
+        if !data.groups.is_empty()
+            && (!data.notes.is_empty()
+                || !data.pitch_controls.is_empty()
+                || !data.parameters.is_empty())
+        {
+            let origin = data.origin().ok_or("剪贴板数据无效。")?;
+            let selection = self.selection();
+            let mut next = Editor::new(self.project.clone());
+            next.restore_selection(selection.clone());
+            let mut groups = data.clone();
+            groups.notes.clear();
+            groups.pitch_controls.clear();
+            groups.parameters.clear();
+            let group_at = at
+                .checked_add(
+                    groups
+                        .origin()
+                        .unwrap()
+                        .checked_sub(origin)
+                        .ok_or("粘贴位置超出可用范围。")?,
+                )
+                .ok_or("粘贴位置超出可用范围。")?;
+            let mut count = next.paste_groups(&groups, group_at)?;
+            next.restore_selection(selection);
+            let mut inner = data;
+            inner.groups.clear();
+            inner.library.clear();
+            inner.tracks.clear();
+            let inner_at = at
+                .checked_add(
+                    inner
+                        .origin()
+                        .ok_or("剪贴板数据无效。")?
+                        .checked_sub(origin)
+                        .ok_or("粘贴位置超出可用范围。")?,
+                )
+                .ok_or("粘贴位置超出可用范围。")?;
+            count += next.paste_content(inner, inner_at)?;
+            let selected = next.selection();
+            self.finish();
+            self.begin("粘贴");
+            self.project = next.project;
+            self.restore_selection(selected);
+            self.finish();
+            return Ok(count);
+        }
+        if !data.groups.is_empty() {
+            return self.paste_groups(&data, at);
+        }
+        if data.notes.is_empty() {
+            let reference = self.active_ref().ok_or("请先选择音符组。")?.clone();
+            let delta = at
+                .checked_sub(reference.blick_offset)
+                .and_then(|v| v.checked_sub(data.origin()?))
+                .ok_or("粘贴位置超出可用范围。")?;
+            let mut group = self.group().ok_or("请先选择音符组。")?.clone();
+            let minimum = reference
+                .blick_offset
+                .checked_neg()
+                .ok_or("粘贴位置超出可用范围。")?;
+            let count = curves::paste(&mut group, &data, delta, minimum)?;
+            self.finish();
+            self.begin("粘贴");
+            *self.group_mut().unwrap() = group;
+            self.finish();
+            return Ok(count);
+        }
+        let plan = PastePlan::prepare(self, &data, at, false)?;
+        self.finish();
+        self.begin("粘贴音符");
+        let count = plan.apply(self);
+        self.finish();
+        Ok(count)
+    }
+    pub fn duplicate_selected(&mut self, parameters: bool) -> Result<usize, String> {
+        let Some(data) = self.capture_note_selection(parameters)? else {
             return Ok(0);
         };
-        let offset = self.active_ref().ok_or("请先选择音符组。")?.blick_offset;
-        let at = self
-            .notes()
+        let reference = self.active_ref().ok_or("请先选择音符组。")?;
+        let at = data
+            .notes
             .iter()
-            .filter(|note| self.selected.contains(&note.id))
-            .map(|note| {
-                note.onset
-                    .checked_add(note.duration)
-                    .and_then(|end| end.checked_add(offset))
-                    .ok_or("所选音符的结束时间超出可用范围。")
+            .map(|n| {
+                n.onset
+                    .checked_add(n.duration)
+                    .and_then(|t| t.checked_add(reference.blick_offset))
+                    .ok_or("所选音符的时间跨度超出可用范围。")
             })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .max()
             .ok_or("请先选择音符。")?;
-        let plan = PastePlan::prepare(self, &clipboard, at, true)?;
-        Ok(self.apply_note_paste(plan, "重复音符"))
-    }
-
-    fn capture_note_selection(&self) -> Result<Option<NoteClipboard>, String> {
-        let Some(reference) = self.active_ref() else {
-            return Ok(None);
-        };
-        let mut notes: Vec<_> = self
-            .notes()
-            .iter()
-            .filter(|note| self.selected.contains(&note.id))
-            .cloned()
-            .collect();
-        let Some(first) = notes.iter().map(|note| note.onset).min() else {
-            return Ok(None);
-        };
-        for note in &mut notes {
-            note.onset = note
-                .onset
-                .checked_sub(first)
-                .ok_or("所选音符的时间跨度超出可用范围。")?;
-            note.pitch = note
-                .pitch
-                .checked_add(reference.pitch_offset)
-                .ok_or("所选音符的音高超出可用范围。")?;
-        }
-        notes.sort_by_key(|note| (note.onset, note.pitch, note.id));
-        let clipboard = NoteClipboard { notes };
-        clipboard.validate()?;
-        Ok(Some(clipboard))
-    }
-
-    fn apply_note_paste(&mut self, plan: PastePlan, label: &str) -> usize {
+        let plan = PastePlan::prepare(self, &data, at, true)?;
         self.finish();
-        self.begin(label);
+        self.begin("重复音符");
         let count = plan.apply(self);
         self.finish();
-        count
+        Ok(count)
     }
 }

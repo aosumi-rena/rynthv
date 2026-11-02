@@ -131,7 +131,7 @@ impl Dictionary {
         let name = if english {
             "cmudict-07b.txt".into()
         } else {
-            format!("{}-dict.txt", language.phone_set())
+            format!("{}-dict.txt", language.id())
         };
         let phones = PhoneTable::load(&directory.join(name), english)?;
         let words = if language == Language::Cantonese {
@@ -139,14 +139,7 @@ impl Dictionary {
         } else {
             WordReadings::default()
         };
-        let classes = read(&directory.join(format!("{}-phones.txt", language.phone_set())))?
-            .lines()
-            .filter_map(|line| {
-                let mut fields = line.split_whitespace();
-                let phone = fields.next()?;
-                Some((phone.to_owned(),fields.next()?.to_owned()))
-            })
-            .collect();
+        let classes = crate::model::PhonemeCatalog::load(directory).map_err(VoiceError::new)?.classes(language);
         Ok(Self {
             language,
             phones,
@@ -155,15 +148,15 @@ impl Dictionary {
         })
     }
 
-    pub(super) fn resolve(&self, lyrics: &str) -> Result<Vec<Phones>> {
+    pub(super) fn resolve_with_coda(&self, lyrics: &str, coda_l:bool) -> Result<Vec<Phones>> {
         let mut result = Vec::new();
         for token in lyrics.split_whitespace() {
             if self.language == Language::Cantonese && !token.is_ascii() {
                 for reading in self.words.resolve(token)? {
-                    result.extend(self.romanized(&reading)?);
+                    result.extend(self.romanized(&reading,coda_l)?);
                 }
             } else {
-                result.extend(self.romanized(token)?);
+                result.extend(self.romanized(token,coda_l)?);
             }
         }
         if result.is_empty() {
@@ -172,7 +165,7 @@ impl Dictionary {
         Ok(result)
     }
 
-    fn romanized(&self, token: &str) -> Result<Vec<Phones>> {
+    fn romanized(&self, token: &str, coda_l:bool) -> Result<Vec<Phones>> {
         let mut token = token.to_lowercase();
 
         if self.language == Language::English && token.len()>3 && token.ends_with("in'") {
@@ -180,7 +173,17 @@ impl Dictionary {
         }
         match self.language {
             Language::English => {
-                let phones=self.phones.first(&token)?;
+                let mut phones=self.phones.first(&token)?;
+                if coda_l {
+                    // Distinguish clear and dark L within each word.
+                    for i in 0..phones.len() {
+                        if phones[i]=="l" && !phones.get(i+1).is_some_and(|next|
+                            next=="y" || self.classes.get(next).is_some_and(|class|
+                                matches!(class.as_str(),"vowel"|"diphthong"))) {
+                            phones[i]="ll".into();
+                        }
+                    }
+                }
                 let classes:Vec<_>=phones.iter().map(|p|self.classes.get(p).map(String::as_str)).collect();
                 Ok(super::english::split(phones,&classes))
             },
@@ -190,7 +193,6 @@ impl Dictionary {
                 )?])
             }
 
-            Language::Korean => Ok(vec![self.phones.get(&token)?]),
             _ => unreachable!("dedicated language adapters"),
         }
     }

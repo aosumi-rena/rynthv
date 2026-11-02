@@ -128,6 +128,7 @@ pub fn show(app: &mut App, ui: &mut Ui, body: Rect, track: &Track) {
         .on_hover_text(hover);
     if response.clicked() || response.secondary_clicked() {
         app.commit_lyric();
+        app.editor.select_group_clipboard(track.id,track.main_ref.id,ui.input(|i|i.modifiers.command));
     }
     if response.double_clicked() {
         app.import_audio(Some(track.id), ui.ctx());

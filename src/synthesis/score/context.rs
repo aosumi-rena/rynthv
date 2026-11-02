@@ -94,6 +94,8 @@ fn silence(edge: &ScoreNote, duration_seconds: f64) -> ScoreNote {
         duration_seconds,
         pitch: edge.pitch,
         phones: vec![ScorePhone {
+            vocoder_token:None,
+            xsampa:false,
             language: edge
                 .phones
                 .first()

@@ -6,7 +6,7 @@ mod gesture;
 mod interaction;
 mod transform;
 
-pub use commands::{anchor_copy, anchor_cut, anchor_duplicate, anchor_paste, anchor_shift_octave};
+pub use commands::{anchor_copy, anchor_cut, anchor_duplicate, anchor_paste_text, anchor_shift_octave};
 pub(super) use draw::draw;
 pub use gesture::AnchorGesture;
 pub(super) use interaction::interaction;
@@ -23,17 +23,12 @@ use std::collections::BTreeSet;
 pub struct AnchorSelection {
     owner: Option<(EntityId, EntityId, String)>,
     ids: BTreeSet<String>,
-    clipboard: Vec<PitchControl>,
-    clipboard_pitch_offset: i32,
     candidates: Vec<PitchPoint>,
     revision: u64,
 }
 
 pub fn anchor_has_selection(app: &App) -> bool {
     !app.piano_anchor.ids.is_empty()
-}
-pub fn anchor_has_clipboard(app: &App) -> bool {
-    !app.piano_anchor.clipboard.is_empty()
 }
 pub fn anchor_clear(app: &mut App) {
     app.piano_anchor.ids.clear();
@@ -199,16 +194,9 @@ pub fn anchor_keyboard(app: &mut App, ctx: &Context) -> bool {
         anchor_select_all(app);
         return true;
     }
-    for (key, command) in [
-        (Key::C, anchor_copy as fn(&mut App)),
-        (Key::X, anchor_cut),
-        (Key::V, anchor_paste),
-        (Key::D, anchor_duplicate),
-    ] {
-        if ctx.input_mut(|input| input.consume_key(Modifiers::COMMAND, key)) {
-            command(app);
-            return true;
-        }
+    if ctx.input_mut(|input|input.consume_key(Modifiers::COMMAND,Key::D)) {
+        anchor_duplicate(app);
+        return true;
     }
     for (key, up) in [(Key::ArrowUp, true), (Key::ArrowDown, false)] {
         if ctx.input_mut(|input| input.consume_key(Modifiers::COMMAND, key)) {

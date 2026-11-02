@@ -67,6 +67,7 @@ fn language_name(language: &str) -> &str {
         "spanish" | "spanish-xsampa" | "es" | "ES" => crate::i18n::t("西班牙语"),
         "cantonese" | "cantonese-xsampa" | "yue" | "YUE" => crate::i18n::t("粤语"),
         "korean" | "korean-xsampa" | "ko" | "KO" => crate::i18n::t("韩语"),
+        "italian" | "italian-xsampa" => crate::i18n::t("意大利语"),
         "french" | "french-xsampa" => crate::i18n::t("法语"),
         "german" | "german-xsampa" => crate::i18n::t("德语"),
         "portuguese" | "portuguese-xsampa" => crate::i18n::t("葡萄牙语"),

@@ -6,14 +6,20 @@ use eframe::egui::*;
 
 pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
     let response = ui.interact(rect, Id::new(("track", track.id)), Sense::click());
-    if response.clicked() && !track.is_instrumental() {
+    if response.clicked() {
         app.commit_lyric();
-        app.editor.select_track(track.id);
+        let modifiers=ui.input(|i|i.modifiers);
+        app.editor.select_track_header(track.id,modifiers.command||modifiers.ctrl,modifiers.shift);
     }
     if response.double_clicked() {
         app.rename = Some(super::rename::Rename::track(track.id, &track.name));
     }
     response.context_menu(|ui| {
+        if !app.editor.selected_tracks.contains(&track.id){app.editor.select_track_header(track.id,false,false);}
+        app.editor.track_focus=true;
+        if ui.button(crate::i18n::t("Duplicate Track")).clicked(){app.commit_lyric();app.editor.duplicate_tracks(false);ui.close();}
+        if ui.button(crate::i18n::t("Duplicate Track (Unlinked)")).clicked(){app.commit_lyric();app.editor.duplicate_tracks(true);ui.close();}
+        ui.separator();
         if ui.button(crate::i18n::t("重命名音轨…")).clicked() {
             app.rename = Some(super::rename::Rename::track(track.id, &track.name));
             ui.close();
@@ -50,11 +56,11 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
         }
         ui.separator();
         if ui
-            .add_enabled(app.editor.project.tracks.len() > 1, Button::new(crate::i18n::t("删除音轨")))
+            .add_enabled(!app.editor.selected_tracks.is_empty(), Button::new(crate::i18n::t("删除音轨")))
             .clicked()
         {
             app.commit_lyric();
-            app.editor.delete_track(track.id);
+            app.editor.delete_tracks();
             ui.close();
         }
         ui.separator();

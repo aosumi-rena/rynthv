@@ -101,7 +101,6 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, all: Rect, canvas: Rect) {
     );
     if enabled && note.is_some() {
         response
-            .on_hover_cursor(CursorIcon::PointingHand)
-            .on_hover_text(crate::i18n::t("按住试听钢琴音，拖动切换琴键"));
+            .on_hover_cursor(CursorIcon::PointingHand);
     }
 }

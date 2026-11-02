@@ -1,4 +1,6 @@
 use serde::Serialize;
+use std::collections::HashMap;
+mod korean;
 
 use super::{Result, VoiceError, array, range, sum, u32_at};
 
@@ -13,6 +15,10 @@ pub struct PhoneSet {
     pub classes_by_symbol: Vec<String>,
     pub mapped_symbols: Vec<String>,
     pub classes: Vec<String>,
+    #[serde(skip)]
+    indices: HashMap<String, usize>,
+    #[serde(skip)]
+    class_indices: HashMap<String, usize>,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -49,7 +55,12 @@ pub fn resolve_explicit<'a>(
                 .position(|table| table.name.contains(language_query))
         })
         .flatten();
-    let source = selected.map_or(unified, |index| languages[index]);
+    resolve_selected(selected.map(|index|(index,languages[index])),unified,token)
+}
+
+pub(super) fn resolve_selected<'a>(selected:Option<(usize,&'a PhoneSet)>,
+    unified:&'a PhoneSet,token:&str)->Result<ResolvedPhone<'a>> {
+    let source = selected.map_or(unified, |(_,table)|table);
     let local = source.lookup(token);
 
     let mapped = local.and_then(|phone| phone.mapped_symbol).unwrap_or(token);
@@ -58,14 +69,33 @@ pub fn resolve_explicit<'a>(
         VoiceError::new("Unified phone table has neither the mapped symbol nor sil")
     })?;
     Ok(ResolvedPhone {
-        language_index: selected.unwrap_or(0),
+        language_index: selected.map_or(0,|(index,_)|index),
         selected_phone_set: &source.name,
         local_stored_index: local.map(|phone| phone.stored_index),
-        source_class: local.map(|phone| phone.class),
+        source_class: local.or(found).map(|phone| phone.class),
         unified_phone_index: output.stored_index,
         unified_symbol: output.symbol,
         used_silence_fallback: found.is_none(),
     })
+}
+
+pub fn resolve_alphabet<'a>(languages:&[&'a PhoneSet],unified:&'a PhoneSet,
+    language:&str,token:&str,xsampa:bool)->Result<ResolvedPhone<'a>> {
+    if !xsampa{return resolve_explicit(languages,unified,language,token);}
+    let language_index=languages.iter().position(|table|!language.is_empty() && table.name.contains(language))
+        .ok_or_else(||VoiceError::new(format!("Model has no language conditioning for {language}")))?;
+    resolve_unified(language_index,languages[language_index],unified,token)
+}
+
+pub(super) fn resolve_unified<'a>(language_index:usize,language:&'a PhoneSet,
+    unified:&'a PhoneSet,token:&str)->Result<ResolvedPhone<'a>> {
+    let local=(language.name=="korean-xsampa-phones")
+        .then(||korean::local(token).and_then(|symbol|language.lookup(symbol))).flatten();
+    let symbol=local.and_then(|phone|phone.mapped_symbol).unwrap_or(token);
+    let phone=unified.lookup(symbol).ok_or_else(||VoiceError::new(format!("Unsupported X-SAMPA phoneme: {token}")))?;
+    Ok(ResolvedPhone{language_index,selected_phone_set:&unified.name,local_stored_index:None,
+        source_class:Some(local.map_or(phone.class,|p|p.class)),unified_phone_index:phone.stored_index,unified_symbol:phone.symbol,
+        used_silence_fallback:false})
 }
 
 impl PhoneSet {
@@ -105,22 +135,26 @@ impl PhoneSet {
             return Err(VoiceError::new("Phone set is missing mapped symbols"));
         }
 
+        let indices=symbols.iter().cloned().enumerate().map(|(i,key)|(key,i)).collect();
+        let class_indices=classes.iter().cloned().enumerate().map(|(i,key)|(key,i)).collect();
         Ok(Self {
             name,
             symbols,
             classes_by_symbol,
             mapped_symbols,
             classes,
+            indices,
+            class_indices,
         })
     }
 
     pub fn lookup(&self, token: &str) -> Option<PhoneLookup<'_>> {
-        let index = self.symbols.iter().position(|symbol| symbol == token)?;
+        let index = *self.indices.get(token)?;
         let class = self.classes_by_symbol.get(index)?;
         Some(PhoneLookup {
             stored_index: index,
             symbol: &self.symbols[index],
-            class_index: self.classes.iter().position(|value| value == class)?,
+            class_index: *self.class_indices.get(class)?,
             class,
             mapped_symbol: self.mapped_symbols.get(index).map(String::as_str),
         })

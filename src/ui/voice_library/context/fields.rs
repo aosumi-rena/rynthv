@@ -17,13 +17,8 @@ fn session_file(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
         ui,
         crate::i18n::t("加载 session。"),
     );
-    weak(
-        ui,
-        crate::i18n::t("点击“导入”后保存此声库的上下文和所选 session 路径。加载声库时重新读取该文件并自动选择时长条件。"),
-    );
     if let Some(path) = &dialog.session_path {
-        let _ = path;
-        ui.add(Label::new("session").wrap());
+        super::super::paths::path_label(ui,Some(path));
     } else {
         weak(ui, crate::i18n::t("尚未选择 session"));
     }
@@ -42,7 +37,6 @@ fn session_file(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
     }
     if dialog.session_key_required {
         text(ui, crate::i18n::t("session 自动解密失败。请输入 session 解密密钥后重试。"));
-        weak(ui, crate::i18n::t("此密钥只用于解密 session，不是时长模型密钥；不会保存。"));
         changed |= ui.add(TextEdit::singleline(&mut dialog.session_key)
             .password(true).hint_text(crate::i18n::t("十进制整数或 0x 十六进制"))
             .desired_width(f32::INFINITY)).changed();
@@ -51,9 +45,8 @@ fn session_file(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
 }
 
 fn file(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
-    text(ui, crate::i18n::t("选择包含此声库及对应模型代际的上下文 JSON 文件。"));
     if let Some(path) = &dialog.file_path {
-        ui.add(Label::new(path.display().to_string()).wrap());
+        super::super::paths::path_label(ui,Some(path));
     } else {
         weak(ui, crate::i18n::t("尚未选择文件"));
     }
@@ -74,7 +67,6 @@ fn file(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
 }
 
 fn manual(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
-    text(ui, crate::i18n::t("填写此声库及对应模型代际的 identity 模型条件值。"));
     ui.add(
         TextEdit::singleline(&mut dialog.manual_identity)
             .desired_width(f32::INFINITY)
@@ -85,10 +77,6 @@ fn manual(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
 }
 
 fn online(ui: &mut Ui, dialog: &mut ContextImportDialog) -> bool {
-    text(
-        ui,
-        crate::i18n::t("打开并登录 Synthesizer V Studio 2，选择其进程后导入。完成后可关闭原编辑器。"),
-    );
     if dialog.phase == ContextImportPhase::Discovering {
         ui.horizontal(|ui| {
             ui.spinner();

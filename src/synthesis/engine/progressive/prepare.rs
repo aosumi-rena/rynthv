@@ -41,7 +41,7 @@ pub fn prepare(
     }
 
     let base = base.filter(|base| {
-        !input.experiments.settings.enabled && voice.family == VoiceFamily::Sv2
+        !experimental && voice.family == VoiceFamily::Sv2
             && base.clip.state.prepared.phrase.unison.count==1
             && matches!(
                 base.clip.state.prepared.features,

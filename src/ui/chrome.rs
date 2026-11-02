@@ -81,6 +81,7 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             if item(ui, crate::i18n::t("全选"), "Ctrl+A", true) {
                 edit::select_all(app);
             }
+            ui.checkbox(&mut app.preferences.sync_note_parameters,crate::i18n::t("Sync Parameters with Note Movement"));
             if item(ui, crate::i18n::t("取消选择"), "Esc", true) {
                 edit::clear(app);
             }
@@ -89,10 +90,10 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
                 edit::delete(app);
             }
             ui.separator();
-            if item(ui, crate::i18n::t("复制"), "Ctrl+C", selected) {
+            if item(ui, crate::i18n::t("复制"), "Ctrl+C", selected && !app.editor.track_focus) {
                 edit::copy(app, &ctx);
             }
-            if item(ui, crate::i18n::t("剪切"), "Ctrl+X", selected) {
+            if item(ui, crate::i18n::t("剪切"), "Ctrl+X", selected && !app.editor.track_focus) {
                 edit::cut(app, &ctx);
             }
             if item(ui, crate::i18n::t("粘贴"), "Ctrl+V", edit::can_paste(app)) {

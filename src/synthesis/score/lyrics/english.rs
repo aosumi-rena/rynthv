@@ -1,7 +1,7 @@
 pub(in crate::synthesis::score) fn split(phones: Vec<String>, classes: &[Option<&str>]) -> Vec<Vec<String>> {
     if phones.is_empty() { return Vec::new(); }
     let vowel=|i:usize| matches!(classes[i],Some("vowel"|"diphthong"));
-    let mut roles:Vec<i8>=(0..phones.len()).map(|i|if vowel(i){0}else{-10}).collect();
+    let mut roles:Vec<i8>=(0..phones.len()).map(|i|if vowel(i){0}else if classes[i]==Some("coda"){-1}else{-10}).collect();
 
     for i in 1..phones.len() {
         if !vowel(i-1) && vowel(i) && roles[i-1]==-10 {roles[i-1]=1;}

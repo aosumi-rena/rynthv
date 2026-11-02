@@ -12,6 +12,7 @@ struct State {
     dictionary: String,
     word: String,
     phones: String,
+    xsampa: bool,
     new_name: String,
     language: Language,
     error: Option<String>,
@@ -23,6 +24,7 @@ impl Default for State {
             dictionary: String::new(),
             word: String::new(),
             phones: String::new(),
+            xsampa: false,
             new_name: String::new(),
             language: Language::Mandarin,
             error: None,
@@ -46,11 +48,15 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
         .unwrap_or("")
         .to_owned();
     let name = dictionary_name(track, target).to_owned();
+    if state.target!=target_id && let Some(language)=crate::ui::phoneme_candidates::inherited_language(app) {
+        state.language=language;
+    }
     if state.target != target_id || state.dictionary != name {
         state.target = target_id;
         state.dictionary.clone_from(&name);
         state.word.clear();
         state.phones.clear();
+        state.xsampa=false;
         state.error = None;
     }
     padded(ui, |ui| {
@@ -115,9 +121,6 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                 app.editor.remove_dictionary(&name);
             }
         });
-        if let Some(dictionary) = app.editor.project.dictionaries.get(&name) {
-            ui.weak(crate::lformat!("{} · 保存在当前工程", crate::i18n::t(dictionary.language.label())));
-        }
     });
     ui.painter().hline(
         ui.available_rect_before_wrap().x_range(),
@@ -130,20 +133,26 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
             ui.weak(crate::i18n::t("字词"));
             field(ui, &mut state.word);
             ui.weak(crate::i18n::t("音素"));
-            field(ui, &mut state.phones)
-                .on_hover_text(crate::i18n::t("以空格分隔音素；只覆盖与词典语言相同的音符，手动填写的音素优先"));
+            field(ui, &mut state.phones);
+            if ui.checkbox(&mut state.xsampa,crate::i18n::t("Use X-SAMPA phonemes")).changed()
+                && let Some(dict)=dictionary.as_ref()
+                && let Ok(catalog)=crate::ui::phoneme_candidates::catalog(app,ui.ctx()) {
+                state.phones=state.phones.split_whitespace().map(|token|
+                    catalog.convert(dict.language,token,state.xsampa).unwrap_or_else(|_|token.to_owned()))
+                    .collect::<Vec<_>>().join(" ");
+            }
             pair(ui, |ui, width| {
                 if ui
                     .add_enabled(
                         !state.word.trim().is_empty() && !state.phones.trim().is_empty(),
-                        Button::new(crate::i18n::t("设置")).min_size(vec2(width, 28.0)),
+                        Button::new(crate::i18n::t("Set")).min_size(vec2(width, 28.0)),
                     )
                     .clicked()
                 {
                     app.commit_lyric();
                     state.error = app
                         .editor
-                        .set_dictionary_entry(&name, &state.word, Some(&state.phones))
+                        .set_dictionary_entry(&name, &state.word, Some(&state.phones),state.xsampa)
                         .err();
                 }
                 let exists = dictionary
@@ -156,7 +165,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                     app.commit_lyric();
                     state.error = app
                         .editor
-                        .set_dictionary_entry(&name, &state.word, None)
+                        .set_dictionary_entry(&name, &state.word, None,false)
                         .err();
                     state.word.clear();
                     state.phones.clear();
@@ -175,13 +184,15 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
             .show(ui, |ui| {
                 ui.set_min_height(height);
                 ui.set_width(ui.available_width());
-                let half = (ui.available_width() * 0.4).max(25.0);
+                let half = (ui.available_width() * 0.3).max(25.0);
+                let phone_width=(ui.available_width()*0.42).max(25.0);
                 ui.horizontal(|ui| {
                     ui.add_sized(
                         vec2(half, 24.0),
                         Label::new(RichText::new(crate::i18n::t("字词")).color(MUTED)),
                     );
-                    ui.weak(crate::i18n::t("发音"));
+                    ui.add_sized(vec2(phone_width,24.0),Label::new(crate::i18n::t("发音")));
+                    ui.weak(crate::i18n::t("Phoneset"));
                 });
                 ScrollArea::vertical()
                     .id_salt("dictionary-entries")
@@ -199,11 +210,14 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                                     {
                                         state.word.clone_from(word);
                                         state.phones.clone_from(phones);
+                                        state.xsampa=dictionary.xsampa_entries.contains(word);
                                     }
-                                    if ui.add(Label::new(phones).sense(Sense::click())).clicked() {
+                                    if ui.add_sized(vec2(phone_width,26.0),Label::new(phones).sense(Sense::click())).clicked() {
                                         state.word.clone_from(word);
                                         state.phones.clone_from(phones);
+                                        state.xsampa=dictionary.xsampa_entries.contains(word);
                                     }
+                                    ui.weak(if dictionary.xsampa_entries.contains(word){"X-SAMPA"}else{""});
                                 });
                             }
                         }

@@ -32,7 +32,7 @@ pub(super) fn redistribute_onsets(
     for record in records.iter() {
         let mut first_core = None;
         for (index, phone) in record.phones.iter().enumerate() {
-            let resolved = tree.resolve_phone(&phone.language, &phone.token)?;
+            let resolved = tree.resolve_phone_alphabet(&phone.language, &phone.token,phone.xsampa)?;
             let core = match family {
 
                 VoiceFamily::Sv1 => {

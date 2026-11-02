@@ -109,7 +109,7 @@ pub(super) fn validate_note(note: &NoteInput, family: VoiceFamily) -> Result<()>
                 .as_str()
                 .is_some_and(|id| id.is_empty() || Language::parse(id).is_some()),
 
-            "phonesetOverride" => value.is_string(),
+            "phoneset" => value.is_string(),
 
             "expValueX" | "expValueY" | "dF0VbrMod" | "rTone" | "rIntonation" => true,
             "cTimeDispersion" | "cPhraseTailDispersion" | "cPitchDispersion" if family == VoiceFamily::Sv2 => true,
@@ -169,14 +169,14 @@ pub(super) fn note_language(note: &NoteInput, inherited: Language) -> Result<Lan
             .ok_or_else(|| VoiceError::new(format!("音符 {} 的语言无效：{id}", note.id)))?,
         Some(_) => return unsupported(format!("note {} non-string language override", note.id)),
     };
-    validate_phone_set(note.attributes.get("phonesetOverride"), language)?;
+    validate_phone_set(note.attributes.get("phoneset"), language)?;
     Ok(language)
 }
 
 fn validate_phone_set(value: Option<&Value>, language: Language) -> Result<()> {
     match value {
         None => Ok(()),
-        Some(Value::String(id)) if id.is_empty() || id == language.phoneme_alphabet() => Ok(()),
+        Some(Value::String(id)) if id.is_empty() || id == "system" || id == "xsampa" || id == language.phoneme_alphabet() => Ok(()),
         Some(value) => Err(VoiceError::new(format!(
             "{}的音素集应为 {}，当前为 {value}",
             language.label(),

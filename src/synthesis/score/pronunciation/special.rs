@@ -17,7 +17,7 @@ pub(super) fn marker(lyrics: &str) -> Option<Marker> {
 pub(super) fn direct(lyrics: &str) -> Option<&str> {
     let word = spelling(lyrics);
     word.strip_prefix('.').or_else(|| {
-        (matches!(word, "br" | "cl") || numbered_breath(word)).then_some(word)
+        (matches!(word, "br" | "cl" | "vf") || numbered_breath(word)).then_some(word)
     })
 }
 pub(in crate::synthesis::score) fn numbered_breath(word:&str)->bool {
@@ -38,15 +38,18 @@ pub(super) fn distribute(notes: &[&NoteInput], rows: &mut [ResolvedNote], tree: 
 
     let mut pending = std::collections::VecDeque::new();
     let mut previous_tail: Option<Vec<String>> = None;
+    let mut previous_tail_alphabet=None;
     let mut previous_tail_owner:Option<usize>=None;
     for index in 0..rows.len() {
         let linked = index > 0 && adjacent(notes, rows, index-1, index);
-        if !linked { pending.clear(); previous_tail = None; previous_tail_owner=None; }
+        if !linked { pending.clear(); previous_tail = None; previous_tail_owner=None;previous_tail_alphabet=None; }
         let reattack = notes[index].lyrics.trim().starts_with(['\'', '’']);
         match marker(&notes[index].lyrics) {
             Some(Marker::Syllable) => {
-                if let Some(syllable) = pending.pop_front() {
+                if let Some((syllable,alphabet)) = pending.pop_front() {
                     rows[index].syllables = vec![syllable];
+                    rows[index].dictionary_alphabet=alphabet;
+                    if let Some(xsampa)=alphabet {rows[index].xsampa=xsampa;}
                 } else if reattack {
                     rows[index].syllables=vec![Vec::new()];rows[index].kind=0;rows[index].error=None;
                 } else { fail(&mut rows[index], "前面的歌词没有可继续分配的音节"); }
@@ -68,6 +71,10 @@ pub(super) fn distribute(notes: &[&NoteInput], rows: &mut [ResolvedNote], tree: 
                         vec![previous_tail.clone().unwrap_or_else(||vec!["a".into()])]
                     } else {vec![Vec::new()]};
                     rows[index].kind = if reattack {0} else {2};
+                    if reattack {
+                        rows[index].dictionary_alphabet=previous_tail_alphabet;
+                        if let Some(xsampa)=previous_tail_alphabet {rows[index].xsampa=xsampa;}
+                    }
                     rows[index].error = None;
                 }
             }
@@ -82,7 +89,7 @@ pub(super) fn distribute(notes: &[&NoteInput], rows: &mut [ResolvedNote], tree: 
                 let pluses = (index+1..end).filter(|&i| marker(&notes[i].lyrics)==Some(Marker::Syllable)).count();
                 if pluses > 0 && rows[index].syllables.len()>1 {
                     let remaining = rows[index].syllables.split_off(1);
-                    pending.extend(remaining);
+                    pending.extend(remaining.into_iter().map(|syllable|(syllable,rows[index].dictionary_alphabet)));
                 }
             }
         }
@@ -91,12 +98,13 @@ pub(super) fn distribute(notes: &[&NoteInput], rows: &mut [ResolvedNote], tree: 
         }
         if rows[index].kind != 2 && rows[index].error.is_none() {
             validate(&mut rows[index],tree,frontend)?;
-            if rows[index].error.is_some() {previous_tail=None;previous_tail_owner=None;pending.clear();}
+            if rows[index].error.is_some() {previous_tail=None;previous_tail_owner=None;previous_tail_alphabet=None;pending.clear();}
             else {
                 let phones:Vec<_>=rows[index].syllables.iter().flatten().cloned().collect();
                 for (i,token) in phones.iter().enumerate() {
-                    if matches!(tree.resolve_phone(rows[index].language.id(),token)?.source_class,Some("vowel"|"diphthong")) {
+                    if matches!(frontend.resolve_token(rows[index].language,token,tree)?.source_class,Some("vowel"|"diphthong")) {
                         previous_tail=Some(phones[i..].to_vec());
+                        previous_tail_alphabet=rows[index].dictionary_alphabet;
                         previous_tail_owner=Some(index);
                     }
                 }
@@ -109,7 +117,7 @@ pub(super) fn distribute(notes: &[&NoteInput], rows: &mut [ResolvedNote], tree: 
 pub(super) fn validate(row:&mut ResolvedNote,tree:&PreparedTree,frontend:&super::LyricFrontend)->Result<()> {
     if row.kind==2 || row.error.is_some() {return Ok(());}
     for token in row.syllables.iter().flatten() {
-        if tree.resolve_phone(row.language.id(),token)?.used_silence_fallback {
+        if frontend.resolve_token(row.language,token,tree)?.used_silence_fallback {
             if frontend.unmapped_phone_class(row.language,token)?.is_some() {
 
                 continue;

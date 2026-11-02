@@ -16,6 +16,7 @@ pub(super) fn start_gesture(
     };
     let modifiers = ui.input(|i| i.modifiers);
     app.commit_lyric();
+    app.editor.track_focus=false;
     if let Some((reference, note)) = super::scene::hit_note(app, groups, rect, origin) {
         app.editor.select_reference(app.editor.track, reference.id);
         let r = note_rect(
@@ -43,6 +44,9 @@ pub(super) fn start_gesture(
             .filter(|n| app.editor.selected.contains(&n.id))
             .cloned()
             .collect();
+        let movement=if app.preferences.sync_note_parameters && matches!(kind,NoteDrag::Move) {
+            app.editor.group().map(|group|Box::new(crate::editor::note_movement::NoteMovement::capture(group,&selected,modifiers.alt&&!modifiers.ctrl)))
+        }else{None};
         if modifiers.alt && !modifiers.ctrl && matches!(kind, NoteDrag::Move) {
             for n in &mut selected {
                 n.renew_identity();
@@ -62,6 +66,7 @@ pub(super) fn start_gesture(
                 NoteDrag::Right => note.onset + note.duration,
                 _ => note.onset,
             },
+            movement,
         });
     } else if app.piano_tool == super::Tool::NoteDraw || modifiers.ctrl {
         app.editor.begin(crate::i18n::t("创建音符"));
@@ -113,6 +118,7 @@ pub(super) fn update_gesture(app: &mut App, ui: &Ui, rect: Rect) {
             notes,
             kind,
             anchor,
+            movement,
         } => {
             let raw = ticks((p.x - origin.x) as f64 / app.view.piano.beat_width as f64);
             let mut delta = if snapping {
@@ -161,6 +167,7 @@ pub(super) fn update_gesture(app: &mut App, ui: &Ui, rect: Rect) {
                     }
                 }
             }
+            if let Some(movement)=movement {movement.apply(app.editor.group_mut().unwrap(),delta,pitch);}
         }
         Gesture::Create { origin, id, onset } => {
             let beat = beat_at(rect, &app.view.piano, p.x);

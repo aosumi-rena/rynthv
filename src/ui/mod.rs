@@ -12,6 +12,8 @@ pub mod midi_import;
 pub mod panels;
 pub mod piano;
 pub mod phonemes;
+mod phoneme_candidates;
+mod phoneme_alphabet;
 pub mod prompt;
 pub mod rename;
 mod rendering_hint;

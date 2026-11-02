@@ -117,6 +117,7 @@ pub(super) fn prepare_acoustics_with_host(
             let record = &phrase.records[phone.record_index];
             let source = &record.phones[phone.phone_index];
             TimedPhone {
+                xsampa:source.xsampa,
                 note_index: phone.record_index,
                 language: source.language.clone(),
                 token: source.token.clone(),

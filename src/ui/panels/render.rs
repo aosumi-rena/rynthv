@@ -51,7 +51,6 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
             }
         });
         config.insert("destination".into(), directory.into());
-        ui.weak(crate::i18n::t("相对路径以工程文件夹为基准"));
         ui.weak(crate::i18n::t("文件名称"));
         let mut name = string(&config, "filename");
         field(ui, &mut name);
@@ -63,7 +62,6 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
                 ready,
                 Button::new(crate::i18n::t("导出为文件")).min_size(vec2(ui.available_width(), 28.0)),
             )
-            .on_disabled_hover_text(crate::i18n::t("等待伴奏加载和当前歌声合成完成后导出"))
             .clicked();
         if app.synthesis.is_exporting() {
             ui.horizontal(|ui| {

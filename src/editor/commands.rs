@@ -68,6 +68,9 @@ impl Editor {
         self.reference = None;
         self.project.tracks.push(t);
         self.selected.clear();
+        self.selected_tracks=std::collections::BTreeSet::from([self.track]);
+        self.track_anchor=self.track;
+        self.track_focus=false;
         self.finish();
     }
     pub fn set_track_color(&mut self, id: EntityId, color: TrackColor) {
@@ -87,14 +90,21 @@ impl Editor {
             .group_mut()
             .and_then(|g| g.notes.iter_mut().find(|n| n.id == id))
         {
-            n.lyrics = lyric;
+            if n.lyrics!=lyric {
+                n.lyrics = lyric;
+                n.phonemes.clear();
+                n.attributes.remove("phonemes");
+            }
         }
         self.finish();
     }
     pub fn set_phonemes(&mut self, id: EntityId, phonemes: String) {
         self.begin("编辑音素");
         if let Some(note)=self.group_mut().and_then(|g|g.notes.iter_mut().find(|n|n.id==id)) {
-            note.phonemes=phonemes;
+            if note.phonemes!=phonemes {
+                note.phonemes=phonemes;
+                note.attributes.remove("phonemes");
+            }
         }
         self.finish();
     }

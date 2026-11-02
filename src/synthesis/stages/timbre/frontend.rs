@@ -184,12 +184,13 @@ impl<'tree> TimbreNetwork<'tree> {
                 "Timbre notes, phones and F0 do not cover the same frames",
             ));
         }
+        let seed_tokens=self.feature_network.prepare_phones(request.phones)?.noise_tokens(request.phones)?;
         let acoustic_phones: Vec<_> = request
             .phones
             .iter()
             .enumerate()
             .map(|(index, phone)| AcousticPhone {
-                token: &phone.token,
+                token: &seed_tokens[index],
                 frames: phone.frames,
                 impulse: request.phone_impulses.and_then(|values| values[index]),
             })

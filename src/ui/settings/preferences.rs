@@ -14,6 +14,7 @@ pub struct Preferences {
     pub metronome: bool,
     pub return_on_pause: bool,
     pub looping: bool,
+    pub sync_note_parameters: bool,
 }
 
 impl Default for Preferences {
@@ -28,6 +29,7 @@ impl Default for Preferences {
             metronome: false,
             return_on_pause: true,
             looping: false,
+            sync_note_parameters: false,
         }
     }
 }

@@ -1,13 +1,12 @@
-use super::dictionary::{read, split_nuclei};
+use super::dictionary::{split_nuclei};
 use crate::synthesis::voice::Result;
 use std::path::Path;
 
 pub(super) struct Spanish {nuclei: Vec<String>}
 impl Spanish {
     pub(super) fn load(directory: &Path) -> Result<Self> {
-        let nuclei = read(&directory.join("spanish-xsampa-phones.txt"))?.lines()
-            .filter_map(|line| {let mut fields=line.split_whitespace();let phone=fields.next()?;
-                matches!(fields.next()?,"vowel"|"diphthong").then(||phone.to_owned())}).collect();
+        let catalog=crate::model::PhonemeCatalog::load(directory).map_err(crate::synthesis::voice::VoiceError::new)?;
+        let nuclei=catalog.for_language(crate::model::Language::Spanish).filter(|e|matches!(e.category.as_str(),"vowel"|"diphthong")).map(|e|e.symbol.clone()).collect();
         Ok(Self {nuclei})
     }
     pub(super) fn resolve(&self, lyrics: &str, european: bool) -> Result<Vec<Vec<String>>> {

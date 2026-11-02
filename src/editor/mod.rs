@@ -2,6 +2,8 @@ mod clipboard;
 mod commands;
 mod dictionary;
 mod groups;
+mod tracks;
+pub mod note_movement;
 mod history;
 mod instrumental;
 mod loop_region;
@@ -39,12 +41,22 @@ pub struct SelectionState {
     pub track: EntityId,
     pub reference: Option<EntityId>,
     pub notes: BTreeSet<EntityId>,
+    pub tracks: BTreeSet<EntityId>,
+    pub track_focus: bool,
+    pub track_anchor:EntityId,
+    pub group_focus:bool,
+    pub groups:BTreeSet<(EntityId,EntityId)>,
 }
 pub struct Editor {
     pub project: Project,
     pub track: EntityId,
     pub reference: Option<EntityId>,
     pub selected: BTreeSet<EntityId>,
+    pub selected_tracks: BTreeSet<EntityId>,
+    pub track_focus: bool,
+    pub track_anchor:EntityId,
+    pub group_focus:bool,
+    pub selected_groups:BTreeSet<(EntityId,EntityId)>,
     pub revision: u64,
     pub transport: Transport,
     history: History,
@@ -58,11 +70,17 @@ impl Editor {
             .find(|t| !t.is_instrumental())
             .unwrap_or(&project.tracks[0]);
         let reference = track.visible_references().next().map(|r| r.id);
+        let track_id=track.id;
         Self {
             track: track.id,
             reference,
             project,
             selected: BTreeSet::new(),
+            selected_tracks:BTreeSet::from([track_id]),
+            track_focus:false,
+            track_anchor:track_id,
+            group_focus:false,
+            selected_groups:BTreeSet::new(),
             revision: 0,
             transport: Transport::default(),
             history: History::default(),
@@ -109,12 +127,22 @@ impl Editor {
             track: self.track,
             reference: self.reference,
             notes: self.selected.clone(),
+            tracks:self.selected_tracks.clone(),
+            track_focus:self.track_focus,
+            track_anchor:self.track_anchor,
+            group_focus:self.group_focus,
+            groups:self.selected_groups.clone(),
         }
     }
     fn restore_selection(&mut self, selection: SelectionState) {
         self.track = selection.track;
         self.reference = selection.reference;
         self.selected = selection.notes;
+        self.selected_tracks=selection.tracks;
+        self.track_focus=selection.track_focus;
+        self.track_anchor=selection.track_anchor;
+        self.group_focus=selection.group_focus;
+        self.selected_groups=selection.groups;
         self.reconcile();
     }
     pub fn begin(&mut self, label: &str) {
@@ -172,7 +200,7 @@ impl Editor {
             .project
             .tracks
             .iter()
-            .any(|t| t.id == self.track && !t.is_instrumental())
+            .any(|t| t.id == self.track)
         {
 
             self.track = self
@@ -198,13 +226,18 @@ impl Editor {
             })
             .unwrap_or_default();
         self.selected.retain(|id| ids.contains(id));
+        self.selected_tracks.retain(|id|self.project.tracks.iter().any(|t|t.id==*id));
+        self.selected_groups.retain(|(t,r)|self.project.tracks.iter().any(|track|track.id==*t && track.references().any(|reference|reference.id==*r)));
+        if !self.project.tracks.iter().any(|t|t.id==self.track_anchor){self.track_anchor=self.track;}
+        if !self.track_focus {self.selected_tracks=BTreeSet::from([self.track]);}
     }
     pub fn select_track(&mut self, track: EntityId) {
+        self.group_focus=false;
         if !self
             .project
             .tracks
             .iter()
-            .any(|t| t.id == track && !t.is_instrumental())
+            .any(|t| t.id == track)
         {
             return;
         }
@@ -212,8 +245,15 @@ impl Editor {
         self.track = track;
         self.reference = None;
         self.selected.clear();
+        self.track_focus=false;
+        self.track_anchor=track;
+        self.selected_tracks=BTreeSet::from([track]);
     }
     pub fn select_reference(&mut self, track: EntityId, reference: EntityId) {
+        self.group_focus=false;
+        self.track_focus=false;
+        self.track_anchor=track;
+        self.selected_tracks=BTreeSet::from([track]);
         if !self.project.tracks.iter().any(|t| {
             t.id == track
                 && !t.is_instrumental()

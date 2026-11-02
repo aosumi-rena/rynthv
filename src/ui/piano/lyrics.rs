@@ -32,13 +32,14 @@ pub(super) fn lyric(app: &mut App, ui: &mut Ui, rect: Rect, reference: &GroupRef
         (r.min.x+(text.size().x+8.0).max(50.0)).min(clip.right())
     }else {r.max.x.max(r.min.x+130.0).min(clip.right())};
     let mut edit_ui = child(ui, r, ("lyric", edit.id));
-    let response = edit_ui.add_sized(
-        r.size(),
-        TextEdit::singleline(&mut edit.text)
+    let output = TextEdit::singleline(&mut edit.text)
             .id(Id::new(("lyric-input", edit.id)))
             .margin(vec2(4.0, 1.0))
-            .vertical_align(Align::Center),
-    );
+            .vertical_align(Align::Center).desired_width(r.width()).show(&mut edit_ui);
+    let language=super::super::phoneme_candidates::language(app,note);
+    let xsampa=note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa");
+    let candidates=if edit.phonemes {super::super::phoneme_candidates::show(app,ui,&output,&mut edit.text,language,xsampa)} else {Default::default()};
+    let response=(*output.response).clone();
     if edit.focus {
         response.request_focus();
         if let Some(mut state) = TextEdit::load_state(ui.ctx(), response.id) {
@@ -54,11 +55,15 @@ pub(super) fn lyric(app: &mut App, ui: &mut Ui, rect: Rect, reference: &GroupRef
     let escape = ui.input(|i| i.key_pressed(Key::Escape));
     let tab = ui.input(|i| i.key_pressed(Key::Tab));
     let enter = ui.input(|i| i.key_pressed(Key::Enter));
-    if escape {
+    if candidates.handled {
+        app.lyric=Some(edit);
+    } else if escape {
         response.surrender_focus();
     } else if enter || tab || response.lost_focus() {
-        if edit.phonemes {app.editor.set_phonemes(edit.id,edit.text);}
-        else {app.editor.set_lyric(edit.id, edit.text);}
+        if edit.text!=edit.original {
+            if edit.phonemes {app.editor.set_phonemes(edit.id,edit.text);}
+            else {app.editor.set_lyric(edit.id, edit.text);}
+        }
         response.surrender_focus();
         if tab {
             let mut notes: Vec<_> = app
@@ -73,9 +78,11 @@ pub(super) fn lyric(app: &mut App, ui: &mut Ui, rect: Rect, reference: &GroupRef
                 .position(|n| n.id == edit.id)
                 .and_then(|i| notes.get(i + 1))
             {
+                let text=if edit.phonemes {super::phonemes::text(app,reference,next)}else{next.lyrics.clone()};
                 app.lyric = Some(LyricEdit {
                     id: next.id,
-                    text: if edit.phonemes {super::phonemes::text(app,reference,next)}else{next.lyrics.clone()},
+                    original:text.clone(),
+                    text,
                     focus: true,
                     phonemes: edit.phonemes,
                 });

@@ -6,7 +6,7 @@ use crate::synthesis::{
         TimedPhone,
         frontend::{FrontendNote, duration_seconds},
     },
-    voice::{PhoneSet, PreparedModule, PreparedTree, Result, VoiceError, resolve_explicit},
+    voice::{PhoneSet, PreparedModule, PreparedTree, Result, VoiceError},
 };
 
 use crate::synthesis::voice::embedded::types::F0_FRONTEND_TYPE_ID;
@@ -149,7 +149,7 @@ impl<'a> Frontend<'a> {
             }
             previous_note = phone.note_index;
             let resolved =
-                resolve_explicit(&self.languages, self.unified, &phone.language, &phone.token)?;
+                crate::synthesis::voice::resolve_alphabet(&self.languages, self.unified, &phone.language, &phone.token,phone.xsampa)?;
             let unified = self
                 .unified
                 .lookup(resolved.unified_symbol)

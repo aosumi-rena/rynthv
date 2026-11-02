@@ -14,7 +14,7 @@ pub struct MandarinLexicon {
 impl MandarinLexicon {
     pub fn load(directory: impl AsRef<Path>) -> Result<Self> {
         let directory = directory.as_ref();
-        let pinyin = pinyin::Pinyin::load(&directory.join("mandarin-xsampa-dict.txt"))?;
+        let pinyin = pinyin::Pinyin::load(&directory.join("mandarin-dict.txt"))?;
         let word_path = directory.join("cedict.txt");
         let mut words: HashMap<String, Vec<Vec<String>>> = HashMap::new();
         let mut longest_word = 0;

@@ -94,7 +94,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         if toggle::show(
             ui,
             Icon::Metronome,
-            crate::i18n::t("节拍器：播放时打拍，仅用于试听"),
+            crate::i18n::t("节拍器"),
             metronome,
             38.0,
             21.0,

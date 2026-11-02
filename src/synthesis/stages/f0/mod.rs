@@ -32,6 +32,7 @@ pub const F0_ROOT_TYPE_ID: [u8; 16] = [
 
 #[derive(Clone, Debug)]
 pub struct TimedPhone {
+    pub xsampa:bool,
     pub note_index: usize,
     pub language: String,
     pub token: String,

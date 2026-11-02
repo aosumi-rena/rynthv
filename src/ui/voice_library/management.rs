@@ -5,7 +5,7 @@ mod feedback;
 mod header;
 mod toolbar;
 
-use super::{context, error_label, paths, text, weak};
+use super::{context, error_label, paths, text};
 use crate::{
     app::App,
     ui::{child, theme::*},
@@ -173,7 +173,6 @@ fn empty(app: &mut App, ui: &mut Ui, state: &mut State) {
                         .font(section_title_font())
                         .size(16.0),
                 );
-                weak(ui, crate::i18n::t("换一个关键词，或清除筛选条件。"));
                 if ui.button(crate::i18n::t("清除搜索与筛选")).clicked() {
                     state.query.clear();
                     state.language.clear();
@@ -186,7 +185,6 @@ fn empty(app: &mut App, ui: &mut Ui, state: &mut State) {
                         .font(section_title_font())
                         .size(16.0),
                 );
-                weak(ui, crate::i18n::t("选择本机 databases 目录，扫描已安装的歌声。"));
                 ui.menu_button(crate::i18n::t("选择声库目录…"), |ui| paths::directory_menu(app, ui));
             }
         });

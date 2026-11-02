@@ -52,7 +52,7 @@ pub(super) fn execute(
             .phones
             .iter()
             .map(|phone| {
-                tree.resolve_phone(&phone.language, &phone.token)
+                tree.resolve_phone_alphabet(&phone.language, &phone.token,phone.xsampa)
                     .map(|phone| phone.source_class)
             })
             .collect::<Result<Vec<_>>>()?;

@@ -6,15 +6,21 @@ use std::collections::BTreeMap;
 fn readback(app:&App,reference:&GroupRef,note:&Note)->(String,Option<String>) {
     let mut phones=BTreeMap::new();let mut error=None;
     for snapshot in app.synthesis.phonemes(OwnerId::new(reference.id)) {
-        if !snapshot.input.notes.iter().any(|n| n.id==note.id && n.lyrics==note.lyrics && n.phonemes==note.phonemes) {continue;}
+        let Some(source_note)=snapshot.input.notes.iter().find(|n|crate::ui::phoneme_alphabet::matches(note,n)) else {continue;};
         for phone in snapshot.phones.0.iter() {
             if let Some(source)=phone.source.filter(|s|s.note_id==note.id) {
-                phones.insert(source.phone_index,phone.token.as_str());
+                // Published labels already use the job's selected alphabet.
+                // Only convert an older snapshot while a toggle is rerendering.
+                let token=match crate::ui::phoneme_alphabet::label(app,reference,note,source_note,snapshot.input.voice.dictionary.as_ref(),&phone.token) {
+                    Ok(value)=>value,Err(message)=>{error=Some(message);phone.token.to_string()}
+                };
+                phones.insert(source.phone_index,token);
                 if let Some(message)=&phone.error {error=Some(message.to_string());}
             }
         }
     }
-    (phones.into_values().collect::<Vec<_>>().join(" "),error)
+    let text=phones.into_values().collect::<Vec<_>>().join(" ");
+    (text,error)
 }
 pub(super) fn text(app:&App,reference:&GroupRef,note:&Note)->String {
     if !note.phonemes.is_empty() {return note.phonemes.clone();}

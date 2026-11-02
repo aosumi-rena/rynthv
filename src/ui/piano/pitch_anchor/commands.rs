@@ -26,23 +26,26 @@ fn selected(app: &App) -> Vec<PitchControl> {
         .collect()
 }
 
-pub fn anchor_copy(app: &mut App) {
+pub fn anchor_copy(app: &mut App,ctx:&eframe::egui::Context)->bool {
     if !ready(app) {
-        return;
+        return false;
     }
     let controls = selected(app);
     if controls.is_empty() {
-        return;
+        return false;
     }
-    app.piano_anchor.clipboard = controls;
-    app.piano_anchor.clipboard_pitch_offset = app.editor.active_ref().unwrap().pitch_offset;
+    let offset=app.editor.active_ref().unwrap().blick_offset;
+    let mut controls=controls;
+    for c in &mut controls {match c {PitchControl::Point(p)=>p.pos=p.pos.saturating_add(offset),PitchControl::Curve(p)=>p.pos=p.pos.saturating_add(offset),_=>{}}}
+    let data=rynthv::clipboard::Content{pitch_controls:controls,position_set:true,..Default::default()};
+    match rynthv::clipboard::write(&data){Ok(text)=>{ctx.copy_text(text);true},Err(error)=>{app.error=Some(error);false}}
 }
 
-pub fn anchor_cut(app: &mut App) {
+pub fn anchor_cut(app: &mut App,ctx:&eframe::egui::Context) {
     if !ready(app) || app.piano_anchor.ids.is_empty() {
         return;
     }
-    anchor_copy(app);
+    if !anchor_copy(app,ctx){return;}
     let ids = app.piano_anchor.ids.clone();
     app.editor.begin(crate::i18n::t("剪切音高控制点"));
     if let Some(group) = app.editor.group_mut() {
@@ -57,14 +60,16 @@ pub fn anchor_cut(app: &mut App) {
     app.piano_anchor.ids.clear();
 }
 
-pub fn anchor_paste(app: &mut App) {
+pub fn anchor_paste_text(app: &mut App,text:&str) {
     if !ready(app) {
         return;
     }
-    let controls = app.piano_anchor.clipboard.clone();
-    let pitch_offset = app.piano_anchor.clipboard_pitch_offset;
     let at = app.editor.transport.position;
-    insert(app, controls, pitch_offset, at, crate::i18n::t("粘贴音高控制点"));
+    let before:BTreeSet<_>=app.editor.group().into_iter().flat_map(|g|&g.pitch_controls).filter_map(id).map(str::to_owned).collect();
+    match app.editor.paste_text(text,at){
+        Ok(_)=>app.piano_anchor.ids=app.editor.group().into_iter().flat_map(|g|&g.pitch_controls).filter_map(id).filter(|s|!before.contains(*s)).map(str::to_owned).collect(),
+        Err(error)=>app.error=Some(error),
+    }
 }
 
 pub fn anchor_duplicate(app: &mut App) {

@@ -39,6 +39,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         Sense::click_and_drag(),
     );
     if response.clicked() || response.drag_started() {
+        app.editor.track_focus=false;
         crate::ui::lanes::parameter_deactivate(app);
         app.phoneme_focus=Some((app.editor.track,app.editor.reference));
     }
@@ -65,7 +66,17 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             let input = &snapshot.input;
             let (begin,limit)=input.publication_bounds();
             let Some(group)=app.editor.project.group(&reference.group_id) else {continue;};
-            let phones=preview::phones(group,input,&snapshot.phones);
+            let mut phones=preview::phones(group,input,&snapshot.phones);
+            phones.retain_mut(|phone| {
+                let Some(source)=phone.source else {return false;};
+                let Some(note)=group.notes.iter().find(|n|n.id==source.note_id) else {return false;};
+                let Some(original)=input.notes.iter().find(|n|crate::ui::phoneme_alphabet::matches(note,n)) else {return false;};
+                match crate::ui::phoneme_alphabet::label(app,reference,note,original,input.voice.dictionary.as_ref(),&phone.token) {
+                    Ok(value)=>phone.token=value,
+                    Err(error)=>phone.error=Some(Arc::from(error)),
+                }
+                true
+            });
             for phone in &phones {
                 let start = input.tempo.position_at(phone.start_seconds).0;
                 let end = input.tempo.position_at(phone.end_seconds).0;

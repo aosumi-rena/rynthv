@@ -316,6 +316,7 @@ impl App {
             self.lyric = Some(ui::piano::LyricEdit {
                 id: note.id,
                 text: note.lyrics.clone(),
+                original: note.lyrics.clone(),
                 focus: true,
                 phonemes: false,
             });
@@ -323,6 +324,7 @@ impl App {
     }
     pub fn commit_lyric(&mut self) {
         if let Some(lyric) = self.lyric.take() {
+            if lyric.text==lyric.original {return;}
             if lyric.phonemes {self.editor.set_phonemes(lyric.id,lyric.text);}
             else {self.editor.set_lyric(lyric.id, lyric.text);}
         }

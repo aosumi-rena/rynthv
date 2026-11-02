@@ -73,15 +73,8 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
                     ui.selectable_value(&mut selected, String::new(), &default_label);
                 });
                 for language in &languages {
-                    ui.selectable_value(&mut selected, language.id().to_owned(), crate::i18n::t(language.label()))
-                        .on_hover_text(input_hint(*language));
+                    ui.selectable_value(&mut selected, language.id().to_owned(), crate::i18n::t(language.label()));
                 }
-            })
-            .response
-            .on_hover_text(if app.editor.active_ref().is_some() {
-                crate::i18n::t("应用于当前音符组；默认项使用其继承的歌声语言")
-            } else {
-                crate::i18n::t("应用于当前音轨，新建音符组继承此设置")
             });
     });
     if selected != original {
@@ -115,17 +108,5 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
     ui.spacing_mut().item_spacing.y=0.0;
     for spec in crate::synthesis::parameters::CONSONANT_CONTROLS {
         super::parameters::control(app,ui,spec);
-    }
-}
-
-fn input_hint(language: Language) -> &'static str {
-    match language {
-        Language::Mandarin => crate::i18n::t("可输入汉字、拼音或显式音素；多音字可用拼音指定读音"),
-        Language::English => crate::i18n::t("支持发音词典覆盖的单词；生词可填写显式音素指定读音"),
-        Language::Japanese => crate::i18n::t("可输入假名、罗马音或词典覆盖的汉字；多读音词可用假名指定"),
-        Language::Spanish => crate::i18n::t("支持西班牙语自动发音和欧式发音；可填写显式音素指定读音"),
-        Language::Cantonese => crate::i18n::t("可输入粤拼或词典覆盖的汉字；多读音字可用粤拼指定"),
-        Language::Korean => crate::i18n::t("当前支持按音节分隔的罗马音或显式音素；韩文整句自动注音尚未接入"),
-        Language::French | Language::German | Language::Portuguese => crate::i18n::t("支持发音词典覆盖的单词；可填写显式音素指定读音"),
     }
 }

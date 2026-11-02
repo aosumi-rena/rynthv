@@ -28,13 +28,24 @@ pub fn prepare_modes(voice:&PreparedVoice,input:&OwnerInput,phrase:&mut Prepared
     Ok(())
 }
 
-pub fn needs_complete(input:&OwnerInput,_family:VoiceFamily)->Result<bool> {
+pub fn needs_complete(input:&OwnerInput,family:VoiceFamily)->Result<bool> {
     let s=input.experiments.settings;
     if !s.enabled {return Ok(false);}
     let c=ExperimentControls::effective(&input.voice.instance_options,input.experiments.settings)?;
     c.validate()?;
     let active=c.voices.iter().map(|v|v.active(&input.automation,input.notes.iter().map(|n|&n.extensions))).collect::<Result<Vec<_>>>()?;
-    Ok(s.dds_controls || (s.voice_blending && active.into_iter().any(|v|v)) || (s.component_effects
+    let dds = &c.dds;
+    let phone_mix = dds.phonemes.iter().any(|slot| !slot.token.trim().is_empty()
+        && (slot.weight != 0.0 || input.automation.get(&format!("ddsPhoneMix_{}",slot.id))
+            .is_some_and(|curve|curve.points.iter().any(|(_,value)|*value>0.0))));
+    let tone_shift = family != VoiceFamily::Sv2
+        && (crate::synthesis::parameters::VoiceParameters::from_input(&input.voice)?.tone_shift != 0.0
+            || input.automation.get("toneShift").is_some_and(|curve|
+                curve.points.iter().any(|(_,value)|*value!=0.0)));
+    let dds_active = s.dds_controls && (dds.vocoder.is_some()
+        || dds.output != crate::synthesis::experiments::ComponentOutput::Complete
+        || dds.default_as_style || phone_mix || tone_shift);
+    Ok(dds_active || (s.voice_blending && active.into_iter().any(|v|v)) || (s.component_effects
         && (c.harmonic_gain!=0.0 || c.aspiration_gain!=0.0 || c.ring_depth!=0.0)))
 }
 

@@ -45,6 +45,7 @@ impl Editor {
             PronunciationDictionary {
                 language,
                 entries: BTreeMap::new(),
+                xsampa_entries: Default::default(),
             },
         );
         self.assign_dictionary(name);
@@ -75,6 +76,7 @@ impl Editor {
         name: &str,
         word: &str,
         phones: Option<&str>,
+        xsampa: bool,
     ) -> Result<(), String> {
         let word = word.trim();
         if word.is_empty() {
@@ -95,8 +97,11 @@ impl Editor {
             .expect("checked dictionary");
         if let Some(phones) = phones {
             dictionary.entries.insert(word.into(), phones);
+            if xsampa {dictionary.xsampa_entries.insert(word.into());}
+            else {dictionary.xsampa_entries.remove(word);}
         } else {
             dictionary.entries.remove(word);
+            dictionary.xsampa_entries.remove(word);
         }
         self.finish();
         Ok(())

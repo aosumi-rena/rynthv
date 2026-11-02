@@ -11,6 +11,8 @@ const FRONTEND_TYPE: [u8; 16] = [
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct ExplicitPhone {
+    #[serde(default)]
+    pub xsampa: bool,
     pub language: String,
     pub token: String,
 
@@ -164,7 +166,7 @@ pub(crate) fn prepare_explicit_typed(
             .normalize_scalar(0, (seconds + 0.01).ln() as f32, true)
             .map_err(|error| VoiceError::new(error.to_string()))?;
         for (left_index, phone) in record.phones.iter().enumerate() {
-            let resolved = tree.resolve_phone(&phone.language, &phone.token)?;
+            let resolved = tree.resolve_phone_alphabet(&phone.language, &phone.token,phone.xsampa)?;
             output.push(PhoneFeatures {
                 unified_phone_index: resolved.unified_phone_index,
                 language_index: resolved.language_index,

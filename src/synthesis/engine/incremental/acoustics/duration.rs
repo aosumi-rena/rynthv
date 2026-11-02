@@ -149,6 +149,7 @@ fn timed_phones(
             .checked_add(allocation.frames)
             .ok_or_else(|| VoiceError::new("Duration record frame count overflow"))?;
         phones.push(TimedPhone {
+            xsampa:phone.xsampa,
             note_index: allocation.record_index,
             language: phone.language.clone(),
             token: phone.token.clone(),

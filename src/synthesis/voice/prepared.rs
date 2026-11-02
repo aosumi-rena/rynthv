@@ -13,7 +13,7 @@ pub use duration::DurationInputLayout;
 pub use summary::*;
 pub use transposed_convolution::PreparedTransposedConvolution;
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::{Arc, OnceLock}};
 
 use crate::synthesis::inference::{
     ModelRuntime, Sequence, UnaryOperator,
@@ -46,6 +46,7 @@ use super::{
 };
 
 pub struct PreparedTree {
+    phone_tables: OnceLock<Result<phones::PhoneTables>>,
     legacy_numeric: bool,
     nodes: Vec<PreparedNode>,
     root: usize,
@@ -211,6 +212,7 @@ impl PreparedTree {
             None
         };
         Ok(Self {
+            phone_tables: OnceLock::new(),
             legacy_numeric,
             nodes,
             root,
