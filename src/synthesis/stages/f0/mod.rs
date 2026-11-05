@@ -85,7 +85,7 @@ impl<'a> F0Stage<'a> {
         let root = tree.node(tree.root_index())?;
         if root.type_id != F0_ROOT_TYPE_ID || !tree.payload(tree.root_index())?.is_empty() {
             return Err(VoiceError::new(
-                "The supplied tree is not the researched F0 root",
+                "Unsupported F0 model root",
             ));
         }
         let children: [usize; 5] = root

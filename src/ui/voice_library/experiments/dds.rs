@@ -13,12 +13,12 @@ pub(super) fn show(app:&App,ui:&mut Ui,c:&mut DdsControls) {
         .filter(|e|e.family==family&&e.availability.is_loadable()).collect();
     ui.label(crate::i18n::t("Vocoder model"));
     let selected=c.vocoder.as_ref().and_then(|key|entries.iter().find(|e|e.database_id==key.database_id && e.revision==key.revision))
-        .map(|e|format!("{} · {}",e.display_name,super::super::selector::source_hint(e)));
+        .map(|e|format!("{} · {}",e.localized_display_name(),super::super::selector::source_hint(e)));
     let selected_path=c.vocoder.as_ref().and_then(|key|entries.iter().find(|e|e.database_id==key.database_id && e.revision==key.revision)).map(|e|e.directory.display().to_string());
     let vocoder_response=ComboBox::from_id_salt("dds-vocoder").selected_text(selected.unwrap_or_else(||if c.vocoder.is_some() {crate::i18n::t("Not installed")}else{crate::i18n::t("Voice default")}.into())).show_ui(ui,|ui| {
         ui.selectable_value(&mut c.vocoder,None,crate::i18n::t("Voice default"));
         for entry in &entries {
-            let response=ui.selectable_value(&mut c.vocoder,Some(VoiceSelection{database_id:entry.database_id.clone(),revision:entry.revision}),format!("{} · {}",entry.display_name,super::super::selector::source_hint(entry)));
+            let response=ui.selectable_value(&mut c.vocoder,Some(VoiceSelection{database_id:entry.database_id.clone(),revision:entry.revision}),format!("{} · {}",entry.localized_display_name(),super::super::selector::source_hint(entry)));
             response.on_hover_text(entry.directory.display().to_string());
         }
     });

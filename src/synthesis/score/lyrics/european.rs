@@ -12,6 +12,7 @@ pub(super) struct European {
     language:Language,
     words:PhoneTable,
     classes:std::collections::HashMap<String,String>,
+    legacy:bool,
 }
 
 impl European {
@@ -19,7 +20,7 @@ impl European {
         self.classes.get(token).map(String::as_str)
     }
 
-    pub fn load(directory:&Path,language:Language)->Result<Self> {
+    pub fn load(directory:&Path,language:Language,catalog:&crate::model::PhonemeCatalog,legacy:bool)->Result<Self> {
         let name=match language {
             Language::French=>"french-dict.txt",
             Language::German=>"german-dict.txt",
@@ -27,8 +28,12 @@ impl European {
             Language::Italian=>"italian-dict.txt",
             _=>return Err(VoiceError::new("无效的欧洲语言发音前端")),
         };
-        let classes=crate::model::PhonemeCatalog::load(directory).map_err(VoiceError::new)?.classes(language);
-        Ok(Self {language,words:PhoneTable::load(&directory.join(name),false)?,classes})
+        let name=if legacy {match language {
+            Language::French=>"french-xsampa-dict.txt",Language::German=>"german-xsampa-dict.txt",
+            Language::Portuguese=>"portuguese-brazil-xsampa-dict.txt",_=>name,
+        }}else{name};
+        let classes=catalog.classes(language);
+        Ok(Self {language,words:PhoneTable::load(&directory.join(name),false)?,classes,legacy})
     }
 
     pub fn resolve(&self,lyrics:&str)->Result<Vec<Vec<String>>> {
@@ -46,6 +51,7 @@ impl European {
     }
 
     pub(super) fn link_words(&self,lyrics:&[&str],notes:&mut [Vec<Vec<String>>])->Result<()> {
+        if self.legacy {return Ok(())}
         if !matches!(self.language,Language::French|Language::Portuguese) {return Ok(())}
         let mut spellings=Vec::new();let mut words=Vec::new();let mut owners=Vec::new();
         for (index,(&lyrics,parts)) in lyrics.iter().zip(notes.iter()).enumerate() {

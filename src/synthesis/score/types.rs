@@ -137,7 +137,7 @@ impl ExplicitScore {
             start_seconds,
             notes: source,
             has_alignment_prefix,
-        } = super::context::padded(self, family, default_language);
+        } = super::context::padded(self, family, default_language)?;
         let mut records = Vec::with_capacity(source.len());
         let mut notes = Vec::with_capacity(source.len());
         let mut silent_variants=std::collections::BTreeSet::new();

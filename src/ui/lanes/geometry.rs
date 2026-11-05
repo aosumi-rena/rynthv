@@ -1,6 +1,6 @@
-use crate::{model::Parameter, ui::state::Lane};
+use crate::{app::App,model::Parameter, ui::state::Lane};
 
-pub(super) fn range(parameter: &Parameter, zoom: f32) -> (f64, f64) {
+pub(super) fn range(app:&App,parameter: &Parameter, zoom: f32) -> (f64, f64) {
     let (low, high) = match parameter {
         Parameter::Pitch => (-300.0, 300.0),
         Parameter::Loudness => (-12.0, 12.0),
@@ -17,10 +17,14 @@ pub(super) fn range(parameter: &Parameter, zoom: f32) -> (f64, f64) {
     let (low,high)=(low*factor,high*factor);
     let center = (low + high) * 0.5;
     let half = (high - low) * 0.5 * 100.0 / f64::from(zoom);
-    (center - half, center + half)
+    let range=(center-half,center+half);
+    if super::standard_expression_limit(app,parameter).is_some() {
+        let (low,high)=super::accepted_parameter_range(app,parameter);
+        (range.0.max(low),range.1.min(high))
+    }else{range}
 }
-pub(super) fn lane_range(lane: &Lane) -> (f64, f64) {
-    range(&lane.foreground, lane.zoom)
+pub(super) fn lane_range(app:&App,lane: &Lane) -> (f64, f64) {
+    range(app,&lane.foreground, lane.zoom)
 }
 pub(super) fn labels(parameter: &Parameter, low: f64, high: f64) -> (String, String) {
     match parameter {

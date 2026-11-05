@@ -3,6 +3,9 @@ use crate::synthesis::{runtime::VoiceState, settings::VoiceSelection, voice::Voi
 
 impl App {
     pub fn voice_name(&self) -> Option<&str> {
+        if let Some(key)=self.voice_selection() && let Some(entry)=self.synthesis.library.entry(&key) {
+            return Some(entry.localized_display_name());
+        }
         let track = self.editor.current_track();
         let database = crate::model::singer_database(
             &track.main_ref.database,

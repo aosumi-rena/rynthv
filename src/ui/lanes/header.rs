@@ -48,7 +48,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
         let (r, response) = ui.allocate_exact_size(vec2(48.0, 30.0), Sense::drag());
         Icon::Curve.paint(ui, r.shrink2(vec2(17.0, 8.0)), MUTED);
         response.dnd_set_drag_payload(DragPayload::Lane(lane.id));
-        selector(ui, &mut lane.foreground, &modes,&extra);
+        selector(app, ui, &mut lane.foreground, &modes,&extra);
         if ui
             .add(
                 IconButton::new(Icon::Swap, crate::i18n::t("交换前景与背景参数"))
@@ -59,9 +59,9 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
         {
             std::mem::swap(&mut lane.foreground, &mut lane.background);
         }
-        selector(ui, &mut lane.background, &modes,&extra);
+        selector(app, ui, &mut lane.background, &modes,&extra);
 
-        ui.add_enabled_ui(lane.foreground != Parameter::Rap, |ui| {
+        ui.add_enabled_ui(lane.foreground != Parameter::Rap && super::parameter_unavailable(app,&lane.foreground).is_none(), |ui| {
         ui.add_space(10.0);
         for (tool, tip) in [
             (CurveTool::Point, crate::i18n::t("控制点工具")),
@@ -118,8 +118,9 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
     });
 }
 
-fn selector(ui: &mut Ui, parameter: &mut Parameter, modes: &[String],extra:&[Parameter]) {
-    ui.menu_button(RichText::new(crate::ui::parameter_label(parameter)).color(TEXT), |ui| {
+fn selector(app:&App, ui: &mut Ui, parameter: &mut Parameter, modes: &[String],extra:&[Parameter]) {
+    let reason=super::parameter_unavailable(app,parameter);
+    let response=ui.menu_button(RichText::new(crate::ui::parameter_label(parameter)).color(if reason.is_some(){MUTED}else{TEXT}), |ui| {
         let font = TextStyle::Button.resolve(ui.style());
 
         let text_width = Parameter::ALL
@@ -143,7 +144,8 @@ fn selector(ui: &mut Ui, parameter: &mut Parameter, modes: &[String],extra:&[Par
                 ui.label(RichText::new(crate::i18n::t("基本参数")).color(MUTED));
                 for p in Parameter::ALL {
                     let label = crate::ui::parameter_label(&p).into_owned();
-                    parameter_option(ui, parameter, p, &label, width);
+                    let reason=super::parameter_unavailable(app,&p);
+                    parameter_option(ui, parameter, p, &label, width,reason);
                 }
             });
             ui.vertical(|ui| {
@@ -156,15 +158,17 @@ fn selector(ui: &mut Ui, parameter: &mut Parameter, modes: &[String],extra:&[Par
                         Parameter::VocalMode(format!("vocalMode_{name}")),
                         name,
                         width,
+                        None,
                     );
                 }
                 if !extra.is_empty() {
                     ui.separator();ui.label(RichText::new(crate::i18n::t("实验功能")).color(MUTED));
-                    for value in extra {parameter_option(ui,parameter,value.clone(),&crate::ui::parameter_label(value),width);}
+                    for value in extra {parameter_option(ui,parameter,value.clone(),&crate::ui::parameter_label(value),width,super::parameter_unavailable(app,value));}
                 }
             });
         });
-    });
+    }).response;
+    if let Some(reason)=reason {response.on_hover_text(crate::i18n::t(reason));}
 }
 fn parameter_option(
     ui: &mut Ui,
@@ -172,17 +176,17 @@ fn parameter_option(
     value: Parameter,
     label: &str,
     width: f32,
+    reason: Option<&'static str>,
 ) {
     let size = vec2(width, ui.spacing().interact_size.y);
-    if ui
-        .add_sized(
+    let response=ui.add_enabled_ui(reason.is_none(),|ui|ui.add_sized(
             size,
             Button::selectable(*parameter == value, (label, Atom::grow()))
                 .min_size(size)
                 .wrap_mode(TextWrapMode::Extend),
-        )
-        .clicked()
-    {
+        )).inner;
+    if let Some(reason)=reason {response.on_disabled_hover_text(crate::i18n::t(reason));}
+    else if response.clicked() {
         *parameter = value;
         ui.close();
     }

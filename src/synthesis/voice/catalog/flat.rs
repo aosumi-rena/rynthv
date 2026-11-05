@@ -13,6 +13,6 @@ fn configured_entry(path:&Path,configuration:crate::synthesis::voice::config::Vo
     let artwork=|name:&str|path.parent().map(|p|p.join(name)).filter(|p|p.is_file()).map(|path|super::VoiceArtwork::File{path});
     Ok(VoiceCatalogEntry {database_id:nofs::database_id(path)?.replacen("sv1:","flat:",1),revision:configuration.version.parse().map_err(VoiceError::new)?,
         model_version:Some(1),family:Some(VoiceFamily::Sv1),directory:path.to_owned(),display_name:configuration.name.clone(),
-        vendor:configuration.vendor.clone(),genres:Vec::new(),pitch_range:None,languages:configuration.supported_languages.clone(),
+        vendor:configuration.vendor.clone(),localized_names:Default::default(),localized_vendors:Default::default(),genres:Vec::new(),pitch_range:None,languages:configuration.supported_languages.clone(),
         icon:artwork("profile.png"),portrait:artwork("background.png"),configuration:Some(configuration),availability:VoiceAvailability::Loadable})
 }

@@ -116,7 +116,8 @@ pub(super) fn prepare(
             [a, position_b, c]
         })
         .collect();
-    let tokens: Vec<&str> = phones.iter().map(|phone| phone.token.as_str()).collect();
+    let tokens: Vec<&str> = phones.iter().map(|phone|
+        crate::synthesis::voice::resource_phone_symbol(&phone.token).unwrap_or(&phone.token)).collect();
     let mut phone_seeds = SeedSource::context(&tokens, phone_frames, "magic", 0)
         .map_err(|error| VoiceError::new(error.to_string()))?;
     let mut note_seeds = SeedSource::new(pitch_seeds, note_frames)

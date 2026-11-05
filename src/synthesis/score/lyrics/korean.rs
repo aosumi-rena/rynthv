@@ -6,12 +6,14 @@ use std::path::Path;
 
 pub(super) struct Korean {
     phones: PhoneTable,
+    legacy: bool,
 }
 
 impl Korean {
-    pub fn load(directory: &Path) -> Result<Self> {
+    pub fn load(directory: &Path, legacy:bool) -> Result<Self> {
         Ok(Self {
-            phones: PhoneTable::load(&directory.join("korean-dict.txt"), false)?,
+            phones: PhoneTable::load(&directory.join(if legacy {"korean-xsampa-dict.txt"}else{"korean-dict.txt"}), false)?,
+            legacy,
         })
     }
 
@@ -30,7 +32,7 @@ impl Korean {
             };
             // The dictionary distinguishes voiced onsets from unreleased codas;
             // a word-initial lax stop is the corresponding unvoiced onset.
-            if let Some(first) = syllables.first_mut().and_then(|s| s.first_mut()) {
+            if !self.legacy && let Some(first) = syllables.first_mut().and_then(|s| s.first_mut()) {
                 let initial = match first.as_str() {
                     "g" => Some("K"),
                     "d" => Some("T"),

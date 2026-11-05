@@ -29,7 +29,7 @@ impl PreparedAutomation {
         Ok(())
     }
     pub fn for_experiments(input:&OwnerInput)->Option<Self> {Self::new(input)}
-    pub(super) fn new(input:&OwnerInput)->Option<Self> {
+    pub(crate) fn new(input:&OwnerInput)->Option<Self> {
         input.automation.values().any(|curve|!curve.points.is_empty()).then(||Self {
             curves:input.automation.clone(),tempo:input.tempo.clone(),offset:input.content_offset,
         })

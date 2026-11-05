@@ -34,6 +34,7 @@ impl<'tree> Network<'tree> {
         }
         let tree = voice.model("timbre")?;
         match voice.family {
+            VoiceFamily::R1Std | VoiceFamily::R2Std => Err(VoiceError::new("STD banks use their dedicated renderer")),
             VoiceFamily::Sv1 | VoiceFamily::Sv2Compatible => {
                 Ok(Self::Dds(Box::new(models::dds_timbre(voice)?)))
             }

@@ -1,5 +1,7 @@
 use super::voice::{VoiceCatalog, VoiceRevision};
 mod duration_keys;
+mod phoneme_data;
+pub use phoneme_data::{PhonemeData,PhonemeVersion};
 pub use duration_keys::VoiceDurationKeyOverride;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -26,7 +28,12 @@ pub struct SynthesisSettings {
     pub voice_sources: Vec<PathBuf>,
     #[serde(default)]
     pub audio_converter: Option<PathBuf>,
-    pub dictionaries: Option<PathBuf>,
+    #[serde(default)]
+    pub phoneme_data: PhonemeData,
+    #[serde(default)]
+    pub r2_ai_flat_databases: Option<PathBuf>,
+    #[serde(default)]
+    pub r2_ai_flat_models: Option<PathBuf>,
     pub selected_voice: Option<VoiceSelection>,
     #[serde(default)]
     pub duration_key_override_enabled: bool,
@@ -44,7 +51,7 @@ impl Default for SynthesisSettings {
     fn default() -> Self {
         Self {
             experiments: Default::default(),
-            databases: None, sv1_databases: None, dictionaries: None, selected_voice: None,
+            databases: None, sv1_databases: None, phoneme_data:Default::default(), r2_ai_flat_databases:None, r2_ai_flat_models:None, selected_voice: None,
             voice_sources: Vec::new(),
             audio_converter: None,
             duration_key_override_enabled: false, duration_key_override_value: default_duration_key(),
@@ -60,8 +67,9 @@ impl SynthesisSettings {
 
     pub fn database_roots(&self) -> impl Iterator<Item = (&'static str, &Path)> {
         [
-            ("SV2", self.databases.as_deref()),
-            ("SV1", self.sv1_databases.as_deref()),
+            ("R3 AI 2", self.databases.as_deref()),
+            ("R2 AI", self.sv1_databases.as_deref()),
+            ("R2 AI Flat",self.r2_ai_flat_databases.as_deref()),
         ]
         .into_iter()
         .filter_map(|(label, path)| path.map(|path| (label, path)))
@@ -80,7 +88,7 @@ impl SynthesisSettings {
         let path = Self::path()?;
         match fs::read(&path) {
             Ok(bytes) => serde_json::from_slice(&bytes)
-                .map_err(|error| format!("无法读取合成设置 {}：{error}", path.display())),
+                .map_err(|error|format!("Cannot read synthesis settings {}: {error}",path.display())),
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Self::default()),
             Err(error) => Err(format!("无法读取合成设置 {}：{error}", path.display())),
         }

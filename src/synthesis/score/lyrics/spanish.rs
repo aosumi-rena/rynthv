@@ -1,11 +1,9 @@
 use super::dictionary::{split_nuclei};
 use crate::synthesis::voice::Result;
-use std::path::Path;
 
 pub(super) struct Spanish {nuclei: Vec<String>}
 impl Spanish {
-    pub(super) fn load(directory: &Path) -> Result<Self> {
-        let catalog=crate::model::PhonemeCatalog::load(directory).map_err(crate::synthesis::voice::VoiceError::new)?;
+    pub(super) fn load(catalog:&crate::model::PhonemeCatalog) -> Result<Self> {
         let nuclei=catalog.for_language(crate::model::Language::Spanish).filter(|e|matches!(e.category.as_str(),"vowel"|"diphthong")).map(|e|e.symbol.clone()).collect();
         Ok(Self {nuclei})
     }

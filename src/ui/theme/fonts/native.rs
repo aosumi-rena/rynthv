@@ -29,11 +29,12 @@ fn insert(fonts: &mut FontDefinitions, name: &str, path: &std::path::Path) -> Re
 
 fn editor_font() -> Option<PathBuf> {
     let mut paths = Vec::new();
-    if let Ok(settings) = crate::synthesis::settings::SynthesisSettings::load()
-        && let Some(dictionary) = settings.dictionaries
-        && let Some(root) = dictionary.parent()
-    {
-        paths.push(root.join("fonts/NotoSansCJKjp-Regular.otf"));
+    if let Ok(settings) = crate::synthesis::settings::SynthesisSettings::load() {
+        for version in crate::synthesis::settings::PhonemeVersion::ALL {
+            if let Some(root)=settings.phoneme_data.get(version).and_then(std::path::Path::parent) {
+                paths.push(root.join("fonts/NotoSansCJKjp-Regular.otf"));
+            }
+        }
     }
     #[cfg(windows)]
     for variable in ["ProgramW6432", "ProgramFiles"] {

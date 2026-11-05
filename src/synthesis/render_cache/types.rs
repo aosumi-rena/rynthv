@@ -36,6 +36,8 @@ impl RenderJob {
         self.cancelled.load(Ordering::Acquire)
     }
 
+    pub(crate) fn cancellation_flag(&self) -> &AtomicBool { &self.cancelled }
+
     pub(super) fn cancel(&self) {
         self.cancelled.store(true, Ordering::Release);
     }

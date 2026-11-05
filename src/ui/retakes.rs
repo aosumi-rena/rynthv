@@ -38,6 +38,7 @@ fn unavailable_at(
         return Some(crate::i18n::t("请先结束当前编辑"));
     }
     let reason = match voice_family(app, target) {
+        Some(VoiceFamily::R1Std | VoiceFamily::R2Std) => Some(crate::i18n::t("当前歌声不支持 AI 重录")),
         Some(VoiceFamily::Sv2) => None,
         Some(VoiceFamily::Sv2Compatible | VoiceFamily::Sv1)
             if component == RetakeComponent::Duration =>

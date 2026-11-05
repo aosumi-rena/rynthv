@@ -54,15 +54,17 @@ impl NofsArchive {
             return Err(VoiceError::new("Unsupported NOFS index block layout"));
         }
         let indexed_offsets = parse_index(&header, length)?;
-        let mut remaining_offsets = indexed_offsets.clone();
         let mut keys = HashSet::with_capacity(indexed_offsets.len());
         let mut records = Vec::with_capacity(indexed_offsets.len());
         let mut key_bytes = 0usize;
-        let mut offset = RECORDS_START as u64;
-        while offset < length {
-            if !remaining_offsets.remove(&offset) {
-                return Err(VoiceError::new("NOFS index does not cover a record"));
-            }
+        // The index is authoritative. Original banks may retain superseded
+        // physical records after an in-place metadata update; those records
+        // are not members of the current archive and must not be exposed.
+        let mut offsets:Vec<_>=indexed_offsets.iter().copied().collect();
+        offsets.sort_unstable();
+        let mut previous_end=RECORDS_START as u64;
+        for offset in offsets {
+            if offset<previous_end {return Err(VoiceError::new("NOFS indexed records overlap"));}
             if length - offset < 16 {
                 return Err(VoiceError::new("Truncated NOFS record header"));
             }
@@ -100,9 +102,9 @@ impl NofsArchive {
                 key,
                 range: start..end - 4,
             });
-            offset = end;
+            previous_end = end;
         }
-        if !remaining_offsets.is_empty() || records.len() != indexed_offsets.len() {
+        if records.len() != indexed_offsets.len() {
             return Err(VoiceError::new(
                 "NOFS index contains missing record references",
             ));

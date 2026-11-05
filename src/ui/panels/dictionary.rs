@@ -134,9 +134,12 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
             field(ui, &mut state.word);
             ui.weak(crate::i18n::t("音素"));
             field(ui, &mut state.phones);
-            if ui.checkbox(&mut state.xsampa,crate::i18n::t("Use X-SAMPA phonemes")).changed()
+            let enabled=crate::ui::phoneme_candidates::xsampa_enabled(app);
+            let mut xsampa=enabled && state.xsampa;
+            if ui.add_enabled(enabled,Checkbox::new(&mut xsampa,crate::i18n::t("Use X-SAMPA phonemes"))).changed()
                 && let Some(dict)=dictionary.as_ref()
                 && let Ok(catalog)=crate::ui::phoneme_candidates::catalog(app,ui.ctx()) {
+                state.xsampa=xsampa;
                 state.phones=state.phones.split_whitespace().map(|token|
                     catalog.convert(dict.language,token,state.xsampa).unwrap_or_else(|_|token.to_owned()))
                     .collect::<Vec<_>>().join(" ");

@@ -62,6 +62,9 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     let color = crate::ui::track_color::TrackColors::new(app.editor.current_track()).accent;
     for reference in app.editor.current_track().visible_references() {
         let active = app.editor.reference == Some(reference.id);
+        let standard=app.synthesis.resolve_voice(app.editor.current_track(),reference).ok().flatten()
+            .and_then(|key|app.synthesis.library.entry(&key)).and_then(|entry|entry.family)
+            .is_some_and(|family|family.is_standard());
         for snapshot in app.synthesis.phonemes(OwnerId::new(reference.id)) {
             let input = &snapshot.input;
             let (begin,limit)=input.publication_bounds();
@@ -119,7 +122,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     phone: phone.clone(),
                     input: input.clone(),
                     rect: r,
-                    editable: active,
+                    editable: active && !standard && phone.error.is_none(),
                 };
                 draw::body(
                     &painter,

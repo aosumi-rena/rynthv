@@ -17,6 +17,10 @@ enum RevisionSuffix {
 }
 
 impl VoiceRevision {
+    pub const fn beta(number: u32, build: u32) -> Self {
+        Self { number, suffix: RevisionSuffix::Beta(build) }
+    }
+
     pub const fn release(number: u32) -> Self {
         Self {
             number,

@@ -1,4 +1,5 @@
 mod instrumental;
+mod clipboard;
 mod midi;
 mod project_import;
 mod transport_preferences;

@@ -41,6 +41,8 @@ pub(super) fn scan(
             directory: revision.path(),
             display_name: database_id.to_string(),
             vendor: String::new(),
+            localized_names: Default::default(),
+            localized_vendors: Default::default(),
             genres: Vec::new(),
             pitch_range: None,
             languages: Vec::new(),

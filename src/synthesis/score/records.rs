@@ -34,6 +34,7 @@ pub(super) fn redistribute_onsets(
         for (index, phone) in record.phones.iter().enumerate() {
             let resolved = tree.resolve_phone_alphabet(&phone.language, &phone.token,phone.xsampa)?;
             let core = match family {
+                VoiceFamily::R1Std | VoiceFamily::R2Std => return Err(VoiceError::new("STD banks use their own phoneme allocation")),
 
                 VoiceFamily::Sv1 => {
                     matches!(resolved.source_class, Some("vowel" | "diphthong"))

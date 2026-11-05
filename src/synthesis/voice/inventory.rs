@@ -23,6 +23,8 @@ use super::{
 
 #[derive(Serialize)]
 pub struct VoiceInventory {
+    #[serde(skip)]
+    pub(crate) standard:Option<super::standard::StdVoice>,
     pub database_id: String,
     pub directory: PathBuf,
     pub display_name: String,
@@ -92,11 +94,12 @@ pub struct TensorSummary {
 impl VoiceInventory {
     fn from_prepared(path:&Path,configuration:VoiceConfiguration,voice:PreparedVoice)->Result<Self> {
         let ready=OnceLock::new();let _=ready.set(Ok(Arc::new(voice)));
-        Ok(Self {database_id:super::nofs::database_id(path)?.replacen("sv1:","flat:",1),directory:path.to_owned(),
+        Ok(Self {standard:None,database_id:super::nofs::database_id(path)?.replacen("sv1:","flat:",1),directory:path.to_owned(),
             display_name:configuration.name.clone(),source_identity:source_identity(path),resource_count:0,graph_count:4,tensor_count:0,
             files:Vec::new(),configuration:Some(configuration),_models:Vec::new(),preparation:ready})
     }
     pub fn prepare(&self) -> Result<Arc<PreparedVoice>> {
+        if self.standard.is_some(){return Err(VoiceError::new("STD banks use their dedicated inference backend"));}
         self.preparation
             .get_or_init(|| {
                 let files = self
@@ -165,6 +168,15 @@ impl VoiceInventory {
     }
 
     pub fn load(directory: &Path) -> Result<Self> {
+        let standard=if super::standard::is_profile(directory) {
+            Some(super::standard::StdVoice::load(directory)?)
+        }else{super::standard::native_voice(directory)?};
+        if let Some(standard)=standard {
+            return Ok(Self {database_id:standard.database_id.clone(),directory:standard.profile.clone(),
+                display_name:standard.configuration.name.clone(),source_identity:source_identity(&standard.profile),
+                resource_count:0,graph_count:0,tensor_count:0,files:Vec::new(),configuration:Some(standard.configuration.clone()),
+                _models:Vec::new(),preparation:OnceLock::new(),standard:Some(standard)});
+        }
         if super::flat::is_profile(directory) {
             let (voice,configuration)=super::flat::load(directory)?;
             return Self::from_prepared(directory,configuration,voice);
@@ -221,6 +233,7 @@ impl VoiceInventory {
             )));
         }
         let mut inventory = Self {
+            standard:None,
             database_id: directory
                 .parent()
                 .and_then(Path::file_name)

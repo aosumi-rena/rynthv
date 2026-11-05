@@ -59,6 +59,8 @@ pub fn draw_notes(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
     let drawing_pitch = app.piano_tool.is_pitch();
     for g in groups {
         let active = app.editor.reference == Some(g.reference.id);
+        let issues=crate::synthesis::plan::note_issues::timeline(g.notes.iter().map(|n|
+            (n.id,n.onset,n.duration,n.pitch.saturating_add(g.reference.pitch_offset),n.muted())));
         let painter = ui.painter().with_clip_rect(
             clip_rect(&g.reference, canvas, &app.view.piano).intersect(ui.clip_rect()),
         );
@@ -83,7 +85,8 @@ pub fn draw_notes(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
                 app,
             );
             let selected = active && !drawing_pitch && app.editor.selected.contains(&note.id);
-            let color = if note.muted() {
+            let invalid=issues.contains_key(&note.id)||super::phonemes::error(app,&g.reference,note).is_some();
+            let color = if note.muted() || invalid {
                 MUTED.gamma_multiply(0.4)
             } else if selected {
                 colors.accent

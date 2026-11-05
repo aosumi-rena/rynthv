@@ -22,10 +22,15 @@ impl Editor {
             self.capture_note_selection(parameters)
         }
     }
-    pub fn paste_text(&mut self, text: &str, at: i64) -> Result<usize, String> {
-        self.paste_content(clipboard::read(text)?, at)
-    }
     pub fn paste_content(&mut self, data: Content, at: i64) -> Result<usize, String> {
+        self.paste_content_checked(data,at,&|_,_,_|Ok(()))
+    }
+    pub(crate) fn paste_destination(&self, data:&Content, at:i64)->Option<&GroupRef> {
+        if data.notes.is_empty() {self.active_ref()}
+        else {Some(PastePlan::target_reference(self,at,false).unwrap_or(&self.current_track().main_ref))}
+    }
+    pub(crate) fn paste_content_checked(&mut self, data:Content, at:i64,
+        admit:&impl Fn(&Editor,&Content,i64)->Result<(),String>)->Result<usize,String> {
         data.validate()?;
         if !data.groups.is_empty()
             && (!data.notes.is_empty()
@@ -64,7 +69,7 @@ impl Editor {
                         .ok_or("粘贴位置超出可用范围。")?,
                 )
                 .ok_or("粘贴位置超出可用范围。")?;
-            count += next.paste_content(inner, inner_at)?;
+            count += next.paste_content_checked(inner, inner_at,admit)?;
             let selected = next.selection();
             self.finish();
             self.begin("粘贴");
@@ -76,6 +81,7 @@ impl Editor {
         if !data.groups.is_empty() {
             return self.paste_groups(&data, at);
         }
+        admit(self,&data,at)?;
         if data.notes.is_empty() {
             let reference = self.active_ref().ok_or("请先选择音符组。")?.clone();
             let delta = at

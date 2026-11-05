@@ -9,8 +9,8 @@ pub(super) struct Japanese {
 }
 
 impl Japanese {
-    pub(super) fn load(directory: &Path) -> Result<Self> {
-        let phones = romaji(directory)?;
+    pub(super) fn load(directory: &Path, catalog:&crate::model::PhonemeCatalog) -> Result<Self> {
+        let phones = romaji(directory,catalog)?;
         let mut kana = HashMap::new();
         for name in [
             "japanese-hira2romaji-dict.txt",
@@ -118,9 +118,8 @@ impl Japanese {
     }
 }
 
-fn romaji(directory: &Path) -> Result<PhoneTable> {
+fn romaji(directory: &Path, catalog:&crate::model::PhonemeCatalog) -> Result<PhoneTable> {
     let mut table = PhoneTable::load(&directory.join("japanese-romaji-dict.txt"), false)?;
-    let catalog = crate::model::PhonemeCatalog::load(directory).map_err(VoiceError::new)?;
     for entry in catalog.for_language(crate::model::Language::Japanese) {
         if matches!(
                 entry.category.as_str(),

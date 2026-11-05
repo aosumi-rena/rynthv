@@ -87,6 +87,9 @@ impl ExplicitScore {
         duration_tree: &PreparedTree,
         family: VoiceFamily,
     ) -> Result<Self> {
+        let local_errors=crate::synthesis::plan::note_issues::for_input(input);
+        let clean=crate::synthesis::plan::note_issues::muted(input,&local_errors);
+        let input=&clean;
         options::validate_owner(input, family)?;
         validate_tempo(&input.tempo)?;
         let language = lexicon.language(input)?;

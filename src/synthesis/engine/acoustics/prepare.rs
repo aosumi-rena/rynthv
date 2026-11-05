@@ -55,6 +55,7 @@ pub(super) fn prepare_acoustics_with_host(
     #[cfg(feature = "synth-profile")]
     let profile = crate::synthesis::profiling::span("stage.duration");
     let mut duration = match voice.family {
+        VoiceFamily::R1Std | VoiceFamily::R2Std => return Err(VoiceError::new("STD banks use their dedicated duration backend")),
         VoiceFamily::Sv1 => {
             if duration_identity.is_some() {
                 return Err(VoiceError::new(
@@ -141,6 +142,7 @@ pub(super) fn prepare_acoustics_with_host(
     #[cfg(feature = "synth-profile")]
     let profile = crate::synthesis::profiling::span("stage.pitch");
     let (mut pitch, pitch_features) = match voice.family {
+        VoiceFamily::R1Std | VoiceFamily::R2Std => return Err(VoiceError::new("STD banks use their dedicated pitch backend")),
         VoiceFamily::Sv1 => {
             let seconds = duration
                 .durations

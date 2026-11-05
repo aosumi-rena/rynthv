@@ -5,6 +5,10 @@ use serde_json::Value;
 impl OwnerInput {
     pub fn sections(&self) -> Vec<(Option<u64>, Self)> {
         let db=singer_database(&self.voice.track_default_database,&self.voice.database);
+        if db.get("id").and_then(Value::as_str).is_some_and(|id|
+            id.starts_with("r1-std:") || id.starts_with("r2-std:")) {
+            return super::standard_sections::sections(self);
+        }
         if db.get("backendType").and_then(Value::as_str)!=Some("SVR3") {
             return vec![(None,self.clone())];
         }
@@ -12,13 +16,15 @@ impl OwnerInput {
         let active:Vec<_>=self.notes.iter().enumerate().filter(|(_,n)|
             n.attributes.get("muted").and_then(Value::as_bool)!=Some(true)).collect();
         let mut ranges=Vec::new();let mut first=0;
+        let mut covered_end=active.first().map_or(0,|(_,note)|note.onset.0.saturating_add(note.duration));
         for i in 1..active.len() {
-            let (_,previous)=active[i-1];let (_,next)=active[i];
-            let end=seconds(previous.onset.0.saturating_add(previous.duration));
+            let (_,next)=active[i];
+            let end=seconds(covered_end);
             let begin=seconds(next.onset.0);
 
             let frame=|value:f64| (value/0.005+f64::from_bits(0x3fdf_ffff_ffff_ffff)).trunc();
             if frame(begin)-frame(end)>=200.0 {ranges.push(first..i);first=i;}
+            covered_end=covered_end.max(next.onset.0.saturating_add(next.duration));
         }
         if ranges.is_empty() {return vec![(None,self.clone())];}
         ranges.push(first..active.len());

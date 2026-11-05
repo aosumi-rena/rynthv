@@ -16,19 +16,23 @@ mod phonetic;
 mod preparation;
 mod prepared;
 mod revision;
+#[cfg(windows)]
+mod runtime_config;
 pub mod session_identity;
 pub(crate) mod speakers;
 mod stream;
+pub(crate) mod standard;
 mod tensor;
 mod tree;
 
 pub use catalog::{VoiceArtwork, VoiceAvailability, VoiceCatalog, VoiceCatalogEntry};
+pub use config::VoiceConfiguration;
 pub use duration_frontend::{DURATION_ROOT_TYPE_ID, DurationConfiguration};
 pub use family::VoiceFamily;
 pub use inventory::VoiceInventory;
 pub use materialized_flat::load_materialized_flat;
 pub use member_modes::MemberVocalModes;
-pub use phones::{PHONE_SET_TYPE_ID, PhoneLookup, PhoneSet, ResolvedPhone, resolve_explicit,resolve_alphabet};
+pub use phones::{PHONE_SET_TYPE_ID, PhoneLookup, PhoneSet, ResolvedPhone, resolve_explicit,resolve_alphabet,resource_phone_symbol,resource_phone_token};
 pub use phonetic::{PHONETIC_MAP_TYPE_ID, PhoneticMap};
 pub use preparation::{PreparationSummary, PreparedVoice};
 pub use prepared::{PreparedModule, PreparedNode, PreparedTree, PreparedTreeSummary};

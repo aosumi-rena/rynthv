@@ -237,8 +237,8 @@ impl Runtime {
         }
     }
 
-    pub fn dictionaries(&self) -> Option<&Path> {
-        self.library.settings.dictionaries.as_deref()
+    pub fn dictionaries_for(&self,voice:&VoiceSelection) -> Option<&Path> {
+        self.library.entry(voice).and_then(|entry|self.library.settings.phoneme_directory(entry))
     }
     pub fn set_audio_converter(&mut self, path: Option<PathBuf>) {
         let mut settings = self.library.settings.clone();
@@ -259,12 +259,13 @@ impl Runtime {
             self.rescan_voices();
         }
     }
-    pub fn set_dictionaries(&mut self, path: PathBuf) {
-        let mut settings = self.library.settings.clone();
-        settings.dictionaries = Some(path);
-        if self.library.update(settings) {
-            self.clear_voices();
-        }
+    pub fn set_phoneme_data(&mut self,version:crate::synthesis::settings::PhonemeVersion,path:Option<PathBuf>) {
+        let mut settings=self.library.settings.clone();settings.phoneme_data.set(version,path);
+        if settings!=self.library.settings && self.library.update(settings){self.rescan_voices();}
+    }
+    pub fn set_flat_directories(&mut self,databases:Option<PathBuf>,models:Option<PathBuf>) {
+        let mut settings=self.library.settings.clone();settings.r2_ai_flat_databases=databases;settings.r2_ai_flat_models=models;
+        if settings!=self.library.settings && self.library.update(settings){self.rescan_voices();}
     }
     pub fn rescan_voices(&mut self) {
         self.clear_voices();

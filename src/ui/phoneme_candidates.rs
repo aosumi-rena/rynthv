@@ -2,14 +2,33 @@ use crate::{app::App, model::{Language, Note, PhonemeCatalog, database_language}
 use eframe::egui::{self, *};
 use std::sync::Arc;
 
+pub(super) fn standard_voice(app:&App)->bool {
+    app.voice_selection().and_then(|key|app.synthesis.library.entry(&key))
+        .and_then(|entry|entry.family).is_some_and(|family|family.is_standard())
+}
+
+pub(super) fn xsampa_enabled(app:&App)->bool {
+    if standard_voice(app) {return false}
+    resources(app).ok().and_then(|(path,format)|PhonemeCatalog::cached(path,format).ok())
+        .is_some_and(|catalog|catalog.uses_system_symbols())
+}
+
+pub(super) fn resources(app:&App)->Result<(&std::path::Path,crate::model::PhonemeFormat),String> {
+    let voice=app.voice_selection().ok_or(crate::i18n::t("PHONEME_DATA_REQUIRED"))?;
+    let entry=app.synthesis.library.entry(&voice).ok_or("未加载歌声")?;
+    let version=crate::synthesis::settings::PhonemeVersion::entry(entry).ok_or("未加载歌声")?;
+    let path=app.synthesis.dictionaries_for(&voice).ok_or(crate::i18n::t("PHONEME_DATA_REQUIRED"))?;
+    Ok((path,version.format()))
+}
+
 pub(super) fn catalog(app: &App, ctx: &Context) -> Result<Arc<PhonemeCatalog>, String> {
-    let path = app.synthesis.dictionaries().ok_or("请设置 2.3 发音词典目录")?;
-    let stamp = std::fs::metadata(path.join("phoneme-table.tsv")).ok()
-        .and_then(|m|m.modified().ok());
-    let id = Id::new(("phoneme-table", path, stamp));
+    let (path,format)=resources(app)?;
+    let stamp = PhonemeCatalog::source_stamp(path,format)?;
+    let inventory=app.voice_inventory().ok_or("未加载歌声")?;
+    let id = Id::new(("phoneme-table", path, format, stamp, &inventory.source_identity));
     ctx.data_mut(|data| {
         if let Some(value) = data.get_temp::<Result<Arc<PhonemeCatalog>, String>>(id) { return value; }
-        let value = PhonemeCatalog::load(path).map(Arc::new);
+        let value = PhonemeCatalog::cached(path,format);
         data.insert_temp(id, value.clone());
         value
     })
@@ -42,6 +61,8 @@ pub(super) struct Outcome { pub handled: bool, pub changed: bool }
 pub(super) fn show(app: &App, ui: &mut Ui, output: &egui::text_edit::TextEditOutput,
     text: &mut String, language: Option<Language>, xsampa: bool) -> Outcome {
     let mut result = Outcome::default();
+    if standard_voice(app) {return result;}
+    let xsampa=xsampa && xsampa_enabled(app);
     let Some(language) = language else { return result; };
     if !output.response.has_focus() && !output.response.lost_focus() { return result; }
     let Ok(catalog) = catalog(app, ui.ctx()) else { return result; };
@@ -53,7 +74,15 @@ pub(super) fn show(app: &App, ui: &mut Ui, output: &egui::text_edit::TextEditOut
     if query.is_empty() { return result; }
     let symbol = |entry: &crate::model::PhonemeEntry| if xsampa {entry.xsampa.clone()} else {entry.symbol.clone()};
     let inventory=if xsampa {catalog.unified()} else {catalog.for_language(language).collect()};
-    let mut entries: Vec<_> = inventory.into_iter().filter(|entry| {
+    let voice=app.voice_inventory().and_then(|inventory|inventory.prepare().ok());
+    let tree=voice.as_ref().and_then(|voice|voice.model("duration").ok());
+    let local=!catalog.uses_system_symbols();
+    let mut seen=std::collections::HashSet::new();
+    let mut entries: Vec<_> = inventory.into_iter().filter(|entry|seen.insert(symbol(entry)))
+        .filter(|entry|tree.is_none_or(|tree|if local {
+            tree.native_phone_token(language.id(),&entry.symbol).is_ok()
+        }else{tree.model_phone_token(language.id(),&entry.symbol,&entry.xsampa).is_ok()}))
+        .filter(|entry| {
         let value = symbol(entry);
         value.contains(&query) || near(&value, &query)
             || entry.example.replace('*', "").to_lowercase().contains(&query.to_lowercase())

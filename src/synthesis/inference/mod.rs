@@ -7,6 +7,7 @@ pub mod matrix;
 pub mod noise;
 pub mod ops;
 mod parallel;
+pub(crate) fn compute_pool()->Result<&'static rayon::ThreadPool,String> {parallel::pool()}
 pub mod pooling;
 pub mod recurrent;
 pub mod runtime;

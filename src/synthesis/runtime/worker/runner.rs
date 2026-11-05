@@ -42,7 +42,18 @@ pub(super) fn run(
         }
     };
     let started = Instant::now();
-    let loaded = VoiceInventory::load(&path).and_then(|inventory| {
+    let inventory=match VoiceInventory::load(&path) {
+        Ok(inventory)=>inventory,
+        Err(error)=>{
+            let _=events.send(Event::Voice {state:VoiceState::Failed(error.to_string()),elapsed:started.elapsed()});
+            return;
+        },
+    };
+    if inventory.standard.is_some(){
+        super::standard::run(inventory,commands,events,alive,control,started);
+        return;
+    }
+    let loaded = Ok::<_,VoiceError>(inventory).and_then(|inventory| {
         loading_checkpoint()?;
         let prepared = inventory.prepare()?;
         loading_checkpoint()?;
@@ -72,11 +83,8 @@ pub(super) fn run(
         .as_ref()
         .ok_or_else(|| VoiceError::new("声库缺少语言配置"))
         .and_then(|config| {
-            LyricFrontend::new(
-                &dictionaries,
-                &config.default_language,
-                &config.supported_languages,
-            )
+            let frontend=LyricFrontend::for_voice(&dictionaries,config)?;
+            Ok(frontend)
         });
     if events
         .send(Event::Voice {
@@ -285,7 +293,7 @@ fn finish(
             Arc::new(RenderedClip {
                 audio: Arc::new(result.audio),
                 visuals: Arc::new(result.visuals),
-                state: Arc::new(result.state),
+                state: Some(Arc::new(result.state)),
             })
         })
         .map_err(|error| error.to_string());

@@ -58,7 +58,8 @@ pub(in crate::synthesis::engine) fn prepare(voice:&PreparedVoice,input:&OwnerInp
         let mut phones=primary.prepared.phones.clone();
         let mut mask=Vec::with_capacity(frames);
         for phone in &mut phones {
-            let selected=!matches!(phone.token.as_str(),"sil"|"pau") && (slot.source.is_empty() || slot.source==phone.token);
+            let token=crate::synthesis::voice::resource_phone_symbol(&phone.token).unwrap_or(&phone.token);
+            let selected=!matches!(token,"sil"|"pau") && (slot.source.is_empty() || slot.source==token);
             mask.extend(std::iter::repeat_n(selected,phone.frames));
             if selected {phone.token=slot.token.clone();if !slot.language.is_empty() {phone.language=slot.language.clone();}}
         }

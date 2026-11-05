@@ -83,7 +83,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         let family=app.voice_inventory().and_then(|v|v.configuration.as_ref()).map(|c|c.family);
         let catalog:Vec<_>=app.synthesis.library.catalog().into_iter().flat_map(|c|c.entries.iter())
             .filter(|e|e.family==family && e.availability.is_loadable())
-            .map(|e|(VoiceSelection{database_id:e.database_id.clone(),revision:e.revision},format!("{} · {}",e.display_name,super::selector::source_hint(e)),e.directory.display().to_string())).collect();
+            .map(|e|(VoiceSelection{database_id:e.database_id.clone(),revision:e.revision},format!("{} · {}",e.localized_display_name(),super::selector::source_hint(e)),e.directory.display().to_string())).collect();
         let mut remove=None;
         for (index,target) in controls.voices.iter_mut().enumerate() {
             ui.push_id(index,|ui| {

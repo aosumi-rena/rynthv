@@ -30,7 +30,10 @@ pub(crate) fn image(artwork:&VoiceArtwork) -> Image<'static> {
 fn file_uri(path: &Path) -> String {
     #[cfg(windows)]
     {
-        let path = path.to_string_lossy().replace('\\', "/");
+        let raw=path.to_string_lossy();
+        let normalized=if let Some(value)=raw.strip_prefix(r"\\?\UNC\") {format!(r"\\{value}")}
+            else {raw.strip_prefix(r"\\?\").unwrap_or(&raw).to_owned()};
+        let path = normalized.replace('\\', "/");
         if path.starts_with("//") {
             format!("file:{path}")
         } else {

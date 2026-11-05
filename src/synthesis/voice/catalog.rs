@@ -4,6 +4,7 @@ mod metadata;
 mod nofs;
 mod resource;
 mod flat;
+mod names;
 
 use std::{
     fs,
@@ -39,12 +40,25 @@ pub struct VoiceCatalogEntry {
     pub directory: PathBuf,
     pub display_name: String,
     pub vendor: String,
+    #[serde(skip)]
+    pub localized_names: std::collections::BTreeMap<String, String>,
+    #[serde(skip)]
+    pub localized_vendors: std::collections::BTreeMap<String, String>,
     pub genres: Vec<String>,
     pub pitch_range: Option<String>,
     pub languages: Vec<String>,
     pub icon: Option<VoiceArtwork>,
     pub portrait: Option<VoiceArtwork>,
     pub availability: VoiceAvailability,
+}
+
+impl VoiceCatalogEntry {
+    pub fn localized_display_name(&self) -> &str {
+        self.localized_names.get(crate::i18n::language().key()).map_or(self.display_name.as_str(), String::as_str)
+    }
+    pub fn localized_vendor(&self) -> &str {
+        self.localized_vendors.get(crate::i18n::language().key()).map_or(self.vendor.as_str(), String::as_str)
+    }
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -56,17 +70,32 @@ pub struct VoiceCatalog {
 impl VoiceCatalog {
 
     pub fn scan(root: &Path) -> Result<Self> {
+        let mut catalog = Self::scan_raw(root)?;
+        names::localize(root, &mut catalog);
+        Ok(catalog)
+    }
+
+    fn scan_raw(root: &Path) -> Result<Self> {
         let selected=root.canonicalize()?;
         let databases=selected.join("databases");
-        let resolved=if databases.is_dir() {databases.canonicalize()?}else{selected};
+        let database=selected.join("database");
+        let resolved=if databases.is_dir() {databases.canonicalize()?}
+            else if database.is_dir(){database.canonicalize()?}else{selected};
         let root=resolved.as_path();
         let mut catalog = Self::default();
+        if super::standard::is_profile(root) {
+            catalog.entries.push(super::standard::StdVoice::load(root)?.catalog_entry());
+            return Ok(catalog);
+        }
+        if let Some((entry,warnings))=super::standard::native_entry(root)? {
+            catalog.entries.push(entry);catalog.warnings.extend(warnings);return Ok(catalog);
+        }
         let manifest=if root.is_dir() {root.join("manifest.json")}else{root.to_owned()};
         if super::materialized_flat::is_manifest(&manifest) {
             catalog.entries.push(flat::entry(&manifest)?);return Ok(catalog);
         }
         if super::nofs::is_file(root) {
-            catalog.entries.push(nofs::entry(root)?);
+            bank_entry(root,&mut catalog)?;
             return Ok(catalog);
         }
         if let Some(parent)=root.parent() && root.file_name().and_then(|n|n.to_str()).is_some_and(|n|n.parse::<VoiceRevision>().is_ok())
@@ -81,13 +110,25 @@ impl VoiceCatalog {
             if !catalog.entries.is_empty() {return Ok(catalog);}
         }
         for path in super::nofs::paths(root)? {
-            catalog.entries.push(nofs::entry(&path)?);
+            bank_entry(&path,&mut catalog)?;
         }
         let metadata = MetadataIndex::load(root);
         for database in fs::read_dir(root)? {
             let database = database?;
             if !database.file_type()?.is_dir() {
                 continue;
+            }
+            if super::standard::is_profile(&database.path()) {
+                match super::standard::StdVoice::load(&database.path()) {
+                    Ok(voice)=>catalog.entries.push(voice.catalog_entry()),
+                    Err(error)=>catalog.warnings.push(error.to_string()),
+                }
+                continue;
+            }
+            match super::standard::native_entry(&database.path()) {
+                Ok(Some((entry,warnings)))=>{catalog.entries.push(entry);catalog.warnings.extend(warnings);continue;},
+                Ok(None)=>{},
+                Err(error)=>{catalog.warnings.push(format!("{}: {error}",database.path().display()));continue;},
             }
             let manifest=database.path().join("manifest.json");
             if super::materialized_flat::is_manifest(&manifest) {
@@ -101,7 +142,7 @@ impl VoiceCatalog {
             match super::nofs::paths(&database.path()) {
                 Ok(paths) => {
                     for path in paths {
-                        catalog.entries.push(nofs::entry(&path)?);
+                        bank_entry(&path,&mut catalog)?;
                     }
                 }
                 Err(error) => catalog.warnings.push(format!(
@@ -132,4 +173,12 @@ impl VoiceCatalog {
         });
         Ok(catalog)
     }
+}
+
+fn bank_entry(path:&Path,catalog:&mut VoiceCatalog)->Result<()> {
+    match super::standard::native_entry(path)? {
+        Some((entry,warnings))=>{catalog.entries.push(entry);catalog.warnings.extend(warnings);},
+        None=>catalog.entries.push(nofs::entry(path)?),
+    }
+    Ok(())
 }

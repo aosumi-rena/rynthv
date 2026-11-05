@@ -54,7 +54,8 @@ pub(super) fn update(app: &mut App, lane: u64, point: (i64, f64)) {
         i128::from(begin) - i128::from(first.0),
         i128::from(end) - i128::from(last.0),
     );
-    let (low, high) = owner.target.range();
+    let (low, high) = super::accepted_parameter_range(app,&owner.target);
+    let bounded=super::standard_expression_limit(app,&owner.target).is_some();
     let minimum = drag
         .points
         .iter()
@@ -76,7 +77,7 @@ pub(super) fn update(app: &mut App, lane: u64, point: (i64, f64)) {
         .map(|p| {
             (
                 (i128::from(p.0) + delta) as i64,
-                f64::from((p.1 + value) as f32),
+                if bounded{f64::from((p.1+value)as f32).clamp(low,high)}else{f64::from((p.1+value)as f32)},
             )
         })
         .collect();

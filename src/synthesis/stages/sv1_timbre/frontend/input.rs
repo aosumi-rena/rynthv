@@ -35,8 +35,9 @@ impl Frontend<'_> {
                 .flatten()
                 .copied()
                 .unwrap_or(self.unified);
+            let symbol=crate::synthesis::voice::resource_phone_symbol(&phone.token).unwrap_or(&phone.token);
             let noise_id = source
-                .lookup(&phone.token)
+                .lookup(symbol)
                 .or_else(|| source.lookup("sil"))
                 .map(|entry| {
                     i32::try_from(entry.stored_index).map_err(|_| {
@@ -45,7 +46,9 @@ impl Frontend<'_> {
                 })
                 .transpose()?
                 .unwrap_or(-1);
-            noise_ids.push(noise_id);
+            noise_ids.push(if crate::synthesis::voice::resource_phone_symbol(&phone.token).is_some() {
+                resolved.local_stored_index.map_or(noise_id,|index|index as i32)
+            }else{noise_id});
         }
         let mut normalized = Sequence::zeros(phones.len(), self.width)?;
         if self.contract == Contract::Native {

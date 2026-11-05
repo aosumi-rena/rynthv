@@ -66,7 +66,7 @@ pub fn anchor_paste_text(app: &mut App,text:&str) {
     }
     let at = app.editor.transport.position;
     let before:BTreeSet<_>=app.editor.group().into_iter().flat_map(|g|&g.pitch_controls).filter_map(id).map(str::to_owned).collect();
-    match app.editor.paste_text(text,at){
+    match app.paste_text(text,at){
         Ok(_)=>app.piano_anchor.ids=app.editor.group().into_iter().flat_map(|g|&g.pitch_controls).filter_map(id).filter(|s|!before.contains(*s)).map(str::to_owned).collect(),
         Err(error)=>app.error=Some(error),
     }

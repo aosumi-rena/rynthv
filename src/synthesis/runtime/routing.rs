@@ -98,10 +98,9 @@ impl Runtime {
             }
             let worker = (|| {
                 let entry = self.library.entry(&key).ok_or("声库不在当前目录中")?;
-                let dictionaries = self
-                    .dictionaries()
+                let dictionaries = self.library.settings.phoneme_directory(entry)
                     .filter(|p| p.is_dir())
-                    .ok_or("请设置有效的 clf-data 词典目录")?;
+                    .ok_or(crate::i18n::t("PHONEME_DATA_REQUIRED"))?;
                 worker::Worker::spawn(
                     entry.directory.clone(),
                     dictionaries.to_owned(),

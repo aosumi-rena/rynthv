@@ -50,7 +50,7 @@ pub fn needs_complete(input:&OwnerInput,family:VoiceFamily)->Result<bool> {
 }
 
 pub fn synthesize(voice:&PreparedVoice,identity:Option<u64>,input:&OwnerInput,
-    phrase:&PreparedPhrase,lexicon:&LyricFrontend,mut checkpoint:impl FnMut(RenderStage)->Result<()>)->Result<RenderResult> {
+    phrase:&PreparedPhrase,_lexicon:&LyricFrontend,mut checkpoint:impl FnMut(RenderStage)->Result<()>)->Result<RenderResult> {
     let controls=ExperimentControls::effective(&input.voice.instance_options,input.experiments.settings)?;
     controls.validate()?;
     let dds_enabled=input.experiments.settings.active(input.experiments.settings.dds_controls);
@@ -112,7 +112,12 @@ pub fn synthesize(voice:&PreparedVoice,identity:Option<u64>,input:&OwnerInput,
                 }
                 other.automation.retain(|key,_|!key.starts_with("vocalMode"));
             }
-            let frontend=lexicon.for_voice(&source.default_language,&source.supported_languages)?;
+            let version=crate::synthesis::settings::PhonemeVersion::family(target_voice.family,
+                source.voice.database_id.starts_with("flat:"),source.voice.revision)
+                .ok_or_else(||VoiceError::new(crate::i18n::t("PHONEME_DATA_REQUIRED")))?;
+            let settings=crate::synthesis::settings::SynthesisSettings::load().map_err(VoiceError::new)?;
+            let frontend=LyricFrontend::with_format(settings.require_phoneme_directory(version).map_err(VoiceError::new)?,
+                &source.default_language,&source.supported_languages,version.format())?;
             let mut target_phrase=crate::synthesis::score::prepare_owner(&other,&frontend,target_voice.model("duration")?,target_voice.family)?;
             if target.inherit_modes {target_phrase.vocal_modes=phrase.vocal_modes.clone();}
             let rendered=super::synthesize(target_voice,identity,&target_phrase,&mut checkpoint)?;

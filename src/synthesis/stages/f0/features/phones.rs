@@ -29,7 +29,8 @@ impl FeaturePhones {
             PhoneValues::Categorical(ids) if ids.len()==phones.len()=>Ok(ids.iter().map(usize::to_string).collect()),
             PhoneValues::Categorical(_)=>Err(VoiceError::new("F0 phone identities differ from the timeline")),
             // Descriptor inputs retain their model tokens.
-            PhoneValues::Phonetic(_)=>Ok(phones.iter().map(|phone|phone.token.clone()).collect()),
+            PhoneValues::Phonetic(_)=>Ok(phones.iter().map(|phone|
+                crate::synthesis::voice::resource_phone_symbol(&phone.token).unwrap_or(&phone.token).to_owned()).collect()),
         }
     }
 }

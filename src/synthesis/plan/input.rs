@@ -199,6 +199,8 @@ impl OwnerInput {
         let mut track_options = synthesis_extensions(&track.extra);
 
         track_options.remove("renderEnabled");
+        let mut notes=group.notes.iter().map(NoteInput::from).collect::<Vec<_>>();
+        notes.sort_by_key(|note|(note.onset.0,note.id));
         Self {
             group_id: group.uuid.clone(),
             experiments: Default::default(),
@@ -208,7 +210,7 @@ impl OwnerInput {
                 .then_some(GlobalBlick(reference.blick_absolute_end)),
             section_bounds: None,
             pitch_offset: reference.pitch_offset,
-            notes: group.notes.iter().map(NoteInput::from).collect(),
+            notes,
             automation: group.parameters.iter().map(|(k,v)|(k.clone(),v.clone()))
                 .chain(group.vocal_modes.iter().map(|(k,v)|(format!("vocalMode_{k}"),v.clone())))
                 .collect(),
@@ -233,6 +235,9 @@ impl OwnerInput {
     }
 
     pub fn coverage(&self) -> Option<Coverage> {
+        let issues=super::note_issues::for_input(self);
+        if !self.notes.iter().any(|note|!issues.contains_key(&note.id)
+            && note.attributes.get("muted").and_then(Value::as_bool)!=Some(true)) {return None;}
         if self.sample_rate == 0 {
             return None;
         }

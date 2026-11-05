@@ -5,12 +5,10 @@ use zeroize::Zeroizing;
 use super::{Result, VoiceError, native::*};
 
 const MAXIMUM_FIELD_BYTES: usize = 256;
-const IDENTITY_POINTER_OFFSET: usize = 0x50;
-
-pub(super) fn session_field(process: &Handle, slot: usize) -> Result<Zeroizing<Vec<u8>>> {
+pub(super) fn session_field(process: &Handle, slot: usize, identity_offset: usize) -> Result<Zeroizing<Vec<u8>>> {
     let object = pointer(process, slot)?;
     let field_pointer = object
-        .checked_add(IDENTITY_POINTER_OFFSET)
+        .checked_add(identity_offset)
         .ok_or_else(|| VoiceError::new("原编辑器的模型上下文地址无效。"))?;
     let text = pointer(process, field_pointer)?;
 

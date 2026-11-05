@@ -22,11 +22,13 @@ pub(super) fn entry(path: &Path) -> Result<VoiceCatalogEntry> {
             .to_string_lossy()
             .into_owned(),
         vendor: String::new(),
+        localized_names: Default::default(),
+        localized_vendors: Default::default(),
         genres: Vec::new(),
         pitch_range: None,
         languages: Vec::new(),
         icon: icon_path.map(|path| super::VoiceArtwork::File {path}),
-        portrait: None,
+        portrait: path.parent().map(|directory|directory.join("background.png")).filter(|path|path.is_file()).map(|path|super::VoiceArtwork::File{path}),
         availability: VoiceAvailability::Loadable,
     };
     if crate::synthesis::voice::flat::is_profile(path) {

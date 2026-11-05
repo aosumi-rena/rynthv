@@ -13,9 +13,48 @@ use crate::{app::App, model::*};
 use eframe::egui::*;
 pub use gesture::CurveGesture;
 pub use rap::RapGesture;
+
+fn selected_family(app:&App)->Option<crate::synthesis::voice::VoiceFamily> {
+    app.voice_selection().and_then(|key|app.synthesis.library.entry(&key)).and_then(|entry|entry.family)
+        .or_else(||app.voice_inventory().and_then(|voice|voice.configuration.as_ref()).map(|config|config.family))
+}
+
+pub(super) fn standard_expression_limit(app:&App, parameter:&Parameter)->Option<f64> {
+    use crate::synthesis::voice::VoiceFamily;
+    if !matches!(parameter,Parameter::Tension|Parameter::Breathiness|Parameter::Gender) {return None;}
+    match selected_family(app) {
+        // The adapter carries f32 controls into a strict f64 +/-1.2 check.
+        // Round inward so an endpoint selected in the UI remains admissible.
+        Some(VoiceFamily::R1Std)=>Some(f64::from(f32::from_bits(1.2_f32.to_bits()-1))),
+        Some(VoiceFamily::R2Std)=>Some(2.0),
+        _=>None,
+    }
+}
+
+pub(super) fn accepted_parameter_range(app:&App, parameter:&Parameter)->(f64,f64) {
+    let (low,high)=parameter.range();
+    standard_expression_limit(app,parameter).map_or((low,high),|limit|(low.max(-limit),high.min(limit)))
+}
+
+/// Display/edit capability only; imported curves remain intact for validation.
+pub(super) fn parameter_unavailable(app: &App, parameter: &Parameter) -> Option<&'static str> {
+    use crate::synthesis::voice::VoiceFamily;
+    match (selected_family(app), parameter) {
+        (Some(VoiceFamily::R1Std | VoiceFamily::R2Std), Parameter::ToneShift) =>
+            Some("Tone shift is unavailable for this voice"),
+        (Some(VoiceFamily::R1Std), Parameter::Voicing) =>
+            Some("Voicing is unavailable for this voice"),
+        _ => None,
+    }
+}
+
 pub fn end_frame(app: &mut App, ctx: &Context) {
     gesture::end_frame(app,ctx);
     rap::end_frame(app,ctx);
+    if app.parameter_lane.owner.as_ref().is_some_and(|owner|parameter_unavailable(app,&owner.target).is_some()) {
+        selection::finish_drag(app,false);
+        parameter_clear(app);
+    }
     selection::end_frame(app,ctx);
 }
 
@@ -30,6 +69,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     let mut header_ui = child(ui, header, ("lane-header", id));
     header::show(app, &mut header_ui, &mut lane);
     app.view.lanes[index] = lane.clone();
+    let unavailable = parameter_unavailable(app, &lane.foreground);
     let canvas = Rect::from_min_max(pos2(rect.left() + GUTTER, header.bottom()), rect.max);
     if canvas.height() < 5.0 {
         return;
@@ -52,7 +92,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
         &app.editor.project.time,
         app.view.step(),
     );
-    let (min, max) = geometry::lane_range(&lane);
+    let (min, max) = geometry::lane_range(app,&lane);
     let y_for =
         |value: f64| canvas.bottom() - ((value - min) / (max - min)) as f32 * canvas.height();
     let (low_label, high_label) = geometry::labels(&lane.foreground, min, max);
@@ -112,7 +152,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
         let Some(curve) = app.editor.group().unwrap().automation(parameter) else {
             continue;
         };
-        let (low, high) = geometry::range(parameter, lane.zoom);
+        let (low, high) = geometry::range(app,parameter, lane.zoom);
         let map = |(t, v): (i64, f64)| {
             pos2(
                 x_at(canvas, &app.view.piano, beats(t.saturating_add(offset))),
@@ -173,11 +213,27 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
                     painter.line_segment([a, b], Stroke::new(1.2, color));
                 }
             }
-            if editable && lane.tool == CurveTool::Point {
+            if editable && unavailable.is_none() && lane.tool == CurveTool::Point {
                 for &point in &curve.points {
                     painter.circle_filled(map(point), if selection::contains(app,id,point.0) {4.0} else {2.0}, GREEN);
                 }
             }
+        }
+    }
+    if let Some(reason) = unavailable {
+        ui.painter().rect_filled(Rect::from_min_size(canvas.min,vec2(canvas.width(),30.0)),0,PANEL);
+        ui.painter().text(canvas.left_top()+vec2(8.0,15.0),Align2::LEFT_CENTER,
+            crate::i18n::t(reason),FontId::proportional(12.0),MUTED);
+        response.on_hover_text(crate::i18n::t(reason));
+        playhead_line(ui,canvas,&app.view.piano,app.editor.transport.position);
+        return;
+    }
+    if standard_expression_limit(app,&lane.foreground).is_some()
+        && let Some(curve)=app.editor.group().and_then(|group|group.automation(&lane.foreground)) {
+        let (low,high)=accepted_parameter_range(app,&lane.foreground);
+        if curve.points.iter().any(|(_,value)|*value<low||*value>high) {
+            ui.painter().text(canvas.left_top()+vec2(8.0,15.0),Align2::LEFT_CENTER,
+                crate::i18n::t("This curve contains values outside this voice's supported range"),FontId::proportional(12.0),Color32::LIGHT_RED);
         }
     }
     if lane.foreground == Parameter::Rap {
@@ -189,7 +245,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     }
     let point_from = |p: Pos2, app: &App| {
         let time = ticks(beat_at(canvas, &app.view.piano, p.x)).max(0).saturating_sub(offset);
-        let (allowed_low,allowed_high)=lane.foreground.range();
+        let (allowed_low,allowed_high)=accepted_parameter_range(app,&lane.foreground);
         let value = (min + (canvas.bottom() - p.y) as f64 / canvas.height() as f64 * (max - min))
             .clamp(allowed_low,allowed_high);
         (time, value as f32 as f64)

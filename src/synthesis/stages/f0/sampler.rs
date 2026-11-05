@@ -42,7 +42,7 @@ impl F0Sampler {
 
         let children: [usize; 13] =
             node.children.as_slice().try_into().map_err(|_| {
-                VoiceError::new("F0 sampler requires the researched 13-child layout")
+                VoiceError::new("Unsupported F0 sampler layout")
             })?;
         for &child in &children[9..11] {
             if tree.node(child)?.type_id != CONDITIONAL_TYPE_ID {

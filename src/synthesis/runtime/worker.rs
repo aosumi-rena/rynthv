@@ -3,6 +3,7 @@ mod runner;
 mod scheduling;
 mod state;
 mod visuals;
+mod standard;
 #[cfg(feature="acoustic-diagnostic")]
 pub use scheduling::diagnostic as scheduling_diagnostic;
 

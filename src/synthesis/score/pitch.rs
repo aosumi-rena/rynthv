@@ -15,7 +15,7 @@ pub struct PreparedPitchControls {
 }
 
 impl PreparedPitchControls {
-    pub(super) fn new(input: &OwnerInput) -> Result<Option<Self>> {
+    pub(crate) fn new(input: &OwnerInput) -> Result<Option<Self>> {
         let transpose=crate::synthesis::parameters::transpose(&input.voice)?;
         Ok((!input.pitch_controls.is_empty()).then(|| Self {
             controls: input.pitch_controls.clone(),

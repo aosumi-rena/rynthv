@@ -14,6 +14,14 @@ enum Target {
 }
 
 impl PastePlan {
+    pub(super) fn target_reference(editor: &Editor, at: i64, duplicate: bool) -> Option<&GroupRef> {
+        if duplicate {
+            editor.active_ref()
+        } else {
+            editor.group_at(at).and_then(|id| editor.current_track().visible_references()
+                .find(|reference| reference.id == id))
+        }
+    }
     pub(super) fn prepare(
         editor: &Editor,
         clipboard: &NoteClipboard,
@@ -28,15 +36,7 @@ impl PastePlan {
         if track.is_instrumental() {
             return Err("请先选择歌声音轨再粘贴音符。".into());
         }
-        let reference = if duplicate {
-            editor.active_ref()
-        } else {
-            editor.group_at(at).and_then(|id| {
-                track
-                    .visible_references()
-                    .find(|reference| reference.id == id)
-            })
-        };
+        let reference = Self::target_reference(editor, at, duplicate);
         let offset = reference
             .map(|reference| reference.blick_offset)
             .unwrap_or(at);

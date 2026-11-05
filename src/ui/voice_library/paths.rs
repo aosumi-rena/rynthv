@@ -5,18 +5,48 @@ use crate::app::App;
 use eframe::egui::*;
 
 pub fn settings(app: &mut App, ui: &mut Ui) {
-    text(ui, RichText::new(crate::i18n::t("歌声资源")).strong());
     source_list(app,ui);
     ui.add_space(8.0);
-    text(ui, crate::i18n::t("发音词典目录（clf-data）"));
-    path_label(ui, app.synthesis.dictionaries());
-    if ui.button(crate::i18n::t("选择词典目录…")).clicked() {
-        choose_dictionaries(app);
+    text(ui,RichText::new(crate::i18n::t("R2_FLAT_DIRECTORIES")).strong());
+    for models in [false,true] {
+        text(ui,crate::i18n::t(if models{"R2_FLAT_MODELS"}else{"R2_FLAT_DATABASES"}));
+        let selected=if models{&app.synthesis.library.settings.r2_ai_flat_models}else{&app.synthesis.library.settings.r2_ai_flat_databases};
+        path_label(ui,selected.as_deref());
+        let mut replacement=None;
+        ui.horizontal(|ui|{
+            if ui.button(crate::i18n::t("VOICE_SOURCE_CHANGE")).clicked(){replacement=folder_dialog(selected.as_deref()).pick_folder().map(Some);}
+            if ui.small_button("×").clicked(){replacement=Some(None);}
+        });
+        if let Some(path)=replacement {
+            let settings=&app.synthesis.library.settings;
+            let (databases,model_root)=if models{(settings.r2_ai_flat_databases.clone(),path)}else{(path,settings.r2_ai_flat_models.clone())};
+            app.synthesis.set_flat_directories(databases,model_root);
+        }
     }
+    ui.add_space(8.0);
+    text(ui,RichText::new(crate::i18n::t("PHONEME_DATA_BY_VERSION")).strong());
+    use crate::synthesis::settings::PhonemeVersion;
+    for version in PhonemeVersion::ALL.into_iter().rev().filter(|version|!PhonemeVersion::BETA.contains(version)) {
+        phoneme_path(app,ui,version);
+    }
+    CollapsingHeader::new(crate::i18n::t("BETA_DICTIONARIES"))
+        .id_salt("beta-phoneme-directories").default_open(false)
+        .show(ui,|ui|{for version in PhonemeVersion::BETA {phoneme_path(app,ui,version);}});
     super::duration_key::settings(app, ui);
     if let Some(error) = app.synthesis.library.settings_error() {
         error_label(ui, error);
     }
+}
+
+fn phoneme_path(app:&mut App,ui:&mut Ui,version:crate::synthesis::settings::PhonemeVersion) {
+    ui.push_id(version.label(),|ui|{
+        text(ui,version.label());
+        path_label(ui,app.synthesis.library.settings.phoneme_data.get(version));
+        ui.horizontal(|ui|{
+            if ui.button(crate::i18n::t("VOICE_SOURCE_CHANGE")).clicked(){choose_phoneme_data(app,version);}
+            if ui.small_button("×").clicked(){app.synthesis.set_phoneme_data(version,None);}
+        });
+    });
 }
 
 pub(super) fn directory_menu(app:&mut App,ui:&mut Ui) {
@@ -27,15 +57,15 @@ pub(super) fn directory_menu(app:&mut App,ui:&mut Ui) {
 
 fn add_source(app:&mut App) {
     if let Some(path)=folder_dialog(None).pick_folder() {
-        let mut paths:Vec<_>=app.synthesis.library.settings.database_roots().map(|(_,p)|p.to_owned()).collect();
+        let mut paths:Vec<_>=app.synthesis.library.settings.database_roots().filter(|(label,_)|*label!="R2 AI Flat").map(|(_,p)|p.to_owned()).collect();
         if !paths.iter().any(|p|std::fs::canonicalize(p).unwrap_or_else(|_|p.clone())==std::fs::canonicalize(&path).unwrap_or_else(|_|path.clone())) {
             paths.push(path);app.synthesis.set_voice_sources(paths);
         }
     }
 }
 fn source_list(app:&mut App,ui:&mut Ui) {
-    text(ui,RichText::new(crate::i18n::t("VOICE_SOURCES")).strong());
-    let mut paths:Vec<_>=app.synthesis.library.settings.database_roots().map(|(_,p)|p.to_owned()).collect();
+    text(ui,RichText::new(crate::i18n::t("VOICE_SOURCES_OTHERS")).strong());
+    let mut paths:Vec<_>=app.synthesis.library.settings.database_roots().filter(|(label,_)|*label!="R2 AI Flat").map(|(_,p)|p.to_owned()).collect();
     let mut remove=None;let mut replace=None;
     for (index,path) in paths.iter().enumerate() {
         ui.push_id(index,|ui| {
@@ -56,9 +86,9 @@ fn source_list(app:&mut App,ui:&mut Ui) {
     });
 }
 
-pub(super) fn choose_dictionaries(app: &mut App) {
-    if let Some(path) = folder_dialog(app.synthesis.dictionaries()).pick_folder() {
-        app.synthesis.set_dictionaries(path);
+pub(super) fn choose_phoneme_data(app: &mut App,version:crate::synthesis::settings::PhonemeVersion) {
+    if let Some(path) = folder_dialog(app.synthesis.library.settings.phoneme_data.get(version)).pick_folder() {
+        app.synthesis.set_phoneme_data(version,Some(path));
     }
 }
 

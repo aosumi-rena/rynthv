@@ -5,12 +5,19 @@ use eframe::egui::{Context, ViewportCommand};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub fn parameter_keyboard(app: &mut App, ctx: &Context) -> bool {
+    if parameter_active(app) && !capability_allowed(app) {
+        use eframe::egui::{Key,Modifiers};
+        for key in [Key::ArrowLeft,Key::ArrowRight,Key::ArrowDown,Key::ArrowUp] {
+            ctx.input_mut(|i|i.consume_key(Modifiers::NONE,key));
+        }
+        return true;
+    }
     if !parameter_has_selection(app) || app.gesture.is_some() || app.editor.is_editing() {
         return false;
     }
     use eframe::egui::{Key, Modifiers};
     let target = &app.parameter_lane.owner.as_ref().unwrap().target;
-    let (low, high) = target.range();
+    let (low, high) = super::accepted_parameter_range(app,target);
     for (key, time, value) in [
         (Key::ArrowLeft, -crate::model::ticks(app.view.step()), 0.0),
         (Key::ArrowRight, crate::model::ticks(app.view.step()), 0.0),
@@ -41,7 +48,7 @@ pub fn parameter_active(app: &App) -> bool {
 }
 
 pub fn parameter_has_selection(app: &App) -> bool {
-    parameter_active(app) && !selected(app).is_empty()
+    parameter_active(app) && capability_allowed(app) && !selected(app).is_empty()
 }
 
 pub fn parameter_can_paste(app: &App) -> bool {
@@ -140,15 +147,34 @@ pub fn parameter_paste_text(app: &mut App, text: &str) {
     if !ready(app) || !parameter_can_paste(app) {
         return;
     }
-    let data = match clipboard::read(text) {
+    let mut data = match clipboard::read(text) {
         Ok(data) => data,
         Err(error) => {
             app.error = Some(error);
             return;
         }
     };
+    // Notes/groups retain their destination voice and complete control payload.
+    // Lane-specific editing bounds apply only to a curve-only paste.
+    if !data.notes.is_empty()||!data.groups.is_empty() {
+        let at=app.editor.transport.position;
+        if let Err(error)=app.paste_content(data,at){app.error=Some(error);}
+        return;
+    }
+    for parameter in crate::model::Parameter::ALL {
+        if data.parameters.contains_key(parameter.key())
+            && let Some(reason)=super::parameter_unavailable(app,&parameter) {
+            app.status=crate::i18n::t(reason).into();
+            return;
+        }
+        if super::standard_expression_limit(app,&parameter).is_some()
+            && let Some(curve)=data.parameters.get_mut(parameter.key()) {
+            let (low,high)=super::accepted_parameter_range(app,&parameter);
+            for (_,value) in &mut curve.points {*value=(*value).clamp(low,high);}
+        }
+    }
     let at=app.editor.transport.position;
-    if let Err(error)=app.editor.paste_content(data,at){app.error=Some(error);}
+    if let Err(error)=app.paste_content(data,at){app.error=Some(error);}
 }
 
 pub fn parameter_duplicate(app: &mut App) {
@@ -177,7 +203,8 @@ pub(super) fn shift_selected(app: &mut App, delta_time: i64, delta_value: f64) {
         return;
     };
     let target = &app.parameter_lane.owner.as_ref().unwrap().target;
-    let (low, high) = target.range();
+    let (low, high) = super::accepted_parameter_range(app,target);
+    let bounded=super::standard_expression_limit(app,target).is_some();
     let lowest = points
         .iter()
         .map(|point| point.1)
@@ -190,7 +217,7 @@ pub(super) fn shift_selected(app: &mut App, delta_time: i64, delta_value: f64) {
         i128::from(begin) - i128::from(first),
         i128::from(end) - i128::from(last),
     );
-    let value = if delta_value == 0.0 {
+    let value = if delta_value == 0.0 && !bounded {
         0.0
     } else {
         let minimum = low - lowest;
@@ -206,7 +233,8 @@ pub(super) fn shift_selected(app: &mut App, delta_time: i64, delta_value: f64) {
     }
     let moved: Vec<_> = points
         .iter()
-        .map(|&(position, original)| ((i128::from(position) + time) as i64, original + value))
+        .map(|&(position, original)| ((i128::from(position) + time) as i64,
+            if bounded{(original+value).clamp(low,high)}else{original+value}))
         .collect();
     let original = app.editor.automation(target).unwrap().points.clone();
     let selected_times: BTreeSet<_> = points.iter().map(|point| point.0).collect();
@@ -231,14 +259,20 @@ pub(super) fn shift_selected(app: &mut App, delta_time: i64, delta_value: f64) {
 
 fn ready(app: &mut App) -> bool {
     reconcile(app);
-    parameter_active(app) && app.gesture.is_none() && !app.editor.is_editing()
+    parameter_active(app) && capability_allowed(app) && app.gesture.is_none() && !app.editor.is_editing()
+}
+
+fn capability_allowed(app: &App) -> bool {
+    app.parameter_lane.owner.as_ref()
+        .is_none_or(|owner|super::parameter_unavailable(app,&owner.target).is_none())
 }
 
 fn editable(app: &App) -> bool {
     app.parameter_lane
         .owner
         .as_ref()
-        .is_some_and(|owner| super::editable(app, &owner.target))
+        .is_some_and(|owner| super::editable(app, &owner.target)
+            && super::parameter_unavailable(app,&owner.target).is_none())
 }
 
 fn clipboard_text(app: &App) -> Result<Option<(String, usize)>, String> {
@@ -290,6 +324,8 @@ fn insert(app: &mut App, source: Vec<(i64, f64)>, at: i64, label: &str) {
         return;
     };
     let target = &app.parameter_lane.owner.as_ref().unwrap().target;
+    let bounded=super::standard_expression_limit(app,target).is_some();
+    let (low,high)=super::accepted_parameter_range(app,target);
     let mut inserted = Vec::with_capacity(source.len());
     for (time, value) in source {
         let shifted = i128::from(at) + i128::from(time) - i128::from(first);
@@ -301,7 +337,7 @@ fn insert(app: &mut App, source: Vec<(i64, f64)>, at: i64, label: &str) {
             app.error = Some("参数控制点剪贴板包含无效的数值。".into());
             return;
         }
-        inserted.push((shifted as i64, value));
+        inserted.push((shifted as i64, if bounded{value.clamp(low,high)}else{value}));
     }
     let times = inserted.iter().map(|point| point.0).collect();
     let count = inserted.len();
@@ -320,6 +356,7 @@ fn insert(app: &mut App, source: Vec<(i64, f64)>, at: i64, label: &str) {
 }
 
 fn replace(app: &mut App, points: Vec<(i64, f64)>, label: &str) -> bool {
+    if !parameter_active(app) || !capability_allowed(app) {return false;}
     let target = app.parameter_lane.owner.as_ref().unwrap().target.clone();
     app.editor.begin(label);
     match app.editor.replace_automation_points(&target, points) {

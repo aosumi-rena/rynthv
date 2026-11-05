@@ -32,7 +32,7 @@ pub(super) fn interaction(
     lane: &Lane,
     clip: Rect,
 ) {
-    if lane.tool == CurveTool::Point {
+    if super::parameter_unavailable(app,&lane.foreground).is_some() || lane.tool == CurveTool::Point {
         return;
     }
     if response.drag_started_by(PointerButton::Primary)
@@ -107,13 +107,19 @@ pub(super) fn interaction(
 fn sample(app: &App, canvas: Rect, lane: &Lane, reference: &GroupRef, p: Pos2) -> (i64, f64) {
     let time = ticks(beat_at(canvas, &app.view.piano, p.x)).max(0)
         .saturating_sub(reference.blick_offset);
-    let (lo, hi) = geometry::lane_range(lane);
-    let (allowed_lo, allowed_hi) = lane.foreground.range();
+    let (lo, hi) = geometry::lane_range(app,lane);
+    let (allowed_lo, allowed_hi) = super::accepted_parameter_range(app,&lane.foreground);
     let value = (lo + f64::from((canvas.bottom() - p.y) / canvas.height()) * (hi - lo))
         .clamp(allowed_lo, allowed_hi);
     (time, f64::from(value as f32))
 }
 fn apply(app: &mut App, g: &CurveGesture) {
+    let bounded=super::standard_expression_limit(app,&g.parameter).is_some();
+    let (allowed_low,allowed_high)=super::accepted_parameter_range(app,&g.parameter);
+    let guard_value=|time| {
+        let value=f64::from(g.original.sample(time,g.parameter.default_value()as f32));
+        if bounded{value.clamp(allowed_low,allowed_high)}else{value}
+    };
     let left = *g.points.first_key_value().unwrap().0;
     let right = *g.points.last_key_value().unwrap().0;
     let begin = 0_i64.saturating_sub(g.reference.blick_offset);
@@ -125,17 +131,17 @@ fn apply(app: &mut App, g: &CurveGesture) {
     if low < left {
         curve.insert(
             low,
-            f64::from(g.original.sample(low, g.parameter.default_value() as f32)),
+            guard_value(low),
         );
     }
     if high > right {
         curve.insert(
             high,
-            f64::from(g.original.sample(high, g.parameter.default_value() as f32)),
+            guard_value(high),
         );
     }
     for (&time, &value) in &g.points {
-        curve.insert(time, value);
+        curve.insert(time, if bounded{value.clamp(allowed_low,allowed_high)}else{value});
     }
     *app.editor.group_mut().unwrap().automation_mut(&g.parameter) = curve;
 }
@@ -144,6 +150,7 @@ pub fn end_frame(app: &mut App, ctx: &Context) {
         return;
     };
     let cancel = g.frame != ctx.cumulative_frame_nr()
+        || super::parameter_unavailable(app,&g.parameter).is_some()
         || g.track != app.editor.track
         || app.editor.active_ref() != Some(&g.reference)
         || ctx.input(|i| !i.focused);

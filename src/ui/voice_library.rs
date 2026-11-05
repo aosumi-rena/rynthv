@@ -10,6 +10,7 @@ mod tuning;
 mod paths;
 mod duration_key;
 mod selector;
+mod family_filter;
 mod widgets;
 mod vocal_modes;
 mod style_presets;
@@ -36,9 +37,11 @@ fn selected_entry(app: &App) -> Option<&VoiceCatalogEntry> {
 
 fn family_name(entry: &VoiceCatalogEntry) -> &'static str {
     match entry.family {
-        Some(VoiceFamily::Sv1) => crate::i18n::t("SV1 原生"),
-        Some(VoiceFamily::Sv2Compatible) => crate::i18n::t("SV2 · 版本 1 兼容"),
-        Some(VoiceFamily::Sv2) => "SV2",
+        Some(VoiceFamily::R1Std) => "R1 STD",
+        Some(VoiceFamily::R2Std) => "R2 STD",
+        Some(VoiceFamily::Sv1) => if entry.database_id.starts_with("flat:"){ "R2 AI Flat" }else{ "R2 AI" },
+        Some(VoiceFamily::Sv2Compatible) => "R3 AI",
+        Some(VoiceFamily::Sv2) => "R3 AI 2",
         None => crate::i18n::t("未知格式"),
     }
 }

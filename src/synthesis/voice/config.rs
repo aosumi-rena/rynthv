@@ -33,6 +33,14 @@ pub struct VoiceConfiguration {
 }
 
 impl VoiceConfiguration {
+    pub(super) fn standard(family:VoiceFamily,name:String,version:String,vendor:String,language:String)->Self {
+        Self {family,model_version:family.model_version(),f0_enhancement:None,name,version,vendor,
+            supported_languages:vec![language.clone()],default_language:language,
+            styles:Vec::new(),hidden_styles:Vec::new(),available_styles:Vec::new(),styles_declared:false,
+            speakers:Vec::new(),additional_fields:0,parser_scope:"RynthV standard voice profile",
+            _uninterpreted:BTreeMap::new()}
+    }
+
     pub(super) fn from_materialized(name:String,version:String,vendor:String,language:String,f0:f32)->Result<Self> {
         let mut fields=BTreeMap::from([
             (".type".into(),"mu".into()),("f0model-configs".into(),"_ _ _ _ _ _ _ _".into()),

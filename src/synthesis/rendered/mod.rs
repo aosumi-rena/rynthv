@@ -16,7 +16,7 @@ use std::sync::Arc;
 pub struct RenderedClip {
     pub audio: Arc<RenderedAudio>,
     pub visuals: Arc<RenderVisuals>,
-    pub state: Arc<OwnerSynthesis>,
+    pub state: Option<Arc<OwnerSynthesis>>,
 }
 
 impl RenderedClip {
@@ -24,7 +24,7 @@ impl RenderedClip {
     pub fn memory_bytes(&self) -> usize {
         std::mem::size_of_val(self.audio.samples())
             .saturating_add(self.visuals.memory_bytes())
-            .saturating_add(self.state.memory_bytes())
+            .saturating_add(self.state.as_ref().map_or(0,|state|state.memory_bytes()))
     }
 }
 

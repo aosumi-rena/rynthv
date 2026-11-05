@@ -4,7 +4,8 @@ use std::{collections::BTreeMap,sync::Arc};
 
 pub(super) fn prepare(profile:&Profile)->Result<PreparedVoice> {
     let mut files=Vec::new();
-    let dictionaries=crate::synthesis::settings::SynthesisSettings::load().map_err(VoiceError::new)?.dictionaries;
+    let settings=crate::synthesis::settings::SynthesisSettings::load().map_err(VoiceError::new)?;
+    let dictionaries=settings.require_phoneme_directory(crate::synthesis::settings::PhonemeVersion::R2AiFlat).map_err(VoiceError::new)?;
     for (role,expected) in [("duration",types::DURATION_TYPE_ID),("f0",types::F0_WRAPPER_TYPE_ID),("timbre",types::TIMBRE_TYPE_ID),("vocoder",types::VOCODER_TYPE_ID)] {
         let path=profile.model(role)?;
         let bytes=super::read(&path,128*1024*1024)?;
@@ -14,7 +15,7 @@ pub(super) fn prepare(profile:&Profile)->Result<PreparedVoice> {
         }else{bytes};
         if embedded::root_type(&bytes)?!=expected {return Err(VoiceError::new(format!("Flat {role} model has a different architecture")));}
         let mut records=embedded::parse(&bytes)?;
-        if role!="vocoder" {phone_tables(&mut records,dictionaries.as_deref())?;}
+        if role!="vocoder" {phone_tables(&mut records,Some(dictionaries))?;}
         let root=records.len()-1;
         match role {
             "duration"=>if let Some(text)=field(profile,"duration_style","timing") {

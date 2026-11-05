@@ -180,7 +180,7 @@ pub(super) fn clipboard_events(app: &mut App, ctx: &Context) -> bool {
                     piano::anchor_paste_text(app,&text);
                 } else {
                     let at = app.editor.transport.position;
-                    let result = app.editor.paste_text(&text, at);
+                    let result = app.paste_text(&text, at);
                     report_paste(app, result);
                 }
             }

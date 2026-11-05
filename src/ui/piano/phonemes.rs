@@ -15,7 +15,10 @@ fn readback(app:&App,reference:&GroupRef,note:&Note)->(String,Option<String>) {
                     Ok(value)=>value,Err(message)=>{error=Some(message);phone.token.to_string()}
                 };
                 phones.insert(source.phone_index,token);
-                if let Some(message)=&phone.error {error=Some(message.to_string());}
+                if let Some(message)=&phone.error && note.onset==source_note.onset.0 && note.duration==source_note.duration
+                    && note.pitch==source_note.pitch && note.attributes.get("muted")==source_note.attributes.get("muted") {
+                    error=Some(message.to_string());
+                }
             }
         }
     }
@@ -25,6 +28,16 @@ fn readback(app:&App,reference:&GroupRef,note:&Note)->(String,Option<String>) {
 pub(super) fn text(app:&App,reference:&GroupRef,note:&Note)->String {
     if !note.phonemes.is_empty() {return note.phonemes.clone();}
     readback(app,reference,note).0
+}
+pub(super) fn error(app:&App,reference:&GroupRef,note:&Note)->Option<String> {
+    for snapshot in app.synthesis.phonemes(OwnerId::new(reference.id)) {
+        if !snapshot.input.notes.iter().any(|n|crate::ui::phoneme_alphabet::matches(note,n)
+            && note.onset==n.onset.0 && note.duration==n.duration && note.pitch==n.pitch
+            && note.attributes.get("muted")==n.attributes.get("muted")) {continue;}
+        if let Some(error)=snapshot.phones.0.iter().find_map(|phone|
+            phone.source.filter(|s|s.note_id==note.id).and(phone.error.as_ref())) {return Some(error.to_string());}
+    }
+    None
 }
 fn label_rect(app:&App,canvas:Rect,reference:&GroupRef,note:&Note)->Option<Rect> {
     let r=group_geometry::visible_note_rect(note,reference,canvas,&app.view.piano,app.view.top_pitch,app.view.row_height)?;
@@ -38,9 +51,12 @@ pub(super) fn hit(app:&App,groups:&[SceneGroup],canvas:Rect,pointer:Pos2)->Optio
 pub(super) fn draw(app:&App,ui:&Ui,canvas:Rect,groups:&[SceneGroup]) {
     let painter=ui.painter().with_clip_rect(canvas.intersect(ui.clip_rect()));
     for group in groups {
+        let issues=crate::synthesis::plan::note_issues::timeline(group.notes.iter().map(|n|
+            (n.id,n.onset,n.duration,n.pitch.saturating_add(group.reference.pitch_offset),n.muted())));
         for note in &group.notes {
             let Some(label)=label_rect(app,canvas,&group.reference,note) else {continue;};
             let (computed,error)=readback(app,&group.reference,note);
+            let error=issues.get(&note.id).cloned().or(error);
             let value=if error.is_some() {"!"} else if !note.phonemes.is_empty() {note.phonemes.as_str()}else{&computed};
             painter.with_clip_rect(label).text(label.left_center()+vec2(4.0,0.0),Align2::LEFT_CENTER,
                 value,FontId::proportional(12.0),if error.is_some(){Color32::LIGHT_RED}else{TEXT});

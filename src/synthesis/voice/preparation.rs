@@ -145,11 +145,12 @@ impl PreparedVoice {
         }
         let duration = self.model("duration")?;
         match self.family {
+            VoiceFamily::R1Std | VoiceFamily::R2Std => return Err(VoiceError::new("STD banks do not use neural stage preparation")),
             VoiceFamily::Sv1 => {
                 crate::synthesis::stages::sv1_duration::Sv1DurationStage::prepare(duration)?;
                 let enhancement = self.f0_enhancement.ok_or_else(|| {
                     VoiceError::new(
-                        "SV1 voice is missing the researched F0 enhancement configuration",
+                        "SV1 voice is missing an F0 enhancement configuration",
                     )
                 })?;
                 Sv1F0Stage::prepare_native(self.model("f0")?, enhancement)?;

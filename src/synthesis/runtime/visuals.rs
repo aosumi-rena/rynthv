@@ -10,7 +10,12 @@ impl Runtime {
         let plan = self.planner.plan();
         self.visuals
             .retain(|owner, _| plan.requests.contains_key(owner));
-        self.phonemes.retain(|owner,_|plan.requests.contains_key(owner));
+        self.phonemes.retain(|owner,snapshot|plan.requests.get(owner).is_some_and(|request| {
+            let current=&request.input;let previous=&snapshot.input;
+            current.group_id==previous.group_id && current.voice==previous.voice
+                && current.content_offset==previous.content_offset && current.tempo==previous.tempo
+                && current.pitch_offset==previous.pitch_offset
+        }));
         for (&owner, request) in &plan.requests {
 
             self.visuals

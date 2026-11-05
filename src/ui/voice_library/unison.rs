@@ -5,8 +5,12 @@ use crate::{app::App,synthesis::voice::VoiceFamily};
 use eframe::egui::*;
 
 pub(super) fn show(app:&mut App,ui:&mut Ui) {
-    let Some(config)=app.voice_inventory().and_then(|v|v.configuration.as_ref()) else{return};
-    if config.family!=VoiceFamily::Sv2 {return}
+    let Some(config)=app.voice_inventory().and_then(|v|v.configuration.as_ref()) else{
+        super::weak(ui,crate::i18n::t("加载歌声后显示齐唱设置"));return;
+    };
+    if config.family!=VoiceFamily::Sv2 {
+        super::weak(ui,crate::i18n::t("此歌声不支持齐唱"));return;
+    }
     let speakers=config.speakers.clone();
     let Ok((reference,settings))=app.editor.unison_settings() else{return};
     let mut next=settings.clone();

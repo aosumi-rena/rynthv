@@ -21,7 +21,7 @@ pub(super) fn execute(
     };
     let payload = tree.payload(index)?;
     if node.type_id != TYPE || payload.len() != 21 || payload[20] != 0 {
-        return Err(VoiceError::new("Unresearched phonetic attention schema"));
+        return Err(VoiceError::new("Unsupported phonetic attention schema"));
     }
     let word = |offset| u32::from_le_bytes(payload[offset..offset + 4].try_into().unwrap());
     let window = word(0) as usize;

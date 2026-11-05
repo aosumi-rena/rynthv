@@ -12,12 +12,28 @@ mod project_clipboard;
 use rynthv::{model::Automation,synthesis::{plan::Planner,score::{self,LyricFrontend},voice::VoiceInventory}};
 #[path="project_check/storage.rs"]
 mod project_storage;
+#[path="project_check/pronunciation.rs"]
+mod project_pronunciation;
 
 fn main()->ExitCode {
     match run(){Ok(value)=>{println!("{value}");ExitCode::SUCCESS},Err(error)=>{eprintln!("{error}");ExitCode::FAILURE}}
 }
 fn run()->Result<Value,Box<dyn std::error::Error>> {
     let args:Vec<_>=std::env::args_os().skip(1).collect();
+    if args.first().is_some_and(|arg|arg=="--pronunciation-cache") {return project_pronunciation::run(&args);}
+    if args.len()>=5 && args[0]=="--frontend-model" {
+        let inventory=VoiceInventory::load(&PathBuf::from(&args[1]))?;
+        let voice=inventory.prepare()?;
+        let config=inventory.configuration.as_ref().ok_or("Missing voice metadata")?;
+        let tree=voice.model("duration")?;
+        let frontend=LyricFrontend::for_voice(PathBuf::from(&args[2]),config)?;
+        let language=model::Language::parse(&args[3].to_string_lossy()).ok_or("Unsupported language")?;
+        let texts=args[4..].iter().map(|arg|arg.to_string_lossy().into_owned()).collect::<Vec<_>>();
+        let words=frontend.lexical_model_group(tree,language,&texts.iter().map(String::as_str).collect::<Vec<_>>(),false)?;
+        return Ok(json!({"voice":config.name,"version":config.version,"language":language,"lyrics":texts,
+            "legacy_inventory":tree.legacy_phone_table(language.id())?,"xsampa_enabled":frontend.supports_xsampa(),
+            "syllables":words,"neural_execution":false}));
+    }
     if args.first().is_some_and(|a|a=="--clipboard-apply" || a=="--clipboard-capture") {
         return project_clipboard::run(&args);
     }
@@ -106,7 +122,7 @@ fn run()->Result<Value,Box<dyn std::error::Error>> {
     let inventory=VoiceInventory::load(&PathBuf::from(&args[1]))?;
     let voice=inventory.prepare()?;
     let config=inventory.configuration.as_ref().ok_or("Missing voice metadata")?;
-    let lexicon=LyricFrontend::new(&PathBuf::from(&args[2]),&config.default_language,&config.supported_languages)?;
+    let lexicon=LyricFrontend::for_voice(&PathBuf::from(&args[2]),config)?;
     let mut results=Vec::new();
     for path in &args[3..] {
         let project=rynthv::storage::load(&PathBuf::from(path))?;

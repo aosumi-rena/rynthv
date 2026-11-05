@@ -1,11 +1,11 @@
 use std::collections::BTreeMap;
 
-use super::{artwork, error_label, family_name, selected_entry, weak};
+use super::{artwork, error_label, family_filter::{self, FamilyFilter, LABELS}, family_name, selected_entry, weak};
 use crate::{
     app::App,
     synthesis::{
         settings::VoiceSelection,
-        voice::{VoiceAvailability, VoiceCatalogEntry, VoiceFamily},
+        voice::{VoiceAvailability, VoiceCatalogEntry},
     },
     ui::{icons::Icon, theme::*},
 };
@@ -38,7 +38,7 @@ pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
             Align2::LEFT_CENTER,
             entry.map_or_else(
                 || if missing {crate::i18n::t("选择歌声")}else{app.voice_name().unwrap_or(crate::i18n::t("选择歌声"))},
-                |entry| entry.display_name.as_str(),
+                |entry| entry.localized_display_name(),
             ),
             FontId::proportional(13.0),
             TEXT,
@@ -67,10 +67,11 @@ pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
 }
 
 pub fn popup(app: &mut App, anchor: &Response) {
-    let list_height=(anchor.ctx.content_rect().height()-180.0).clamp(80.0,440.0);
+    let list_height=(anchor.ctx.content_rect().height()-300.0).clamp(80.0,440.0);
     let popup = Popup::menu(anchor);
     let search_id = popup.get_id().with("voice-name-search");
     let focus_id = search_id.with("pending-focus");
+    let filter_id = popup.get_id().with("voice-family-filter");
 
     let opening=!popup.is_open();
     if opening {
@@ -80,6 +81,7 @@ pub fn popup(app: &mut App, anchor: &Response) {
         });
     }
     let mut query = anchor.ctx.data(|data| data.get_temp::<String>(search_id)).unwrap_or_default();
+    let mut filter = anchor.ctx.data(|data| data.get_temp::<FamilyFilter>(filter_id)).unwrap_or_default();
     popup
         .width(288.0)
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
@@ -99,7 +101,8 @@ pub fn popup(app: &mut App, anchor: &Response) {
             if focus {ui.ctx().memory_mut(|memory|memory.request_focus(input_id));}
             let search = ui.add_sized(vec2(ui.available_width(),28.0),
                 TextEdit::singleline(&mut query).id(input_id)
-                    .hint_text(crate::i18n::t("搜索歌声名称")));
+                    .hint_text(crate::i18n::t("搜索歌声名称"))
+                    .vertical_align(Align::Center));
 
             if focus {
                 search.request_focus();
@@ -111,6 +114,8 @@ pub fn popup(app: &mut App, anchor: &Response) {
             ui.ctx().data_mut(|data| {
                 data.insert_temp(search_id,query.clone());
             });
+            let filter_changed = filter.show(ui);
+            ui.ctx().data_mut(|data| data.insert_temp(filter_id, filter));
             separator(ui);
             if menu_row(ui, crate::i18n::t("管理歌声"), Some(Icon::Cloud), true).clicked() {
                 app.voice_manager = true;
@@ -130,7 +135,7 @@ pub fn popup(app: &mut App, anchor: &Response) {
             }
             let needle = query.trim().to_lowercase();
             let entries: Vec<_> = representative_entries(app).into_iter()
-                .filter(|entry| entry.display_name.to_lowercase().contains(&needle)).collect();
+                .filter(|entry| filter.includes(entry) && entry.localized_display_name().to_lowercase().contains(&needle)).collect();
             if app.synthesis.library.catalog_error().is_some() {
                 error_label(
                     ui,
@@ -147,24 +152,21 @@ pub fn popup(app: &mut App, anchor: &Response) {
                 .id_salt("voice-picker-list")
                 .max_height(list_height)
                 .auto_shrink([false, false]);
-            if opening || search.changed() {list=list.vertical_scroll_offset(0.0);}
+            if opening || search.changed() || filter_changed {list=list.vertical_scroll_offset(0.0);}
             list.show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.set_min_height(list_height);
                     if entries.is_empty() && !app.synthesis.library.is_scanning() {
-                        weak(ui, if needle.is_empty() {crate::i18n::t("没有可选歌声，请在“管理歌声”中设置 databases 目录。")}
+                        weak(ui, if needle.is_empty() && representative_entries(app).is_empty() {crate::i18n::t("没有可选歌声，请在“管理歌声”中设置 databases 目录。")}
                             else {crate::i18n::t("没有匹配的歌声")});
                     }
-                    for category in 0..4 {
+                    for category in 0..7 {
                         let banks:Vec<_>=entries.iter().filter(|entry|category_of(entry)==category).collect();
                         if banks.is_empty() {continue;}
-                        if category>0 {
+                        {
                             separator(ui);
-                            let title=match category {
-                                1=>crate::i18n::t("SV2 · 版本 1 兼容歌声"),
-                                2=>crate::i18n::t("SV1 原生歌声"),
-                                _=>crate::i18n::t("其他歌声 · 暂不可用"),
-                            };
+                            let title=LABELS.get(category as usize).copied()
+                                .unwrap_or_else(||crate::i18n::t("其他歌声 · 暂不可用"));
                             menu_row(ui,title,None,false);
                         }
                         for entry in banks {
@@ -186,12 +188,7 @@ pub fn popup(app: &mut App, anchor: &Response) {
 }
 
 pub(super) fn category_of(entry:&VoiceCatalogEntry)->u8 {
-    match entry.family {
-        Some(VoiceFamily::Sv2)=>0,
-        Some(VoiceFamily::Sv2Compatible)=>1,
-        Some(VoiceFamily::Sv1)=>2,
-        None=>3,
-    }
+    family_filter::category_of(entry)
 }
 
 fn representative_entries(app: &App) -> Vec<&VoiceCatalogEntry> {
@@ -216,9 +213,9 @@ fn representative_entries(app: &App) -> Vec<&VoiceCatalogEntry> {
     }
     let mut entries: Vec<_> = banks.into_values().collect();
     entries.sort_by(|a, b| {
-        a.display_name.to_lowercase()
-            .cmp(&b.display_name.to_lowercase())
-            .then_with(||a.display_name.cmp(&b.display_name))
+        a.localized_display_name().to_lowercase()
+            .cmp(&b.localized_display_name().to_lowercase())
+            .then_with(||a.localized_display_name().cmp(b.localized_display_name()))
             .then_with(|| a.database_id.cmp(&b.database_id))
     });
     entries
@@ -313,7 +310,7 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
     painter.text(
         content.min,
         Align2::LEFT_TOP,
-        &entry.display_name,
+        entry.localized_display_name(),
         section_title_font(),
         if enabled { TEXT } else { MUTED },
     );
@@ -347,23 +344,23 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
         );
         x = badge.right() + 4.0;
     }
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, &entry.display_name));
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, entry.localized_display_name()));
     response
         .on_hover_cursor(CursorIcon::Default)
         .on_hover_text(match &entry.availability {
             VoiceAvailability::Loadable => crate::lformat!(
                 "{} · {} · 版本 {}\n{}",
-                entry.display_name,
+                entry.localized_display_name(),
                 family_name(entry),
                 entry.revision,
-                format!("{}\n{}",entry.vendor,entry.directory.display())
+                format!("{}\n{}",entry.localized_vendor(),entry.directory.display())
             ),
-            VoiceAvailability::Unsupported(reason) => format!("{}\n{reason}\n{}", entry.display_name, entry.directory.display()),
+            VoiceAvailability::Unsupported(reason) => format!("{}\n{reason}\n{}", entry.localized_display_name(), entry.directory.display()),
         })
 }
 
 pub(super) fn source_hint(entry:&VoiceCatalogEntry)->String {
-    let family=if entry.database_id.starts_with("flat:") {"SV1 Flat"}else{family_name(entry)};
+    let family=family_name(entry);
     format!("{} · {}",family,entry.revision)
 }
 

@@ -6,3 +6,4 @@ pub mod storage;
 pub mod style_presets;
 pub mod project_import;
 pub mod synthesis;
+pub mod i18n;

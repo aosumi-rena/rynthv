@@ -25,7 +25,7 @@ pub(super) fn primary(
     let problem =
         matches!(voice, VoiceState::Loaded(_)) && app.synthesis.voice_error(&key).is_some();
     let loaded = matches!(voice, VoiceState::Loaded(_)) && !problem;
-    let missing_dictionary = app.synthesis.dictionaries().is_none();
+    let missing_dictionary = app.synthesis.library.settings.phoneme_directory(entry).is_none();
     let label = if !entry.availability.is_loadable() {
         crate::i18n::t("不可用")
     } else if current && loading {
@@ -73,7 +73,7 @@ pub(super) fn primary(
         } else if current && loaded {
             app.unload_voice();
         } else if missing_dictionary {
-            paths::choose_dictionaries(app);
+            if let Some(version)=crate::synthesis::settings::PhonemeVersion::entry(entry){paths::choose_phoneme_data(app,version);}
         } else if current {
             app.reload_voice();
         } else {

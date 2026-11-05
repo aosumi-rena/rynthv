@@ -1,6 +1,8 @@
 use super::LyricFrontend;
 mod relaxed;
 mod hyphens;
+mod incremental;
+pub(super) use incremental::Cache;
 pub(super) mod special;
 use crate::{
     model::{Language, PronunciationDictionary},
@@ -27,6 +29,7 @@ fn automatic(note: &NoteInput, language: Language, frontend: &LyricFrontend, eur
         })
 }
 
+#[derive(Clone,Debug,PartialEq)]
 pub(super) struct ResolvedNote {
     pub language: Language,
     pub placeholder_language: Option<Language>,
@@ -59,6 +62,14 @@ fn finish(note: &NoteInput, syllables: Vec<Vec<String>>) -> Vec<Vec<String>> {
 }
 
 pub(super) fn resolve_owner(notes: &[&NoteInput], inherited: Language,
+    input: &crate::synthesis::plan::OwnerInput, frontend: &LyricFrontend,
+    tree: &PreparedTree, family: crate::synthesis::voice::VoiceFamily)
+    -> Result<Vec<ResolvedNote>> {
+    if frontend.incremental {incremental::resolve(notes,inherited,input,frontend,tree,family)}
+    else {resolve_uncached(notes,inherited,input,frontend,tree,family)}
+}
+
+fn resolve_uncached(notes: &[&NoteInput], inherited: Language,
     input: &crate::synthesis::plan::OwnerInput, frontend: &LyricFrontend,
     tree: &PreparedTree, family: crate::synthesis::voice::VoiceFamily)
     -> Result<Vec<ResolvedNote>> {
@@ -129,10 +140,11 @@ pub(super) fn resolve_owner(notes: &[&NoteInput], inherited: Language,
             }).collect::<Result<Vec<_>>>()).collect::<Result<Vec<_>>>();
             *row=ResolvedNote::new(row.language,normalized);
         }
-        row.xsampa=note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa");
+        row.xsampa=frontend.xsampa(note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa"));
         // Dictionary entries replace the word reading, before '+' allocates
         // its syllables. A manually edited note remains a note-local override.
         if let Some((phones,xsampa))=dictionary_entry(note,row.language,dictionary) {
+            let xsampa=frontend.xsampa(xsampa);
             *row=ResolvedNote::new(row.language,split_syllables(phones,row.language,tree,frontend,xsampa));
             row.xsampa=xsampa;
             row.dictionary_alphabet=Some(xsampa);
@@ -142,7 +154,7 @@ pub(super) fn resolve_owner(notes: &[&NoteInput], inherited: Language,
     for ((note, row),language) in notes.iter().zip(&mut output).zip(resolved_languages) {
 
         if !note.phonemes.trim().is_empty() {
-            let xsampa=note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa");
+            let xsampa=frontend.xsampa(note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa"));
             *row=ResolvedNote::new(row.language,split_syllables(&note.phonemes,row.language,tree,frontend,xsampa));
             row.xsampa=xsampa;
             special::validate(row,tree,frontend)?;
@@ -157,6 +169,7 @@ fn split_syllables(
     phones: &str, language: Language, tree: &PreparedTree,
     frontend: &LyricFrontend, xsampa: bool,
 ) -> Result<Vec<Vec<String>>> {
+    let xsampa=frontend.xsampa(xsampa);
     let tokens: Vec<String> = phones.split_whitespace().map(str::to_owned).collect();
     let normalize = |token: &str| frontend.input_token(language,token,xsampa,tree);
     let model_tokens=tokens.iter().map(|token|normalize(token)).collect::<Result<Vec<_>>>()?;

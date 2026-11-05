@@ -36,7 +36,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &VoiceCatalogEntry, state:
                     .text(
                         name.min,
                         Align2::LEFT_TOP,
-                        &entry.display_name,
+                        entry.localized_display_name(),
                         FontId::new(
                             if compact { 17.0 } else { 20.0 },
                             section_title_font().family,
@@ -101,7 +101,7 @@ fn version(
     let text_width = (rect.width() - 76.0).max(0.0);
     let galley =
         ui.painter()
-            .layout_no_wrap(entry.vendor.clone(), FontId::proportional(12.0), MUTED);
+            .layout_no_wrap(entry.localized_vendor().to_owned(), FontId::proportional(12.0), MUTED);
     let vendor_width = galley.size().x.min(text_width);
     ui.painter()
         .with_clip_rect(

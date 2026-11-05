@@ -7,6 +7,16 @@ pub(super) struct PhoneTables {
 }
 
 impl PreparedTree {
+    pub fn legacy_phone_table(&self, language: &str) -> Result<bool> {
+        Ok(self.language_phone_set(language)?.is_some_and(|(_, table)|table.name.ends_with("-phones")))
+    }
+
+    pub fn native_phone_token(&self, language: &str, token: &str) -> Result<String> {
+        self.language_phone_set(language)?.and_then(|(_, table)|table.lookup(token))
+            .map(|phone|phone.symbol.to_owned())
+            .ok_or_else(||VoiceError::new(format!("Model has no {language} phoneme {token}")))
+    }
+
     fn phone_tables(&self) -> Result<&PhoneTables> {
         self.phone_tables.get_or_init(|| {
             let mut languages = Vec::new();
@@ -45,22 +55,19 @@ impl PreparedTree {
 
     pub fn model_phone_token(&self, language: &str, system: &str, xsampa: &str) -> Result<String> {
         let (_,table)=self.language_phone_set(language)?
-            .ok_or_else(|| VoiceError::new(format!("Model has no {language} phone table")))?;
-        // Resolve Korean spellings using each stage's own inventory.
-        if table.name=="korean-xsampa-phones" {
-            self.resolve_phone_alphabet(language,xsampa,true)?;
-            return Ok(format!("xsampa:{xsampa}"));
-        }
-        // Prefer language-local identities across model generations.
-        if let Some(phone)=table.lookup(system) {
-            return Ok(phone.symbol.to_owned());
-        }
-        table.mapped_symbols.iter().take(table.symbols.len()).position(|mapped| mapped == xsampa)
-            .map(|index| table.symbols[index].clone())
-            .ok_or_else(|| VoiceError::new(format!("Model has no {language} mapping for {xsampa}")))
+            .ok_or_else(||VoiceError::new(format!("Model has no {language} phone table")))?;
+        let token=super::super::resource_phone_token(system,xsampa);
+        let resolved=self.resolve_phone(language,&token)?;
+        if table.name.ends_with("-phones") {return Ok(token)}
+        resolved.local_stored_index.map(|index|table.symbols[index].clone())
+            .ok_or_else(||VoiceError::new("Resource phoneme has no model identity"))
     }
 
     pub fn resolve_phone(&self, language: &str, token: &str) -> Result<ResolvedPhone<'_>> {
+        if super::super::resource_phone_symbol(token).is_some() {
+            let (index,table)=self.language_phone_set(language)?.ok_or_else(||VoiceError::new(format!("Model has no {language} phone table")))?;
+            return super::super::phones::resource::resolve(index,table,self.phone_set(self.phone_tables()?.unified),token);
+        }
         super::super::phones::resolve_selected(self.language_phone_set(language)?,
             self.phone_set(self.phone_tables()?.unified),token)
     }

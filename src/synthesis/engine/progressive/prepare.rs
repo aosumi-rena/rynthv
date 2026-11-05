@@ -40,44 +40,44 @@ pub fn prepare(
         });
     }
 
-    let base = base.filter(|base| {
+    let base = base.and_then(|base|base.clip.state.as_deref().map(|state|(&base.input,state))).filter(|(_,state)| {
         !experimental && voice.family == VoiceFamily::Sv2
-            && base.clip.state.prepared.phrase.unison.count==1
+            && state.prepared.phrase.unison.count==1
             && matches!(
-                base.clip.state.prepared.features,
+                state.prepared.features,
                 PreparedModelFeatures::Sv2 { .. }
             )
     });
     let edit = base
-        .map(|base| {
+        .map(|(previous_input,state)| {
             IncrementalEdit::between(
-                &base.input,
+                previous_input,
                 input,
-                &base.clip.state.prepared.phrase,
+                &state.prepared.phrase,
                 &phrase,
             )
         })
         .transpose()?
         .flatten()
         .filter(|_| {
-            let previous = &base.expect("an edit requires a baseline").clip.state;
+            let previous = base.expect("an edit requires a baseline").1;
             let pcm = &previous.components;
             previous.pitch.pitch.len().checked_mul(HOP_SAMPLES) == Some(pcm.primary.len())
                 && pcm.primary.len() == pcm.secondary.len()
                 && ((pcm.start_seconds - phrase.start_seconds) * f64::from(SAMPLE_RATE)).abs()
                     < 0.0001
         });
-    let (acoustic, pcm) = if let Some((base, edit)) = base.zip(edit) {
+    let (acoustic, pcm) = if let Some(((_,previous), edit)) = base.zip(edit) {
         let updated = acoustics::recompute(
             voice,
             models::required_identity(identity)?,
             &phrase,
-            &base.clip.state,
+            previous,
             &edit,
             &mut checkpoint,
         )?;
         let pcm = PcmStore::from_existing(
-            &base.clip.state.components,
+            &previous.components,
             edit.first_block..edit.stop_block,
         )?;
         (

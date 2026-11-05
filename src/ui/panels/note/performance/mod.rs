@@ -128,7 +128,7 @@ pub(super) fn expression(app: &mut App, ui: &mut Ui) {
     }
     ui.add_space(8.0);
     if selected.is_none_or(|selection| selection.mode != Some(NoteMode::Rap)) {
-        vibrato(app, ui, selected, enabled);
+        vibrato(app, ui, selected, enabled && !crate::ui::phoneme_candidates::standard_voice(app));
     }
     if let Some(selection) = selected.filter(|selection| selection.mode != Some(NoteMode::Singing))
     {
@@ -188,7 +188,7 @@ fn editable(app: &App, ui: &Ui) -> bool {
 fn uses_native_voice(app: &App) -> bool {
     app.voice_selection()
         .and_then(|voice| app.synthesis.library.entry(&voice))
-        .is_some_and(|entry| entry.family == Some(VoiceFamily::Sv1))
+        .is_some_and(|entry| matches!(entry.family,Some(VoiceFamily::Sv1|VoiceFamily::R1Std|VoiceFamily::R2Std)))
 }
 
 fn normalize_expression(value: f64) -> f64 {

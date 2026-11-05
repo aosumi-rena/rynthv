@@ -1,7 +1,7 @@
 #[path = "rynthv_flat/host_pitch.rs"]
 mod host_pitch;
 use rynthv::{storage, synthesis::{audio::save_wav, engine, score::ExplicitScore,
-    voice::load_materialized_flat}};
+    voice::VoiceInventory}};
 use serde_json::json;
 use std::{fs::File, io::Read, path::PathBuf, process::ExitCode, time::Instant};
 
@@ -24,7 +24,8 @@ fn run() -> Result<(), String> {
     let report_path = PathBuf::from(args.last().unwrap());
     if report_path.exists() { return Err("Report output already exists".into()); }
     let started = Instant::now();
-    let voice = load_materialized_flat(&manifest).map_err(|error| error.to_string())?;
+    let inventory=VoiceInventory::load(&manifest).map_err(|error|error.to_string())?;
+    let voice=inventory.prepare().map_err(|error|error.to_string())?;
     let preparation_ms = started.elapsed().as_secs_f64() * 1000.0;
     if prepare {
         return write_report(&report_path, &json!({"schema":1,"preparation_ms":preparation_ms,

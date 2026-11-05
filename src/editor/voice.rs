@@ -72,7 +72,7 @@ impl Editor {
                     database.insert("id".into(), id.into());
                     (name, version.to_string(), match family {
                         VoiceFamily::Sv2 | VoiceFamily::Sv2Compatible => "SVR3",
-                        VoiceFamily::Sv1 => "",
+                        VoiceFamily::Sv1 | VoiceFamily::R1Std | VoiceFamily::R2Std => "",
                     })
                 }
                 None => ("", "-2".to_owned(), ""),

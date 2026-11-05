@@ -62,6 +62,7 @@ pub(super) fn load(path: &Path) -> Result<VoiceInventory> {
         configuration_parsed: true,
     };
     let mut inventory = VoiceInventory {
+        standard:None,
         database_id: nofs::database_id(path)?,
         directory: archive.path,
         display_name: description.configuration.name.clone(),

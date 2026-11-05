@@ -126,12 +126,12 @@ pub(super) struct Dictionary {
 }
 
 impl Dictionary {
-    pub(super) fn load(directory: &Path, language: Language) -> Result<Self> {
+    pub(super) fn load(directory: &Path, language: Language, catalog:&crate::model::PhonemeCatalog, legacy:bool) -> Result<Self> {
         let english = language == Language::English;
         let name = if english {
-            "cmudict-07b.txt".into()
+            if legacy && directory.join("english-arpabet-dict.txt").is_file() {"english-arpabet-dict.txt"}else{"cmudict-07b.txt"}.into()
         } else {
-            format!("{}-dict.txt", language.id())
+            format!("{}-dict.txt", if legacy {language.phone_set()}else{language.id()})
         };
         let phones = PhoneTable::load(&directory.join(name), english)?;
         let words = if language == Language::Cantonese {
@@ -139,7 +139,7 @@ impl Dictionary {
         } else {
             WordReadings::default()
         };
-        let classes = crate::model::PhonemeCatalog::load(directory).map_err(VoiceError::new)?.classes(language);
+        let classes = catalog.classes(language);
         Ok(Self {
             language,
             phones,

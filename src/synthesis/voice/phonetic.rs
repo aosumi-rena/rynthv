@@ -105,6 +105,7 @@ impl PhoneticMap {
     }
 
     pub fn encode(&self, language: &str, token: &str) -> Result<[f32; 73]> {
+        let token=super::resource_phone_symbol(token).unwrap_or(token);
         let key = format!("{token}*{language}");
         let common = format!("{token}*");
         let row = self

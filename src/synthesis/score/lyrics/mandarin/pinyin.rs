@@ -1,5 +1,5 @@
 use crate::synthesis::voice::{Result, VoiceError};
-use std::{collections::HashMap, fs, path::Path};
+use std::{collections::HashMap, path::Path};
 
 #[derive(Debug)]
 pub(super) struct Pinyin {
@@ -11,7 +11,7 @@ impl Pinyin {
     pub fn load(path: &Path) -> Result<Self> {
         let mut entries = HashMap::new();
         let mut max_key_bytes = 0;
-        for (index, line) in fs::read_to_string(path)?.lines().enumerate() {
+        for (index, line) in super::super::dictionary::read(path)?.lines().enumerate() {
             let line = line.trim().trim_start_matches('\u{feff}');
             if line.is_empty() || line.starts_with('#') {
                 continue;

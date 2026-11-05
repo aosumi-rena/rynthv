@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
-mod korean;
+pub(super) mod resource;
+pub use resource::{symbol as resource_phone_symbol, token as resource_phone_token};
 
 use super::{Result, VoiceError, array, range, sum, u32_at};
 
@@ -81,20 +82,22 @@ pub(super) fn resolve_selected<'a>(selected:Option<(usize,&'a PhoneSet)>,
 
 pub fn resolve_alphabet<'a>(languages:&[&'a PhoneSet],unified:&'a PhoneSet,
     language:&str,token:&str,xsampa:bool)->Result<ResolvedPhone<'a>> {
+    if resource_phone_symbol(token).is_some() {
+        let (index,table)=languages.iter().enumerate().find(|(_,table)|table.name.contains(language))
+            .ok_or_else(||VoiceError::new(format!("Model has no {language} phone table")))?;
+        return resource::resolve(index,table,unified,token);
+    }
     if !xsampa{return resolve_explicit(languages,unified,language,token);}
     let language_index=languages.iter().position(|table|!language.is_empty() && table.name.contains(language))
         .ok_or_else(||VoiceError::new(format!("Model has no language conditioning for {language}")))?;
     resolve_unified(language_index,languages[language_index],unified,token)
 }
 
-pub(super) fn resolve_unified<'a>(language_index:usize,language:&'a PhoneSet,
+pub(super) fn resolve_unified<'a>(language_index:usize,_language:&'a PhoneSet,
     unified:&'a PhoneSet,token:&str)->Result<ResolvedPhone<'a>> {
-    let local=(language.name=="korean-xsampa-phones")
-        .then(||korean::local(token).and_then(|symbol|language.lookup(symbol))).flatten();
-    let symbol=local.and_then(|phone|phone.mapped_symbol).unwrap_or(token);
-    let phone=unified.lookup(symbol).ok_or_else(||VoiceError::new(format!("Unsupported X-SAMPA phoneme: {token}")))?;
+    let phone=unified.lookup(token).ok_or_else(||VoiceError::new(format!("Unsupported X-SAMPA phoneme: {token}")))?;
     Ok(ResolvedPhone{language_index,selected_phone_set:&unified.name,local_stored_index:None,
-        source_class:Some(local.map_or(phone.class,|p|p.class)),unified_phone_index:phone.stored_index,unified_symbol:phone.symbol,
+        source_class:Some(phone.class),unified_phone_index:phone.stored_index,unified_symbol:phone.symbol,
         used_silence_fallback:false})
 }
 

@@ -18,3 +18,7 @@ pub mod stages;
 pub mod voice;
 pub mod vocal_modes;
 pub mod unison;
+
+pub(crate) mod r1_std;
+
+pub(crate) mod r2_std;

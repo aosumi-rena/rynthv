@@ -1,5 +1,5 @@
 use super::{ExplicitScore, FRAME_SECONDS, SAMPLE_RATE, ScoreNote, ScorePhone};
-use crate::synthesis::voice::VoiceFamily;
+use crate::synthesis::voice::{VoiceFamily,VoiceError,Result};
 
 const CONTEXT_SECONDS: f64 = 0.5;
 const ALIGNMENT_FRAMES: f64 = 8.0;
@@ -10,8 +10,9 @@ pub(super) struct ContextNotes {
     pub has_alignment_prefix: bool,
 }
 
-pub(super) fn padded(score: &ExplicitScore, family: VoiceFamily, default_language: &str) -> ContextNotes {
-    match family {
+pub(super) fn padded(score: &ExplicitScore, family: VoiceFamily, default_language: &str) -> Result<ContextNotes> {
+    Ok(match family {
+        VoiceFamily::R1Std | VoiceFamily::R2Std => return Err(VoiceError::new("STD banks use their dedicated score frontend")),
         VoiceFamily::Sv1 => padded_sv1(score),
         VoiceFamily::Sv2Compatible | VoiceFamily::Sv2 => {
             let mut context = padded_sv2(score);
@@ -27,7 +28,7 @@ pub(super) fn padded(score: &ExplicitScore, family: VoiceFamily, default_languag
             }
             context
         },
-    }
+    })
 }
 
 fn padded_sv1(score: &ExplicitScore) -> ContextNotes {
