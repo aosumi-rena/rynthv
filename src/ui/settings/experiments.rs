@@ -19,6 +19,24 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         toggle(ui,crate::i18n::t("嘶吼"),&mut settings.growl);
         toggle(ui,crate::i18n::t("R2_FLAT_CONTROLS"),&mut settings.dds_controls);
         toggle(ui,crate::i18n::t("谐波、气声和环形调制"),&mut settings.component_effects);
+        section(ui,crate::i18n::t("PHONE_CONVERSION"));
+        toggle(ui,crate::i18n::t("PHONE_CONVERSION_ENABLE"),&mut settings.phone_conversion);
+        if settings.phone_conversion {
+            let path=app.synthesis.library.settings.phone_conversion.as_deref();
+            if let Some(path)=path {
+                ui.label(path.file_name().unwrap_or(path.as_os_str()).to_string_lossy()).on_hover_text(path.display().to_string());
+            } else {ui.label(crate::i18n::t("尚未指定"));}
+            let mut replacement=None;
+            ui.horizontal(|ui|{
+                if ui.button(crate::i18n::t("VOICE_SOURCE_CHANGE")).clicked() {
+                    let mut dialog=rfd::FileDialog::new().add_filter("BIN",&["bin"]);
+                    if let Some(parent)=path.and_then(std::path::Path::parent) {dialog=dialog.set_directory(parent);}
+                    replacement=dialog.pick_file().map(Some);
+                }
+                if path.is_some() && crate::ui::icons::close_button(ui).clicked() {replacement=Some(None);}
+            });
+            if let Some(path)=replacement {app.synthesis.set_phone_conversion(path);}
+        }
     }
     if settings!=before {app.synthesis.set_experiments(settings);}
     if let Some(error)=app.synthesis.library.settings_error() {ui.colored_label(eframe::egui::Color32::LIGHT_RED,crate::i18n::message(error));}

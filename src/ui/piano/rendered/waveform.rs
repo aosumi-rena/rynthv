@@ -24,7 +24,8 @@ pub(super) fn draw(
     let input = &snapshot.input;
     let tempo = &input.tempo;
     let active = app.editor.reference == Some(group.reference.id);
-    let color = Color32::from_rgba_unmultiplied(166, 164, 170, if active { 72 } else { 40 });
+    let color = crate::ui::theme::palette().waveform;
+    let color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), if active { 72 } else { 40 });
     let clip = painter.clip_rect();
     let flash_active = visuals.animating_in(
         position_at_x(app, canvas, clip.left())..position_at_x(app, canvas, clip.right()),

@@ -23,15 +23,16 @@ struct Cell {
 }
 pub fn show(app: &mut App, ui: &mut Ui) {
     let rect = ui.max_rect();
-    let canvas = Rect::from_min_max(rect.min + vec2(GUTTER, 0.0), rect.max);
-    ui.painter().rect_filled(rect, 0, PANEL);
+    let canvas = Rect::from_min_max(rect.min + vec2(gutter(), 0.0), rect.max);
+    ui.painter().rect_filled(rect, 0, panel_color());
+    ui.painter().rect_filled(Rect::from_min_max(rect.min,pos2(canvas.left(),rect.bottom())),0,native::phoneme_gutter());
     Icon::Phonemes.paint(
         ui,
         Rect::from_center_size(
-            pos2(rect.left() + 22.0, rect.top() + 16.0),
-            vec2(18.0, 18.0),
+            pos2(rect.left() + gutter() * 0.5, rect.top() + 16.0),
+            vec2(18.0, 10.0),
         ),
-        TEXT,
+        text_color(),
     );
     let response = ui.interact(
         canvas,
@@ -56,7 +57,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     );
     let labels = Rect::from_min_size(canvas.min, vec2(canvas.width(), 32.0));
     ui.painter()
-        .hline(canvas.x_range(), labels.bottom(), Stroke::new(0.7, EDGE));
+        .hline(canvas.x_range(), labels.bottom(), Stroke::new(1.0, native::section_divider()));
     let mut cells = Vec::new();
     let mut seen = BTreeSet::new();
     let color = crate::ui::track_color::TrackColors::new(app.editor.current_track()).accent;
@@ -101,12 +102,12 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 let painter = ui
                     .painter()
                     .with_clip_rect(canvas.intersect(ui.clip_rect()));
-                painter.rect_filled(r.shrink2(vec2(0.5,0.0)),CornerRadius{nw:4,ne:4,sw:0,se:0},BUTTON.gamma_multiply(0.45));
-                painter.vline(r.left(), canvas.y_range(), Stroke::new(0.7, GRID));
+                painter.rect_filled(r.shrink2(vec2(0.5,0.0)),CornerRadius{nw:4,ne:4,sw:0,se:0},button_color().gamma_multiply(0.45));
+                painter.vline(r.left(), canvas.y_range(), Stroke::new(0.7, grid_color()));
                 if active && ui.input(|i|i.pointer.hover_pos().is_some_and(|p|r.contains(p))) {
                     painter.rect_filled(r,0,Color32::WHITE.gamma_multiply(0.04));
-                    painter.vline(r.left(),canvas.y_range(),Stroke::new(1.0,TEXT));
-                    painter.vline(r.right(),canvas.y_range(),Stroke::new(1.0,TEXT));
+                    painter.vline(r.left(),canvas.y_range(),Stroke::new(1.0,text_color()));
+                    painter.vline(r.right(),canvas.y_range(),Stroke::new(1.0,text_color()));
                 }
                 let label = r.intersect(labels);
                 painter
@@ -116,7 +117,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         Align2::CENTER_CENTER,
                         &phone.token,
                         FontId::proportional(12.0),
-                        if active { TEXT } else { MUTED },
+                        if active { text_color() } else { muted_color() },
                     );
                 let cell = Cell {
                     phone: phone.clone(),
@@ -128,7 +129,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     &painter,
                     &cell,
                     Rect::from_min_max(pos2(canvas.left(), labels.bottom()), canvas.max),
-                    if active { color } else { MUTED },
+                    if active { color } else { muted_color() },
                 );
                 cells.push(cell);
             }

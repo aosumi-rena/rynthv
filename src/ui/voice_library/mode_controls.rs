@@ -1,10 +1,9 @@
+use crate::ui::theme::palette;
 use super::mode_knob;
 use crate::model::{EntityId, PublicModeComponent, PublicModeControl};
 use eframe::egui::*;
 use crate::ui::icons::{Icon, IconButton};
 
-const CARD: Color32 = Color32::from_rgb(51, 49, 52);
-const CAPTION: Color32 = Color32::from_rgb(163, 157, 166);
 
 fn snap_id() -> Id {Id::new("vocal-mode-snap")}
 
@@ -33,19 +32,19 @@ pub(super) fn show(ui: &mut Ui, voice_key: &str, reference: EntityId, slot: usiz
         let expanded_id = Id::new(("native-vocal-mode-expanded",slot));
         let mut expanded = independent && ui.ctx().data(|data| data.get_temp::<bool>(expanded_id)).unwrap_or(false);
         let (card, _) = ui.allocate_exact_size(vec2(ui.available_width(), 100.0), Sense::hover());
-        ui.painter().rect_filled(card, 3, CARD);
-        ui.painter().text(card.min + vec2(12.0, 9.0), Align2::LEFT_TOP,
-            name, FontId::proportional(13.0), CAPTION);
+        ui.painter().rect_filled(card, 3, palette().mode_card);
+        ui.painter().text(card.min + vec2(12.0,2.0),Align2::LEFT_TOP,
+            name,crate::ui::theme::native_font(18.0),palette().mode_caption);
         if hidden {
             ui.painter().text(pos2(card.right()-36.0, card.top()+10.0), Align2::RIGHT_TOP,
-                crate::i18n::t("隐藏唱法"), FontId::proportional(10.0), CAPTION);
+                crate::i18n::t("隐藏唱法"), FontId::proportional(10.0), palette().mode_caption);
         }
         let toggle_rect = Rect::from_min_size(card.min + vec2(card.width()-30.0, 4.0), Vec2::splat(24.0));
         let toggle = ui.interact(toggle_rect, ui.id().with("expand"), Sense::click());
-        let center = toggle_rect.center();
-        ui.painter().line_segment([center-vec2(5.0,0.0), center+vec2(5.0,0.0)], Stroke::new(1.0,CAPTION));
+        let ink=if toggle.hovered()||toggle.is_pointer_button_down_on(){Color32::from_gray(207)}else{Color32::from_rgb(138,133,140)};
+        ui.painter().rect_filled(Rect::from_min_size(toggle_rect.min+vec2(7.5,12.0),vec2(10.0,1.0)),0,ink);
         if !expanded {
-            ui.painter().line_segment([center-vec2(0.0,5.0), center+vec2(0.0,5.0)], Stroke::new(1.0,CAPTION));
+            ui.painter().rect_filled(Rect::from_min_size(toggle_rect.min+vec2(12.0,7.5),vec2(1.0,10.0)),0,ink);
         }
         toggle.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true,
             if expanded {crate::i18n::t("折叠唱法")} else {crate::i18n::t("展开唱法")}));

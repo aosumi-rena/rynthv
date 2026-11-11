@@ -32,7 +32,7 @@ pub use family::VoiceFamily;
 pub use inventory::VoiceInventory;
 pub use materialized_flat::load_materialized_flat;
 pub use member_modes::MemberVocalModes;
-pub use phones::{PHONE_SET_TYPE_ID, PhoneLookup, PhoneSet, ResolvedPhone, resolve_explicit,resolve_alphabet,resource_phone_symbol,resource_phone_token};
+pub use phones::{PHONE_SET_TYPE_ID, PhoneLookup, PhoneSet, ResolvedPhone, resolve_explicit,resolve_alphabet,resource_phone_symbol,resource_phone_token,converted_phone_token,is_converted_phone};
 pub use phonetic::{PHONETIC_MAP_TYPE_ID, PhoneticMap};
 pub use preparation::{PreparationSummary, PreparedVoice};
 pub use prepared::{PreparedModule, PreparedNode, PreparedTree, PreparedTreeSummary};

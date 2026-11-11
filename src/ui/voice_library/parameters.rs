@@ -42,7 +42,7 @@ pub(super) fn control(app:&mut App,ui:&mut Ui,mut spec:ParameterSpec) {
                 ui.colored_label(Color32::LIGHT_RED,crate::lformat!("Current value {value:.3} is outside this voice's supported range"));
             }
             if response.dragged() { ui.ctx().data_mut(|d| d.insert_temp(id, current)); }
-            if response.drag_stopped() || response.clicked() || response.double_clicked() {
+            if response.drag_stopped() || response.clicked() || response.double_clicked() || response.changed() && !response.dragged() {
                 ui.ctx().data_mut(|d| d.remove::<f32>(id));
                 if let Err(error) = app.editor.set_voice_parameter(reference,spec,current) { app.error = Some(error); }
             }
@@ -62,14 +62,35 @@ pub(super) fn slider(ui: &mut Ui, value: &mut f32,spec:ParameterSpec) -> Respons
         let raw=((pointer.x-rail.center().x)/(rail.width()/2.0)*spec.limit).clamp(-spec.limit,spec.limit);
         *value=if spec.step>0.0 {(raw/spec.step).round()*spec.step}else{raw};
     }
+
+    let value_rect=Rect::from_min_size(pos2((rect.right()-75.0).max(rect.left()),rect.top()),vec2(75.0_f32.min(rect.width()),16.0));
+    let value_response=ui.scope(|ui| {
+        ui.spacing_mut().interact_size.y=16.0;
+        ui.style_mut().text_styles.insert(TextStyle::Button,FontId::proportional(12.0));
+        let classic=current() == InterfaceTheme::Classic;
+        let fill=if classic {Color32::from_rgb(60,60,60)} else {Color32::from_white_alpha(18)};
+        let ink=if classic {Color32::from_rgb(216,216,216)} else {Color32::from_rgb(239,232,242)};
+        let outline=if classic {Stroke::NONE} else {Stroke::new(0.5,Color32::from_white_alpha(18))};
+        let widgets=&mut ui.visuals_mut().widgets;
+        for widget in [&mut widgets.inactive,&mut widgets.hovered,&mut widgets.active] {
+            widget.bg_fill=fill;widget.weak_bg_fill=fill;widget.fg_stroke.color=ink;widget.bg_stroke=outline;
+        }
+        ui.put(value_rect,DragValue::new(value).range(-spec.limit..=spec.limit).clamp_existing_to_range(false)
+            .speed(if spec.step>0.0 {f64::from(spec.step)} else {0.01})
+            .suffix(crate::i18n::t(spec.unit)))
+    }).inner;
+    if value_response.changed() {
+        if spec.step>0.0 {*value=(*value/spec.step).round()*spec.step;}
+        *value=(*value).clamp(-spec.limit,spec.limit);
+    }
     let painter = ui.painter();
-    painter.text(rect.min + vec2(0.0, 4.0), Align2::LEFT_TOP,crate::i18n::t(spec.label), FontId::proportional(12.0), MUTED);
-    painter.hline(rail.x_range(), y, Stroke::new(2.0, EDGE));
+    painter.text(rect.min + vec2(0.0, 4.0), Align2::LEFT_TOP,crate::i18n::t(spec.label), FontId::proportional(12.0), muted_color());
+    painter.hline(rail.x_range(), y, Stroke::new(2.0, edge_color()));
     let center = pos2(rail.center().x + (*value/spec.limit).clamp(-1.0,1.0) * rail.width() / 2.0, y);
-    painter.line_segment([pos2(rail.center().x, y), center], Stroke::new(2.0, TEXT));
-    painter.circle(center, 9.5, EDGE, Stroke::NONE);
-    painter.circle(center, 8.5, Color32::from_rgb(65,63,68), Stroke::new(0.7, BUTTON_ACTIVE));
-    painter.circle_filled(center, 3.0, TEXT);
+    painter.line_segment([pos2(rail.center().x, y), center], Stroke::new(2.0, text_color()));
+    painter.circle(center, 9.5, edge_color(), Stroke::NONE);
+    painter.circle(center, 8.5, Color32::from_rgb(65,63,68), Stroke::new(0.7, button_active_color()));
+    painter.circle_filled(center, 3.0, text_color());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Slider, true,crate::i18n::t(spec.label)));
-    response.on_hover_text(format!("{}: {:.3} {}",crate::i18n::t(spec.label),*value,crate::i18n::t(spec.unit)))
+    response.union(value_response).on_hover_text(format!("{}: {:.3} {}",crate::i18n::t(spec.label),*value,crate::i18n::t(spec.unit)))
 }

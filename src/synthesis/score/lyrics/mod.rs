@@ -6,6 +6,7 @@ mod mandarin;
 mod spanish;
 mod alphabet;
 mod cache;
+mod conversion;
 pub(super) mod european;
 
 use crate::{
@@ -33,6 +34,7 @@ pub struct LyricFrontend {
     lexical_cache: std::sync::Mutex<cache::LexicalCache>,
     pub(in crate::synthesis::score) pronunciation_cache: std::sync::Mutex<super::pronunciation::Cache>,
     pub(in crate::synthesis::score) incremental:bool,
+    conversion: Option<std::sync::Arc<crate::synthesis::phone_conversion::PhoneConversion>>,
 }
 
 enum Lexicon {
@@ -51,6 +53,7 @@ impl LyricFrontend {
         let mut copy=Self::with_format(&self.directory,&self.default_language_key,
             &self.dictionaries.keys().map(|language|language.id().to_owned()).collect::<Vec<_>>(),format)?;
         copy.incremental=false;
+        copy.conversion=self.conversion.clone();
         Ok(copy)
     }
 
@@ -61,6 +64,17 @@ impl LyricFrontend {
     pub fn for_voice(directory:impl AsRef<Path>,config:&crate::synthesis::voice::VoiceConfiguration)->Result<Self> {
         let version=crate::synthesis::settings::PhonemeVersion::configuration(config,false).map_err(VoiceError::new)?;
         Self::with_format(directory,&config.default_language,&config.supported_languages,version.format())
+    }
+    pub fn for_voice_with_conversion(directory:impl AsRef<Path>,config:&crate::synthesis::voice::VoiceConfiguration,programme:Option<&Path>)->Result<Self> {
+        let Some(path)=programme else {return Self::for_voice(directory,config)};
+        Self::with_phone_conversion(directory,&config.default_language,&config.supported_languages,path)
+    }
+    pub fn with_phone_conversion(directory:impl AsRef<Path>,default_language:&str,supported:&[String],path:&Path)->Result<Self> {
+        let conversion=crate::synthesis::phone_conversion::PhoneConversion::load(path)?;
+        let mut frontend=Self::with_format(directory,default_language,supported,crate::model::PhonemeFormat::System)?;
+        frontend.conversion=Some(std::sync::Arc::new(conversion));
+        frontend.incremental=false;
+        Ok(frontend)
     }
     pub(super) fn default_language(&self) -> Language {
         self.default_language
@@ -110,6 +124,7 @@ impl LyricFrontend {
             lexical_cache: Default::default(),
             pronunciation_cache: Default::default(),
             incremental:true,
+            conversion:None,
         })
     }
 
@@ -171,7 +186,7 @@ impl LyricFrontend {
 
     pub(super) fn resolve_for_model(&self,language:Language,lyrics:&str,european:bool,
         tree:&crate::synthesis::voice::PreparedTree)->Result<Vec<Vec<String>>> {
-        let coda_l=language==Language::English && tree.native_phone_token(language.id(),"ll").is_ok();
+        let coda_l=language==Language::English && (self.conversion.is_some() || tree.native_phone_token(language.id(),"ll").is_ok());
         self.resolve_with_inventory(language,lyrics,european,coda_l)
     }
 
@@ -215,7 +230,13 @@ impl LyricFrontend {
         lyrics:&[&str],european:bool)->Result<Vec<Vec<Vec<String>>>> {
         let mut words=lyrics.iter().map(|text|self.resolve_for_model(language,text,european,tree)).collect::<Result<Vec<_>>>()?;
         self.link_european_words(language,lyrics,&mut words)?;
-        words.into_iter().map(|word|word.into_iter().map(|syllable|syllable.iter()
-            .map(|token|self.model_token(language,token,tree)).collect()).collect()).collect()
+        let mut words=words.into_iter().map(|word|word.into_iter().map(|syllable|syllable.iter()
+            .map(|token|self.model_token(language,token,tree)).collect()).collect()).collect::<Result<Vec<Vec<Vec<String>>>>>()?;
+        if self.conversion.is_some() {
+            let tokens=words.iter().flatten().flatten().cloned().collect::<Vec<_>>();
+            let converted=self.convert_tokens(language,&tokens)?;
+            for (token,replacement) in words.iter_mut().flatten().flatten().zip(converted) {*token=replacement;}
+        }
+        Ok(words)
     }
 }

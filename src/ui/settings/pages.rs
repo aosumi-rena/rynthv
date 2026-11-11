@@ -3,8 +3,18 @@ use crate::{app::App, ui::state::Column};
 use eframe::egui::*;
 
 pub(super) fn general(app: &mut App, ui: &mut Ui) {
+    row(ui, crate::i18n::t("UI_THEME"), |ui| {
+        crate::ui::theme::native::settings_combo("interface-theme")
+            .width(ui.available_width())
+            .selected_text(app.preferences.theme.label())
+            .show_ui(ui, |ui| {
+                for theme in crate::ui::theme::InterfaceTheme::ALL {
+                    ui.selectable_value(&mut app.preferences.theme, theme, theme.label());
+                }
+            });
+    });
     row(ui, crate::i18n::t("界面语言"), |ui| {
-        ComboBox::from_id_salt("interface-language").width(ui.available_width())
+        crate::ui::theme::native::settings_combo("interface-language").width(ui.available_width())
             .selected_text(app.preferences.language.name()).show_ui(ui,|ui| {
                 for language in crate::i18n::Language::ALL {
                     if ui.selectable_value(&mut app.preferences.language,language,language.name()).changed() {
@@ -22,7 +32,7 @@ pub(super) fn general(app: &mut App, ui: &mut Ui) {
         ui.label(format!("{percent:.0}%"));
         ui.spacing_mut().slider_width = ui.available_width().max(40.0);
         let response = ui.add(
-            Slider::new(&mut percent, 75.0..=200.0)
+            Slider::new(&mut percent, 25.0..=200.0)
                 .step_by(5.0)
                 .show_value(false),
         );
@@ -85,7 +95,7 @@ pub(super) fn editing(app: &mut App, ui: &mut Ui) {
     });
     toggle(ui, crate::i18n::t("音符对齐网格"), &mut app.view.snap);
     row(ui, crate::i18n::t("网格精度"), |ui| {
-        ComboBox::from_id_salt("settings-grid")
+        crate::ui::theme::native::settings_combo("settings-grid")
             .width(ui.available_width())
             .selected_text(crate::lformat!("{} 分音符", app.view.grid))
             .show_ui(ui, |ui| {

@@ -16,7 +16,7 @@ pub(super) fn paint(ui: &Ui, rect: Rect, artwork: Option<&VoiceArtwork>) {
             .corner_radius(4)
             .paint_at(ui, rect);
     } else {
-        Icon::Microphone.paint(ui, rect.shrink(rect.width() * 0.26), MUTED);
+        Icon::Microphone.paint(ui, rect.shrink(rect.width() * 0.26), muted_color());
     }
 }
 

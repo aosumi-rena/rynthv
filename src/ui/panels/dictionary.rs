@@ -62,7 +62,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
     padded(ui, |ui| {
         ui.weak(crate::i18n::t("当前词典"));
         let mut selected = original.clone();
-        ComboBox::from_id_salt("dictionary-select")
+        crate::ui::theme::native::combo("dictionary-select")
             .width(ui.available_width())
             .selected_text(if original.is_empty() {
                 crate::i18n::t("（继承音轨默认值）")
@@ -81,8 +81,8 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
             app.editor.select_dictionary(&selected);
         }
         pair(ui, |ui, width| {
-            let create = ui.add_sized(vec2(width, 28.0), Button::new(crate::i18n::t("新建…")));
-            Popup::from_toggle_button_response(&create)
+            let create = ui.add_sized(vec2(width, native::control_height()), Button::new(crate::i18n::t("新建…")));
+            crate::ui::theme::menu::toggle(&create)
                 .width(240.0)
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .show(|ui| {
@@ -113,7 +113,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
             if ui
                 .add_enabled(
                     !name.is_empty(),
-                    Button::new(crate::i18n::t("移除")).min_size(vec2(width, 28.0)),
+                    Button::new(crate::i18n::t("移除")).min_size(vec2(width, native::control_height())),
                 )
                 .clicked()
             {
@@ -125,7 +125,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
     ui.painter().hline(
         ui.available_rect_before_wrap().x_range(),
         ui.next_widget_position().y,
-        Stroke::new(1.0, EDGE),
+        Stroke::new(1.0, edge_color()),
     );
     padded(ui, |ui| {
         let dictionary = app.editor.project.dictionaries.get(&name).cloned();
@@ -136,7 +136,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
             field(ui, &mut state.phones);
             let enabled=crate::ui::phoneme_candidates::xsampa_enabled(app);
             let mut xsampa=enabled && state.xsampa;
-            if ui.add_enabled(enabled,Checkbox::new(&mut xsampa,crate::i18n::t("Use X-SAMPA phonemes"))).changed()
+            if ui.add_enabled(enabled,crate::ui::theme::native::Checkbox::new(&mut xsampa,crate::i18n::t("Use X-SAMPA phonemes"))).changed()
                 && let Some(dict)=dictionary.as_ref()
                 && let Ok(catalog)=crate::ui::phoneme_candidates::catalog(app,ui.ctx()) {
                 state.xsampa=xsampa;
@@ -148,7 +148,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                 if ui
                     .add_enabled(
                         !state.word.trim().is_empty() && !state.phones.trim().is_empty(),
-                        Button::new(crate::i18n::t("Set")).min_size(vec2(width, 28.0)),
+                        Button::new(crate::i18n::t("Set")).min_size(vec2(width, native::control_height())),
                     )
                     .clicked()
                 {
@@ -162,7 +162,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                     .as_ref()
                     .is_some_and(|dict| dict.entries.contains_key(state.word.trim()));
                 if ui
-                    .add_enabled(exists, Button::new(crate::i18n::t("移除")).min_size(vec2(width, 28.0)))
+                    .add_enabled(exists, Button::new(crate::i18n::t("移除")).min_size(vec2(width, native::control_height())))
                     .clicked()
                 {
                     app.commit_lyric();
@@ -182,8 +182,8 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
         let height =
             (viewport_height - (ui.next_widget_position().y - content_top) - 32.0).max(210.0);
         Frame::new()
-            .fill(BACKGROUND)
-            .inner_margin(8)
+            .fill(native::property_list_fill())
+            .inner_margin(0)
             .show(ui, |ui| {
                 ui.set_min_height(height);
                 ui.set_width(ui.available_width());
@@ -191,10 +191,10 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                 let phone_width=(ui.available_width()*0.42).max(25.0);
                 ui.horizontal(|ui| {
                     ui.add_sized(
-                        vec2(half, 24.0),
-                        Label::new(RichText::new(crate::i18n::t("字词")).color(MUTED)),
+                        vec2(half, 28.0),
+                        Label::new(RichText::new(crate::i18n::t("字词")).color(muted_color())),
                     );
-                    ui.add_sized(vec2(phone_width,24.0),Label::new(crate::i18n::t("发音")));
+                    ui.add_sized(vec2(phone_width,28.0),Label::new(crate::i18n::t("发音")));
                     ui.weak(crate::i18n::t("Phoneset"));
                 });
                 ScrollArea::vertical()
@@ -206,7 +206,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                                 ui.horizontal(|ui| {
                                     if ui
                                         .add_sized(
-                                            vec2(half, 26.0),
+                                            vec2(half, 28.0),
                                             Button::selectable(state.word == *word, word),
                                         )
                                         .clicked()
@@ -215,7 +215,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, viewport_height: f32) {
                                         state.phones.clone_from(phones);
                                         state.xsampa=dictionary.xsampa_entries.contains(word);
                                     }
-                                    if ui.add_sized(vec2(phone_width,26.0),Label::new(phones).sense(Sense::click())).clicked() {
+                                    if ui.add_sized(vec2(phone_width,28.0),Label::new(phones).sense(Sense::click())).clicked() {
                                         state.word.clone_from(word);
                                         state.phones.clone_from(phones);
                                         state.xsampa=dictionary.xsampa_entries.contains(word);

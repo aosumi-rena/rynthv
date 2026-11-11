@@ -51,7 +51,7 @@ fn text(ui: &mut Ui, value: impl Into<WidgetText>) {
 }
 
 fn weak(ui: &mut Ui, value: impl Into<String>) {
-    text(ui, RichText::new(value).color(MUTED));
+    text(ui, RichText::new(value).color(muted_color()));
 }
 
 fn error_label(ui: &mut Ui, value: impl Into<String>) {

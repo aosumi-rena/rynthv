@@ -8,7 +8,7 @@ use eframe::egui::*;
 
 pub fn show(app: &mut App, ui: &mut Ui, body: Rect, track: &Track) {
     let row = ui.interact(body, Id::new(("audio-row", track.id)), Sense::click());
-    row.context_menu(|ui| {
+    crate::ui::theme::menu::context_menu(&row,|ui| {
         if ui.button(crate::i18n::t("导入 / 替换音频…")).clicked() {
             ui.close();
             app.import_audio(Some(track.id), ui.ctx());
@@ -29,12 +29,12 @@ pub fn show(app: &mut App, ui: &mut Ui, body: Rect, track: &Track) {
                 crate::i18n::t("双击导入伴奏音频…")
             },
             FontId::proportional(12.0),
-            MUTED,
+            muted_color(),
         );
         if response.double_clicked() {
             app.import_audio(Some(track.id), ui.ctx());
         }
-        response.context_menu(|ui| {
+        crate::ui::theme::menu::context_menu(&response,|ui| {
             if ui.button(crate::i18n::t("导入音频…")).clicked() {
                 ui.close();
                 app.import_audio(Some(track.id), ui.ctx());
@@ -145,7 +145,7 @@ pub fn show(app: &mut App, ui: &mut Ui, body: Rect, track: &Track) {
             beat_width: app.view.arrangement.beat_width,
         });
     }
-    response.context_menu(|ui| {
+    crate::ui::theme::menu::context_menu(&response,|ui| {
         if ui.button(crate::i18n::t("替换音频…")).clicked() {
             ui.close();
             app.import_audio(Some(track.id), ui.ctx());

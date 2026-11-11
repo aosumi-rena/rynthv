@@ -116,8 +116,14 @@ pub fn synthesize(voice:&PreparedVoice,identity:Option<u64>,input:&OwnerInput,
                 source.voice.database_id.starts_with("flat:"),source.voice.revision)
                 .ok_or_else(||VoiceError::new(crate::i18n::t("PHONEME_DATA_REQUIRED")))?;
             let settings=crate::synthesis::settings::SynthesisSettings::load().map_err(VoiceError::new)?;
-            let frontend=LyricFrontend::with_format(settings.require_phoneme_directory(version).map_err(VoiceError::new)?,
-                &source.default_language,&source.supported_languages,version.format())?;
+            let conversion=settings.phone_conversion_for(target_voice.family,source.voice.revision).map_err(VoiceError::new)?;
+            let frontend=if let Some(programme)=conversion {
+                LyricFrontend::with_phone_conversion(settings.require_phoneme_directory(crate::synthesis::settings::PhonemeVersion::R3Ai2).map_err(VoiceError::new)?,
+                    &source.default_language,&source.supported_languages,programme)?
+            } else {
+                LyricFrontend::with_format(settings.require_phoneme_directory(version).map_err(VoiceError::new)?,
+                    &source.default_language,&source.supported_languages,version.format())?
+            };
             let mut target_phrase=crate::synthesis::score::prepare_owner(&other,&frontend,target_voice.model("duration")?,target_voice.family)?;
             if target.inherit_modes {target_phrase.vocal_modes=phrase.vocal_modes.clone();}
             let rendered=super::synthesize(target_voice,identity,&target_phrase,&mut checkpoint)?;

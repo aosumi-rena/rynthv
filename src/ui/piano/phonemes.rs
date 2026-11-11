@@ -59,7 +59,7 @@ pub(super) fn draw(app:&App,ui:&Ui,canvas:Rect,groups:&[SceneGroup]) {
             let error=issues.get(&note.id).cloned().or(error);
             let value=if error.is_some() {"!"} else if !note.phonemes.is_empty() {note.phonemes.as_str()}else{&computed};
             painter.with_clip_rect(label).text(label.left_center()+vec2(4.0,0.0),Align2::LEFT_CENTER,
-                value,FontId::proportional(12.0),if error.is_some(){Color32::LIGHT_RED}else{TEXT});
+                value,FontId::proportional(12.0),if error.is_some(){Color32::LIGHT_RED}else{text_color()});
             if let Some(error)=error {
                 let note_rect=super::canvas::note_rect(note,group.reference.blick_offset,group.reference.pitch_offset,canvas,app);
                 ui.interact(label.union(note_rect).intersect(canvas),ui.id().with(("note-phoneme-error",group.reference.id,note.id)),Sense::hover())

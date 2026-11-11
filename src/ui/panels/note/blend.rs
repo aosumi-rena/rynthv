@@ -28,7 +28,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
                         phones.insert(source.phone_index,phone.token.clone());
                     }}
                 }
-                CollapsingHeader::new(crate::i18n::t("逐音素混合")).id_salt("phone-blend").show(ui,|ui| {
+                crate::ui::theme::native::collapsing(crate::i18n::t("逐音素混合")).id_salt("phone-blend").show(ui,|ui| {
                     if phones.is_empty() {ui.weak(crate::i18n::t("等待音素准备完成。"));}
                     for (index,token) in phones {
                         if let Some(value)=weight(ui,index,&format!("{} · {token}",index+1),local.phones.get(&index).copied(),local.note.unwrap_or(target.weight)) {
@@ -46,7 +46,7 @@ fn weight(ui:&mut Ui,salt:impl std::hash::Hash + std::fmt::Debug,label:&str,orig
     let mut enabled=original.is_some();
     let mut result=None;
     ui.push_id(id,|ui| {
-        if ui.checkbox(&mut enabled,label).changed() {result=Some(enabled.then_some(original.unwrap_or(default)));}
+        if crate::ui::theme::native::checkbox(ui,&mut enabled,label).changed() {result=Some(enabled.then_some(original.unwrap_or(default)));}
         if enabled {
             let mut current=ui.ctx().data(|d|d.get_temp::<f32>(id)).unwrap_or(original.unwrap_or(default));
             let response=ui.add(Slider::new(&mut current,0.0..=1.0));

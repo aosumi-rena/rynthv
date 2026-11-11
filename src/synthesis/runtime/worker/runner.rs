@@ -25,6 +25,7 @@ use std::{
 pub(super) fn run(
     path: PathBuf,
     dictionaries: PathBuf,
+    phone_conversion: Option<PathBuf>,
     duration_key_override: Option<u64>,
     commands: Receiver<Command>,
     events: Events,
@@ -67,7 +68,7 @@ pub(super) fn run(
     if !alive.load(Ordering::Acquire) {
         return;
     }
-    let (inventory, voice, name, version) = match loaded {
+    let (mut inventory, voice, name, version) = match loaded {
         Ok(loaded) => loaded,
         Err(error) => {
             let _ = events.send(Event::Voice {
@@ -83,9 +84,13 @@ pub(super) fn run(
         .as_ref()
         .ok_or_else(|| VoiceError::new("声库缺少语言配置"))
         .and_then(|config| {
-            let frontend=LyricFrontend::for_voice(&dictionaries,config)?;
+            let frontend=LyricFrontend::for_voice_with_conversion(&dictionaries,config,phone_conversion.as_deref())?;
             Ok(frontend)
         });
+    if let Ok(frontend)=&frontend && let Some(identity)=frontend.conversion_identity() {
+        inventory.source_identity.push_str(":phone-conversion:");
+        inventory.source_identity.push_str(identity);
+    }
     if events
         .send(Event::Voice {
             state: VoiceState::Loaded(Box::new(inventory)),

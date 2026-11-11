@@ -20,6 +20,7 @@ pub struct ExperimentalSettings {
     pub growl: bool,
     pub dds_controls: bool,
     pub random_voices: bool,
+    pub phone_conversion: bool,
 }
 
 static UI_FEATURES: AtomicU16 = AtomicU16::new(0);
@@ -35,14 +36,14 @@ impl ExperimentalSettings {
     pub fn active(self, feature: bool) -> bool { self.enabled && feature }
     pub fn publish_ui(self) {
         let values = [self.enabled,self.extended_styles,self.negative_styles,self.extended_expression,
-            self.random_styles,self.component_curves,self.voice_blending,self.component_effects,self.growl,self.dds_controls,self.random_voices];
+            self.random_styles,self.component_curves,self.voice_blending,self.component_effects,self.growl,self.dds_controls,self.random_voices,self.phone_conversion];
         UI_FEATURES.store(values.into_iter().enumerate().fold(0,|bits,(i,v)|bits|((v as u16)<<i)),Ordering::Relaxed);
     }
     pub fn ui() -> Self {
         let bits=UI_FEATURES.load(Ordering::Relaxed);
         let flag=|i:u32|(bits & (1_u16<<i))!=0_u16;
         Self { enabled:flag(0),extended_styles:flag(1),negative_styles:flag(2),extended_expression:flag(3),
-            random_styles:flag(4),component_curves:flag(5),voice_blending:flag(6),component_effects:flag(7),growl:flag(8),dds_controls:flag(9),random_voices:flag(10) }
+            random_styles:flag(4),component_curves:flag(5),voice_blending:flag(6),component_effects:flag(7),growl:flag(8),dds_controls:flag(9),random_voices:flag(10),phone_conversion:flag(11) }
     }
 }
 

@@ -65,9 +65,9 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         let mut action=None;
         ui.scope(|ui| {
             ui.spacing_mut().interact_size.y=28.0;
-            ui.visuals_mut().widgets.inactive.bg_fill=BORDER;
+            ui.visuals_mut().widgets.inactive.bg_fill=border_color();
             ui.visuals_mut().widgets.inactive.corner_radius=CornerRadius::same(4);
-            ComboBox::from_id_salt("voice-preset")
+            crate::ui::theme::native::combo("voice-preset")
                 .width(ui.available_width()).selected_text(label)
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside).show_ui(ui,|ui| {
                     ui.set_min_width(ui.available_width().max(180.0));

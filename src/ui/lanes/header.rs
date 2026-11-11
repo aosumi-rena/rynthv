@@ -46,13 +46,13 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
     ui.spacing_mut().item_spacing.x = 0.0;
     ui.horizontal(|ui| {
         let (r, response) = ui.allocate_exact_size(vec2(48.0, 30.0), Sense::drag());
-        Icon::Curve.paint(ui, r.shrink2(vec2(17.0, 8.0)), MUTED);
+        Icon::Curve.paint(ui, r.shrink2(vec2(17.0, 8.0)), muted_color());
         response.dnd_set_drag_payload(DragPayload::Lane(lane.id));
         selector(app, ui, &mut lane.foreground, &modes,&extra);
         if ui
             .add(
                 IconButton::new(Icon::Swap, crate::i18n::t("交换前景与背景参数"))
-                    .size(vec2(24.0, 30.0))
+                    .native().size(vec2(14.0, 28.0))
                     .icon_size(14.0),
             )
             .clicked()
@@ -63,12 +63,12 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
 
         ui.add_enabled_ui(lane.foreground != Parameter::Rap && super::parameter_unavailable(app,&lane.foreground).is_none(), |ui| {
         ui.add_space(10.0);
-        for (tool, tip) in [
+        for (index,(tool, tip)) in [
             (CurveTool::Point, crate::i18n::t("控制点工具")),
             (CurveTool::Pencil, crate::i18n::t("铅笔工具")),
             (CurveTool::Line, crate::i18n::t("直线工具")),
-        ] {
-            if tool_button(ui, lane.tool == tool, tip, |ui, r, c| {
+        ].into_iter().enumerate() {
+            if tool_button(ui, lane.tool == tool, tip, index, |ui, r, c| {
                 paint_tool(ui, r, c, tool)
             })
             .clicked()
@@ -83,14 +83,14 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
             .and_then(|g| g.automation(&lane.foreground))
             .map_or("cubic", |c| c.mode.as_str())
             .to_owned();
-        for (value, tip) in [
+        for (index,(value, tip)) in [
             ("linear", crate::i18n::t("线性插值")),
             ("cosine", crate::i18n::t("余弦插值")),
             ("cubic", crate::i18n::t("三次样条插值")),
-        ] {
+        ].into_iter().enumerate() {
             if ui
                 .add_enabled_ui(app.editor.reference.is_some(), |ui| {
-                    tool_button(ui, mode == value, tip, |ui, r, c| {
+                    tool_button(ui, mode == value, tip, index, |ui, r, c| {
                         paint_interpolation(ui, r, c, value)
                     })
                 })
@@ -107,7 +107,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
             }
         }
         ui.add_space(10.0);
-        ui.label(RichText::new(crate::i18n::t("缩放")).color(MUTED));
+        ui.label(RichText::new(crate::i18n::t("缩放")).color(muted_color()));
         ui.add(
             DragValue::new(&mut lane.zoom)
                 .range(50.0..=200.0)
@@ -120,7 +120,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, lane: &mut Lane) {
 
 fn selector(app:&App, ui: &mut Ui, parameter: &mut Parameter, modes: &[String],extra:&[Parameter]) {
     let reason=super::parameter_unavailable(app,parameter);
-    let response=ui.menu_button(RichText::new(crate::ui::parameter_label(parameter)).color(if reason.is_some(){MUTED}else{TEXT}), |ui| {
+    let response=crate::ui::theme::menu::button(ui,RichText::new(crate::ui::parameter_label(parameter)).color(if reason.is_some(){muted_color()}else{text_color()}), |ui| {
         let font = TextStyle::Button.resolve(ui.style());
 
         let text_width = Parameter::ALL
@@ -131,7 +131,7 @@ fn selector(app:&App, ui: &mut Ui, parameter: &mut Parameter, modes: &[String],e
             .chain([crate::i18n::t("基本参数"), crate::i18n::t("唱法")].map(str::to_owned))
             .map(|label| {
                 ui.painter()
-                    .layout_no_wrap(label.into(), font.clone(), TEXT)
+                    .layout_no_wrap(label.into(), font.clone(), text_color())
                     .size()
                     .x
             })
@@ -141,7 +141,7 @@ fn selector(app:&App, ui: &mut Ui, parameter: &mut Parameter, modes: &[String],e
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 ui.set_width(width);
-                ui.label(RichText::new(crate::i18n::t("基本参数")).color(MUTED));
+                ui.label(RichText::new(crate::i18n::t("基本参数")).color(muted_color()));
                 for p in Parameter::ALL {
                     let label = crate::ui::parameter_label(&p).into_owned();
                     let reason=super::parameter_unavailable(app,&p);
@@ -150,7 +150,7 @@ fn selector(app:&App, ui: &mut Ui, parameter: &mut Parameter, modes: &[String],e
             });
             ui.vertical(|ui| {
                 ui.set_width(width);
-                ui.label(RichText::new(crate::i18n::t("唱法")).color(MUTED));
+                ui.label(RichText::new(crate::i18n::t("唱法")).color(muted_color()));
                 for name in modes {
                     parameter_option(
                         ui,
@@ -162,7 +162,7 @@ fn selector(app:&App, ui: &mut Ui, parameter: &mut Parameter, modes: &[String],e
                     );
                 }
                 if !extra.is_empty() {
-                    ui.separator();ui.label(RichText::new(crate::i18n::t("实验功能")).color(MUTED));
+                    ui.separator();ui.label(RichText::new(crate::i18n::t("实验功能")).color(muted_color()));
                     for value in extra {parameter_option(ui,parameter,value.clone(),&crate::ui::parameter_label(value),width,super::parameter_unavailable(app,value));}
                 }
             });
@@ -195,59 +195,38 @@ fn tool_button(
     ui: &mut Ui,
     selected: bool,
     tip: &str,
+    index: usize,
     paint: impl FnOnce(&Ui, Rect, Color32),
 ) -> Response {
-    let (r, response) = ui.allocate_exact_size(vec2(34.0, 30.0), Sense::click());
-    if selected || response.hovered() {
-        ui.painter().rect_filled(
-            r.shrink(1.0),
-            2,
-            if selected {
-                BUTTON_ACTIVE
-            } else {
-                BUTTON_HOVER
-            },
-        );
+    let classic = current() == InterfaceTheme::Classic;
+    let size = if classic { vec2(24.0,16.0) } else { vec2(32.0,24.0) };
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+    if classic || selected {
+        let fill = if classic {
+            if selected {Color32::from_rgb(152,153,152)} else {Color32::from_gray(71)}
+        } else {Color32::from_rgb(87,84,89)};
+        let radius=if classic {CornerRadius {nw:if index==0 {3}else{0},sw:if index==0 {3}else{0},ne:if index==2 {3}else{0},se:if index==2 {3}else{0}}} else {CornerRadius::same(3)};
+        ui.painter().rect_filled(rect,radius,fill);
     }
-    paint(
-        ui,
-        r.shrink2(vec2(10.0, 8.0)),
-        if selected { TEXT } else { MUTED },
-    );
+    let ink = if classic {
+        Color32::from_gray(if selected {71} else {166})
+    } else if selected {Color32::from_rgb(239,232,242)} else {Color32::from_rgb(163,157,166)};
+    paint(ui, rect, ink);
     response.on_hover_text(tip)
 }
-fn paint_tool(ui: &Ui, r: Rect, c: Color32, tool: CurveTool) {
-    match tool {
-        CurveTool::Point => Icon::PitchAnchor.paint(ui, r, c),
-        CurveTool::Pencil => {
-            let a = r.left_bottom() + vec2(1.0, -1.0);
-            let b = r.right_top() + vec2(-2.0, 1.0);
-            let n = vec2(-1.8, -1.8);
-            ui.painter().add(Shape::closed_line(
-                vec![a, b, b + n, a + n],
-                Stroke::new(1.4, c),
-            ));
-        }
-        CurveTool::Line => {
-            ui.painter()
-                .line_segment([r.left_bottom(), r.right_top()], Stroke::new(1.4, c));
-            for p in [r.left_bottom(), r.right_top()] {
-                ui.painter().circle_filled(p, 2.5, c);
-            }
-        }
-    }
+fn paint_tool(ui: &Ui, rect: Rect, color: Color32, tool: CurveTool) {
+    let icon = match tool {
+        CurveTool::Point => Icon::ControlPoint,
+        CurveTool::Pencil => Icon::Freehand,
+        CurveTool::Line => Icon::LineTool,
+    };
+    icon.paint_control(ui,rect,color);
 }
-fn paint_interpolation(ui: &Ui, r: Rect, c: Color32, mode: &str) {
-    let points = (0..=24)
-        .map(|i| {
-            let x = i as f32 / 24.0;
-            let y = match mode {
-                "linear" => 1.0 - (2.0 * x - 1.0).abs(),
-                "cosine" => (1.0 - (x * std::f32::consts::PI).cos()) * 0.5,
-                _ => (x * std::f32::consts::PI).sin(),
-            };
-            pos2(r.left() + r.width() * x, r.bottom() - r.height() * y)
-        })
-        .collect();
-    ui.painter().add(Shape::line(points, Stroke::new(1.3, c)));
+fn paint_interpolation(ui: &Ui, rect: Rect, color: Color32, mode: &str) {
+    let icon = match mode {
+        "linear" => Icon::LinearInterpolation,
+        "cosine" => Icon::CosineInterpolation,
+        _ => Icon::SplineInterpolation,
+    };
+    icon.paint_control(ui,rect,color);
 }

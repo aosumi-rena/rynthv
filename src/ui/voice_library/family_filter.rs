@@ -1,4 +1,4 @@
-use crate::{synthesis::voice::{VoiceCatalogEntry, VoiceFamily}, ui::theme::TEXT};
+use crate::{synthesis::voice::{VoiceCatalogEntry, VoiceFamily}, ui::theme::text_color};
 use eframe::egui::*;
 
 pub(super) const LABELS: [&str; 6] = ["R3 AI 2", "R3 AI", "R2 AI", "R2 AI Flat", "R2 STD", "R1 STD"];
@@ -48,7 +48,7 @@ impl FamilyFilter {
 }
 
 fn toggle(ui: &mut Ui, label: &str, selected: bool) -> Response {
-    let galley = ui.painter().layout_no_wrap(label.to_owned(), FontId::proportional(11.0), TEXT);
+    let galley = ui.painter().layout_no_wrap(label.to_owned(), FontId::proportional(11.0), text_color());
     let (rect, response) = ui.allocate_exact_size(vec2(galley.size().x + 12.0, 24.0), Sense::click());
     let accent = ui.visuals().selection.stroke.color;
     let stroke = if selected {
@@ -57,7 +57,7 @@ fn toggle(ui: &mut Ui, label: &str, selected: bool) -> Response {
         Stroke::NONE
     };
     ui.painter().rect_stroke(rect.shrink(0.5), 4, stroke, StrokeKind::Inside);
-    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, TEXT);
+    ui.painter().galley(rect.center() - galley.size() / 2.0, galley, text_color());
     response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), selected, label));
     response.on_hover_cursor(CursorIcon::Default)
 }

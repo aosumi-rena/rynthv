@@ -9,18 +9,18 @@ use eframe::egui::*;
 pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
     let rect = ui.max_rect();
     let rail = Rect::from_min_max(
-        pos2(rect.right() - super::tool_rail::WIDTH, rect.top()),
+        pos2(rect.right() - super::tool_rail::width(), rect.top()),
         rect.max,
     );
     super::tool_rail::show(app, &mut child(ui, rail, "tool-rail"));
-    let main = Rect::from_min_max(rect.min, pos2(rail.left() - 5.0, rect.bottom()));
+    let main = Rect::from_min_max(rect.min, pos2(rail.left() - metrics().column_gap, rect.bottom()));
     let columns = app.view.columns.clone();
     let panels = columns.len() - 1;
     let panel_width = app
         .view
         .panel_width
-        .min(((main.width() - 330.0) / panels.max(1) as f32 - 5.0).max(72.0));
-    let editor_width = (main.width() - panels as f32 * (panel_width + 5.0)).max(200.0);
+        .min(((main.width() - 330.0) / panels.max(1) as f32 - metrics().column_gap).max(72.0));
+    let editor_width = (main.width() - panels as f32 * (panel_width + metrics().column_gap)).max(200.0);
     let mut x = main.left();
     let mut drop = None;
     for (index, column) in columns.iter().enumerate() {
@@ -44,16 +44,16 @@ pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
                     ui.input(|i| i.pointer.hover_pos().is_some_and(|p| p.x < r.center().x));
                 let target = if before { r.left() } else { r.right() };
                 ui.painter()
-                    .vline(target, r.y_range(), Stroke::new(3.0, GREEN));
+                    .vline(target, r.y_range(), Stroke::new(3.0, accent_color()));
                 if ui.input(|i|i.pointer.any_released()) {
                     DragAndDrop::take_payload::<DragPayload>(ui.ctx());
                     drop = Some((source, index + usize::from(!before)));
                 }
             }
         }
-        x += width + 5.0;
+        x += width + metrics().column_gap;
         if index + 1 < columns.len() {
-            let divider = Rect::from_min_size(pos2(x - 5.0, r.top()), vec2(5.0, r.height()));
+            let divider = Rect::from_min_size(pos2(x - metrics().column_gap - 2.5, r.top()), vec2(5.0, r.height()));
             let response = ui
                 .interact(divider, Id::new(("column-divider", column)), Sense::drag())
                 .on_hover_cursor(CursorIcon::ResizeHorizontal);
@@ -82,11 +82,11 @@ pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
 }
 fn editor(app: &mut App, ui: &mut Ui,seeked:bool) {
     let rect = ui.max_rect();
-    let available = (rect.height() - 5.0).max(0.0);
+    let available = (rect.height() - metrics().editor_gap).max(0.0);
     let arrangement_height = if app.view.arrangement_collapsed {
-        42.0
+        metrics().arrangement_header_height
     } else if app.piano_collapsed {
-        available - super::piano::TOOLBAR_HEIGHT
+        available - super::piano::toolbar_height()
     } else {
         app.view
             .arrangement_height
@@ -94,7 +94,7 @@ fn editor(app: &mut App, ui: &mut Ui,seeked:bool) {
     }
     .clamp(0.0, available);
     let piano_height = if app.piano_collapsed {
-        super::piano::TOOLBAR_HEIGHT.min(available - arrangement_height)
+        super::piano::toolbar_height().min(available - arrangement_height)
     } else {
         available - arrangement_height
     };
@@ -102,34 +102,34 @@ fn editor(app: &mut App, ui: &mut Ui,seeked:bool) {
         let y = rect.top() + arrangement_height;
         (
             Rect::from_min_max(rect.min, pos2(rect.right(), y)),
-            Rect::from_min_size(pos2(rect.left(), y + 5.0), vec2(rect.width(), piano_height)),
-            Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), 5.0)),
+            Rect::from_min_size(pos2(rect.left(), y + metrics().editor_gap), vec2(rect.width(), piano_height)),
+            Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), metrics().editor_gap.max(5.0))),
         )
     } else {
         let y = rect.top() + piano_height;
         (
             Rect::from_min_size(
-                pos2(rect.left(), y + 5.0),
+                pos2(rect.left(), y + metrics().editor_gap),
                 vec2(rect.width(), arrangement_height),
             ),
             Rect::from_min_max(rect.min, pos2(rect.right(), y)),
-            Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), 5.0)),
+            Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), metrics().editor_gap.max(5.0))),
         )
     };
     if seeked {
-        let gutter=250.0_f32.min(arrangement.width()*0.36);
+        let gutter=metrics().arrangement_gutter(arrangement.width());
         super::timeline::reveal(&mut app.view.arrangement,arrangement.width()-gutter,app.editor.transport.position);
-        super::timeline::reveal(&mut app.view.piano,piano.width()-super::timeline::GUTTER,app.editor.transport.position);
+        super::timeline::reveal(&mut app.view.piano,piano.width()-super::timeline::gutter(),app.editor.transport.position);
     }
     let position=app.editor.transport.position;
     super::arrangement::show(app, &mut child(ui, arrangement, "arrangement"));
     if position!=app.editor.transport.position {
-        super::timeline::reveal(&mut app.view.piano,piano.width()-super::timeline::GUTTER,app.editor.transport.position);
+        super::timeline::reveal(&mut app.view.piano,piano.width()-super::timeline::gutter(),app.editor.transport.position);
     }
     let position=app.editor.transport.position;
     piano_stack(app, &mut child(ui, piano, "piano-stack"));
     if position!=app.editor.transport.position {
-        let gutter=250.0_f32.min(arrangement.width()*0.36);
+        let gutter=metrics().arrangement_gutter(arrangement.width());
         super::timeline::reveal(&mut app.view.arrangement,arrangement.width()-gutter,app.editor.transport.position);
         ui.ctx().request_repaint();
     }
@@ -157,7 +157,7 @@ fn editor(app: &mut App, ui: &mut Ui,seeked:bool) {
             ui.painter().hline(
                 rect.x_range(),
                 if first { rect.top() } else { rect.bottom() },
-                Stroke::new(3.0, GREEN),
+                Stroke::new(3.0, accent_color()),
             );
             if response.dnd_release_payload::<DragPayload>().is_some() {
                 app.view.arrangement_first = if matches!(*payload, DragPayload::Arrangement) {
@@ -171,13 +171,13 @@ fn editor(app: &mut App, ui: &mut Ui,seeked:bool) {
 }
 fn piano_stack(app: &mut App, ui: &mut Ui) {
     let rect = ui.max_rect();
-    let toolbar = Rect::from_min_size(rect.min, vec2(rect.width(), super::piano::TOOLBAR_HEIGHT));
-    let tabs = Rect::from_min_max(pos2(rect.left(), rect.bottom() - 28.0), rect.max);
-    ui.painter().rect_filled(rect, 4, PANEL);
+    let toolbar = Rect::from_min_size(rect.min, vec2(rect.width(), super::piano::toolbar_height()));
+    let tabs = Rect::from_min_max(pos2(rect.left(), rect.bottom() - metrics().lane_tabs_height), rect.max);
+    ui.painter().rect_filled(rect.shrink(metrics().surface_inset), metrics().surface_radius, panel_color());
     ui.painter()
-        .rect_stroke(rect, 4, Stroke::new(1.0, BORDER), StrokeKind::Inside);
+        .rect_stroke(rect.shrink(metrics().surface_inset), metrics().surface_radius, Stroke::new(1.0, border_color()), StrokeKind::Inside);
     super::piano::toolbar(app, &mut child(ui, toolbar, "piano-toolbar"));
-    if app.piano_collapsed || rect.height() <= super::piano::TOOLBAR_HEIGHT {
+    if app.piano_collapsed || rect.height() <= super::piano::toolbar_height() {
         return;
     }
     let lanes: Vec<_> = app
@@ -232,7 +232,7 @@ fn piano_stack(app: &mut App, ui: &mut Ui) {
             let response = ui.interact(r, Id::new(("lane-drop", lane.id)), Sense::hover());
             if response.contains_pointer() {
                 ui.painter()
-                    .hline(r.x_range(), r.top(), Stroke::new(3.0, GREEN));
+                    .hline(r.x_range(), r.top(), Stroke::new(3.0, accent_color()));
                 if response.dnd_release_payload::<DragPayload>().is_some() {
                     reorder = Some((source, lane.id));
                 }

@@ -101,6 +101,7 @@ impl Worker {
     pub fn spawn(
         path: PathBuf,
         dictionaries: PathBuf,
+        phone_conversion: Option<PathBuf>,
         duration_key_override: Option<u64>,
         repaint: eframe::egui::Context,
     ) -> Result<Self, String> {
@@ -117,6 +118,7 @@ impl Worker {
                 run(
                     path,
                     dictionaries,
+                    phone_conversion,
                     duration_key_override,
                     commands,
                     Events::new(events, repaint),

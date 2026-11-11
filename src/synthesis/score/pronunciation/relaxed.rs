@@ -15,14 +15,14 @@ pub(super) fn apply(words: &mut [Word], tree: &PreparedTree,frontend:&super::Lyr
         let (next_w,next_s) = pair[1];
         if words[w].lyrics.starts_with('.') {continue;}
         let Some(first) = words[next_w].syllables[next_s].first() else {continue;};
-        let following = frontend.resolve_token(Language::English,first,tree)?.source_class;
+        let following = frontend.phone_class(Language::English,first,tree)?;
         let same = words[w].syllables[s].last() == Some(first);
         let beats = words[w].beats / words[w].syllables.len() as f64;
         let syllable = &mut words[w].syllables[s];
         let Some(last) = syllable.last() else {continue;};
-        let last_class = frontend.resolve_token(Language::English,last,tree)?.source_class;
+        let last_class = frontend.phone_class(Language::English,last,tree)?;
         let previous_class = if syllable.len()>1 {
-            frontend.resolve_token(Language::English,&syllable[syllable.len()-2],tree)?.source_class
+            frontend.phone_class(Language::English,&syllable[syllable.len()-2],tree)?
         } else {None};
         if matches!(last.as_str(), "t"|"d") && matches!(following, Some("vowel"|"diphthong")) {
             *syllable.last_mut().expect("nonempty") = "dx".into();

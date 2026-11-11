@@ -13,10 +13,10 @@ use crate::{
 use eframe::egui::*;
 use std::{collections::BTreeMap, path::PathBuf};
 
-const SURFACE: Color32 = Color32::from_rgb(27, 27, 27);
-const CARD: Color32 = Color32::from_rgb(38, 38, 38);
+fn manager_surface_color() -> Color32 { palette().manager_surface }
+fn manager_card_color() -> Color32 { palette().manager_card }
 const ACCENT: Color32 = Color32::from_rgb(120, 214, 24);
-const INK: Color32 = Color32::from_rgb(242, 242, 242);
+fn manager_ink_color() -> Color32 { palette().manager_ink }
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 enum Sort {
@@ -81,7 +81,7 @@ fn show(app: &mut App, ctx: &Context, state: &mut State) {
         .backdrop_color(Color32::from_black_alpha(105))
         .frame(
             Frame::new()
-                .fill(SURFACE)
+                .fill(manager_surface_color())
                 .corner_radius(5)
                 .stroke(Stroke::new(1.0, Color32::from_rgb(50, 50, 50))),
         )
@@ -117,8 +117,8 @@ fn show(app: &mut App, ctx: &Context, state: &mut State) {
                     }
                     if let Some(error) = app.synthesis.library.settings_error() {
                         error_label(ui, crate::i18n::t("无法读取声库列表"));
-                        ui.collapsing(crate::i18n::t("查看原因"), |ui| error_label(ui, error));
-                        ui.menu_button(crate::i18n::t("选择声库目录…"), |ui| {
+                        crate::ui::theme::native::collapsing(crate::i18n::t("查看原因")).show(ui, |ui| error_label(ui, error));
+                        crate::ui::theme::menu::button(ui,crate::i18n::t("选择声库目录…"), |ui| {
                             paths::directory_menu(app, ui)
                         });
                         return;
@@ -137,8 +137,8 @@ fn show(app: &mut App, ctx: &Context, state: &mut State) {
                                 crate::i18n::t("无法读取声库目录")
                             },
                         );
-                        ui.collapsing(crate::i18n::t("查看原因"), |ui| error_label(ui, error));
-                        ui.menu_button(crate::i18n::t("选择声库目录…"), |ui| {
+                        crate::ui::theme::native::collapsing(crate::i18n::t("查看原因")).show(ui, |ui| error_label(ui, error));
+                        crate::ui::theme::menu::button(ui,crate::i18n::t("选择声库目录…"), |ui| {
                             paths::directory_menu(app, ui)
                         });
                         ui.add_space(12.0);
@@ -160,7 +160,7 @@ fn show(app: &mut App, ctx: &Context, state: &mut State) {
 
 fn empty(app: &mut App, ui: &mut Ui, state: &mut State) {
     Frame::new()
-        .fill(CARD)
+        .fill(manager_card_color())
         .corner_radius(13)
         .inner_margin(28)
         .show(ui, |ui| {
@@ -185,7 +185,7 @@ fn empty(app: &mut App, ui: &mut Ui, state: &mut State) {
                         .font(section_title_font())
                         .size(16.0),
                 );
-                ui.menu_button(crate::i18n::t("选择声库目录…"), |ui| paths::directory_menu(app, ui));
+                crate::ui::theme::menu::button(ui,crate::i18n::t("选择声库目录…"), |ui| paths::directory_menu(app, ui));
             }
         });
 }

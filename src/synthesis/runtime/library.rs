@@ -196,9 +196,11 @@ impl Runtime {
     }
     pub fn set_experiments(&mut self, experiments:crate::synthesis::experiments::ExperimentalSettings) {
         let mut settings=self.library.settings.clone();
+        let reload=settings.experiments.active(settings.experiments.phone_conversion)!=experiments.active(experiments.phone_conversion);
         settings.experiments=experiments;
         if self.library.update(settings) {
             experiments.publish_ui();
+            if reload {self.rescan_voices();self.visuals.clear();self.phonemes.clear();return;}
             self.request_serial=self.request_serial.wrapping_add(1);
             self.last_revision=None;
             self.export_owners.clear();
@@ -262,6 +264,14 @@ impl Runtime {
     pub fn set_phoneme_data(&mut self,version:crate::synthesis::settings::PhonemeVersion,path:Option<PathBuf>) {
         let mut settings=self.library.settings.clone();settings.phoneme_data.set(version,path);
         if settings!=self.library.settings && self.library.update(settings){self.rescan_voices();}
+    }
+    pub fn set_phone_conversion(&mut self,path:Option<PathBuf>) {
+        let error=path.as_deref().and_then(|path|crate::synthesis::phone_conversion::PhoneConversion::load(path).err()).map(|error|error.to_string());
+        let mut settings=self.library.settings.clone();settings.phone_conversion=path;
+        if self.library.update(settings) {
+            self.rescan_voices();self.visuals.clear();self.phonemes.clear();
+            self.library.settings_error=error;
+        }
     }
     pub fn set_flat_directories(&mut self,databases:Option<PathBuf>,models:Option<PathBuf>) {
         let mut settings=self.library.settings.clone();settings.r2_ai_flat_databases=databases;settings.r2_ai_flat_models=models;

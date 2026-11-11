@@ -1,5 +1,5 @@
 use super::{geometry, *};
-use crate::ui::{group_geometry::clip_rect, theme::GREEN};
+use crate::ui::{group_geometry::clip_rect, theme::accent_color};
 
 pub(in crate::ui::piano) fn draw(app: &App, ui: &Ui, canvas: Rect) {
     if app.piano_tool != Tool::PitchAnchor {
@@ -35,7 +35,7 @@ pub(in crate::ui::piano) fn draw(app: &App, ui: &Ui, canvas: Rect) {
             PitchControl::Point(point) => {
                 let position = geometry::screen(app, canvas, reference, point.pos, point.pitch);
                 let selected = app.piano_anchor.ids.contains(&point.id);
-                let color = if selected { Color32::WHITE } else { GREEN };
+                let color = if selected { Color32::WHITE } else { accent_color() };
                 painter.circle_filled(position, 3.0, color);
                 painter.circle_stroke(
                     position,
@@ -59,7 +59,7 @@ pub(in crate::ui::piano) fn draw(app: &App, ui: &Ui, canvas: Rect) {
         && let Some(pointer) = ui.input(|input| input.pointer.interact_pos())
         && let Some(rect) = gesture.selection_rect(pointer)
     {
-        painter.rect_filled(rect, 0, GREEN.gamma_multiply(0.12));
-        painter.rect_stroke(rect, 0, Stroke::new(1.0, GREEN), StrokeKind::Inside);
+        painter.rect_filled(rect, 0, accent_color().gamma_multiply(0.12));
+        painter.rect_stroke(rect, 0, Stroke::new(1.0, accent_color()), StrokeKind::Inside);
     }
 }

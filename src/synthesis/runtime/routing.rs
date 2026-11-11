@@ -104,6 +104,7 @@ impl Runtime {
                 worker::Worker::spawn(
                     entry.directory.clone(),
                     dictionaries.to_owned(),
+                    self.library.settings.converter_for(entry)?.map(ToOwned::to_owned),
                     self.library.settings.duration_key_override_for(&key),
                     self.repaint.clone(),
                 )

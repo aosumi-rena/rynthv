@@ -1,7 +1,7 @@
 use serde::Serialize;
 use std::collections::HashMap;
 pub(super) mod resource;
-pub use resource::{symbol as resource_phone_symbol, token as resource_phone_token};
+pub use resource::{symbol as resource_phone_symbol, token as resource_phone_token, converted_token as converted_phone_token,is_converted as is_converted_phone};
 
 use super::{Result, VoiceError, array, range, sum, u32_at};
 

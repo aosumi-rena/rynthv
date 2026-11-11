@@ -6,6 +6,7 @@ use std::path::Path;
 #[serde(default, deny_unknown_fields)]
 pub struct Preferences {
     pub language: crate::i18n::Language,
+    pub theme: crate::ui::theme::InterfaceTheme,
     pub zoom: f32,
     pub show_status_bar: bool,
     pub control_hints: bool,
@@ -21,6 +22,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             language: Default::default(),
+            theme: Default::default(),
             zoom: 1.0,
             show_status_bar: true,
             control_hints: false,
@@ -45,8 +47,8 @@ impl Preferences {
         };
         let value: Self =
             serde_json::from_slice(&bytes).map_err(|e| crate::lformat!("无法读取界面设置：{e}"))?;
-        if !value.zoom.is_finite() || !(0.75..=2.0).contains(&value.zoom) {
-            return Err(crate::i18n::t("界面缩放必须为 75% 至 200%").into());
+        if !value.zoom.is_finite() || !(0.25..=2.0).contains(&value.zoom) {
+            return Err(crate::i18n::t("界面缩放必须为 25% 至 200%").into());
         }
         if !value.background_transparency.is_finite() || !(0.0..=1.0).contains(&value.background_transparency) {
             return Err(crate::i18n::t("图像透明度必须为 0% 至 100%").into());
@@ -56,6 +58,7 @@ impl Preferences {
 
     pub fn apply(&self, ctx: &Context) {
         crate::i18n::set_language(self.language);
+        crate::ui::theme::apply(ctx, self.theme);
         ctx.set_zoom_factor(self.zoom);
         ctx.style_mut_of(eframe::egui::Theme::Dark, |style| {
             style.explanation_tooltips = self.control_hints

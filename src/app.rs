@@ -49,6 +49,7 @@ pub struct App {
     pub parameter_lane: ui::lanes::ParameterSelection,
     pub phoneme_focus: Option<(EntityId, Option<EntityId>)>,
     pub show_pitch: bool,
+    pub show_output_pitch: bool,
     pub show_waveform: bool,
     pub show_retakes: bool,
     pub show_time_tracks: bool,
@@ -77,9 +78,9 @@ pub struct App {
 }
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, path: Option<PathBuf>) -> Self {
-        ui::theme::install(&cc.egui_ctx);
         egui_extras::install_image_loaders(&cc.egui_ctx);
         let mut error = ui::theme::fonts(&cc.egui_ctx).err();
+        ui::theme::install(&cc.egui_ctx);
         let settings_path = match rynthv::platform::config_directory() {
             Ok(directory) => Some(directory.join("workspace.json")),
             Err(message) => {
@@ -135,6 +136,7 @@ impl App {
             parameter_lane: Default::default(),
             phoneme_focus: None,
             show_pitch: true,
+            show_output_pitch: true,
             show_waveform: true,
             show_retakes: true,
             show_time_tracks: true,
@@ -447,14 +449,16 @@ impl eframe::App for App {
         );
         ctx.send_viewport_cmd(ViewportCommand::Title(title));
         let rect = ui.max_rect();
-        ui.painter().rect_filled(rect, 0, ui::theme::BACKGROUND);
-        let menu = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + 27.0));
+        ui.painter().rect_filled(rect, 0, ui::theme::background_color());
+        let menu = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + ui::theme::metrics().menu_height));
         ui::chrome::menus(self, &mut ui::child(ui, menu, "menu"));
         let transport = Rect::from_min_max(
             pos2(rect.left(), menu.bottom()),
-            pos2(rect.right(), menu.bottom() + 44.0),
+            pos2(rect.right(), menu.bottom() + ui::theme::metrics().transport_height),
         );
-        ui::transport::show(self, &mut ui::child(ui, transport, "transport"));
+        if ui::theme::metrics().transport_height > 0.0 {
+            ui::transport::show(self, &mut ui::child(ui, transport, "transport"));
+        }
         let status_height = if self.preferences.show_status_bar {
             23.0
         } else {
@@ -462,8 +466,8 @@ impl eframe::App for App {
         };
         let status = Rect::from_min_max(pos2(rect.left(), rect.bottom() - status_height), rect.max);
         let work = Rect::from_min_max(
-            pos2(rect.left() + 5.0, transport.bottom()),
-            pos2(rect.right() - 5.0, status.top() - 4.0),
+            pos2(rect.left() + ui::theme::metrics().workspace_inset, transport.bottom()),
+            pos2(rect.right() - ui::theme::metrics().workspace_inset, status.top()),
         );
         let seeked=transport_position!=self.editor.transport.position;
         ui::workspace::show(self, &mut ui::child(ui, work, "workspace"),seeked);
@@ -485,12 +489,12 @@ impl eframe::App for App {
                 } else {
                     &self.status
                 };
-                ui.label(RichText::new(crate::i18n::message(hint)).size(11.0).color(ui::theme::MUTED));
+                ui.label(RichText::new(crate::i18n::message(hint)).size(11.0).color(ui::theme::muted_color()));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
                         RichText::new(crate::i18n::message(self.synthesis.status()))
                             .size(11.0)
-                            .color(ui::theme::MUTED),
+                            .color(ui::theme::muted_color()),
                     );
                 });
             });

@@ -1,13 +1,9 @@
 use super::{Viewport, grid_step, x_at};
 use crate::{
     model::{TimeAxis, beats},
-    ui::theme::{EDGE, TEXT},
+    ui::theme::{edge_color, text_color, palette, current, InterfaceTheme},
 };
 use eframe::egui::*;
-
-const BEAT_LINE: Color32 = Color32::from_rgb(70, 68, 73);
-const SUBDIVISION_LINE: Color32 = Color32::from_rgb(53, 52, 55);
-const BAR_LINE: Color32 = Color32::from_rgb(105, 102, 108);
 
 fn visible_end(rect: Rect, view: &Viewport) -> f64 {
     view.start + rect.width() as f64 / view.beat_width as f64
@@ -29,7 +25,7 @@ pub fn grid(ui: &Ui, rect: Rect, view: &Viewport, time: &TimeAxis, step: f64) {
             rect.y_range(),
             Stroke::new(
                 if whole { 1.0 } else { 0.75 },
-                if whole { BEAT_LINE } else { SUBDIVISION_LINE },
+                if whole { palette().beat_line } else { palette().subdivision_line },
             ),
         );
     }
@@ -37,7 +33,7 @@ pub fn grid(ui: &Ui, rect: Rect, view: &Viewport, time: &TimeAxis, step: f64) {
         painter.vline(
             x_at(rect, view, beat),
             rect.y_range(),
-            Stroke::new(1.0, BAR_LINE),
+            Stroke::new(1.0, palette().bar_line),
         );
     }
 }
@@ -50,36 +46,36 @@ pub fn draw_ruler(ui: &Ui, rect: Rect, view: &Viewport, time: &TimeAxis, step: f
         painter.vline(
             x_at(rect, view, beat),
             baseline - 16.0..=baseline,
-            Stroke::new(1.0, BEAT_LINE),
+            Stroke::new(1.0, palette().beat_line),
         );
     }
     for (beat, index, _, _) in time.bars(visible_end(rect, view) + 1.0) {
         let x = x_at(rect, view, beat);
-        painter.vline(x, baseline - 32.0..=baseline, Stroke::new(1.0, BAR_LINE));
+        painter.vline(x, (baseline - 32.0).max(rect.top())..=baseline, Stroke::new(1.0, palette().bar_line));
         let text =
-            painter.layout_no_wrap((index + 1).to_string(), FontId::proportional(12.0), TEXT);
-        let pos = pos2(x + 7.0, baseline - 25.0 - text.size().y / 2.0);
+            painter.layout_no_wrap((index + 1).to_string(), FontId::proportional(12.0), text_color());
+        let pos = pos2(x + 7.0, baseline - if current() == InterfaceTheme::Classic { 7.5 } else { 25.0 } - text.size().y / 2.0);
         if Rect::from_min_size(pos, text.size()).intersects(painter.clip_rect()) {
-            painter.galley(pos, text, TEXT);
+            painter.galley(pos, text, text_color());
         }
     }
-    painter.hline(rect.x_range(), baseline, Stroke::new(1.0, EDGE));
+    painter.hline(rect.x_range(), baseline, Stroke::new(1.0, edge_color()));
 }
 
 pub fn playhead_line(ui: &Ui, rect: Rect, view: &Viewport, position: i64) {
     let x = x_at(rect, view, beats(position));
     ui.painter()
         .with_clip_rect(rect.intersect(ui.clip_rect()))
-        .vline(x, rect.y_range(), Stroke::new(1.0, TEXT));
+        .vline(x, rect.y_range(), Stroke::new(1.0, palette().playhead));
 }
 
 pub fn playhead(ui: &Ui, rect: Rect, baseline: f32, view: &Viewport, position: i64) {
-    playhead_color(ui,rect,baseline,view,position,TEXT);
+    playhead_color(ui,rect,baseline,view,position,palette().playhead);
 }
 
 pub fn hover_playhead(ui: &Ui, rect: Rect, baseline: f32, view: &Viewport, position: i64) {
     playhead_color(ui,rect,baseline,view,position,
-        Color32::from_rgba_unmultiplied(TEXT.r(),TEXT.g(),TEXT.b(),128));
+        Color32::from_rgba_unmultiplied(palette().playhead.r(),palette().playhead.g(),palette().playhead.b(),128));
 }
 
 fn playhead_color(ui: &Ui, rect: Rect, baseline: f32, view: &Viewport, position: i64, color: Color32) {

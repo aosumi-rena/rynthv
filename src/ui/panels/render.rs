@@ -34,11 +34,11 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
         ui.horizontal(|ui| {
             let width = (ui.available_width() - 34.0).max(20.0);
             ui.add_sized(
-                vec2(width, 28.0),
+                vec2(width, native::control_height()),
                 TextEdit::singleline(&mut directory)
                     .vertical_align(Align::Center)
                     .margin(vec2(7.0, 5.0))
-                    .background_color(BORDER),
+                    .background_color(border_color()),
             );
             if folder_button(ui).clicked() {
                 let mut picker = rfd::FileDialog::new().set_title(crate::i18n::t("选择导出文件夹"));
@@ -60,7 +60,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
         export_clicked = ui
             .add_enabled(
                 ready,
-                Button::new(crate::i18n::t("导出为文件")).min_size(vec2(ui.available_width(), 28.0)),
+                Button::new(crate::i18n::t("导出为文件")).min_size(vec2(ui.available_width(), native::control_height())),
             )
             .clicked();
         if app.synthesis.is_exporting() {
@@ -91,13 +91,13 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
         Frame::new()
-            .fill(BACKGROUND)
-            .inner_margin(4)
+            .fill(native::property_list_fill())
+            .inner_margin(3)
             .show(ui, |ui| {
-                ui.set_min_height(190.0);
+                ui.set_min_height(192.0);
                 ui.set_width(ui.available_width());
-                ui.spacing_mut().item_spacing.y = 3.0;
-                track_row(ui, &mut mix, crate::i18n::t("混音导出"), TEXT);
+                ui.spacing_mut().item_spacing.y = 0.0;
+                track_row(ui, &mut mix, crate::i18n::t("混音导出"), text_color());
                 for (_, name, enabled, color) in &mut tracks {
                     track_row(ui, enabled, name, *color);
                 }
@@ -105,7 +105,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
         config.insert("exportMixDown".into(), mix.into());
         pair(ui, |ui, width| {
             if ui
-                .add_sized(vec2(width, 28.0), Button::new(crate::i18n::t("全选")))
+                .add_sized(vec2(width, native::control_height()), Button::new(crate::i18n::t("全选")))
                 .clicked()
             {
                 config.insert("exportMixDown".into(), true.into());
@@ -114,7 +114,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
                 }
             }
             if ui
-                .add_sized(vec2(width, 28.0), Button::new(crate::i18n::t("取消全选")))
+                .add_sized(vec2(width, native::control_height()), Button::new(crate::i18n::t("取消全选")))
                 .clicked()
             {
                 config.insert("exportMixDown".into(), false.into());
@@ -243,8 +243,9 @@ fn numeric(ui: &mut Ui, config: &mut Extra, key: &str, label: &str, values: &[(u
     config.insert(key.into(), value.into());
 }
 fn track_row(ui: &mut Ui, checked: &mut bool, name: &str, color: Color32) {
+    ui.spacing_mut().interact_size.y=24.0;
     let row = Frame::new()
-        .fill(PANEL)
+        .fill(panel_color())
         .corner_radius(2)
         .inner_margin(Margin {
             left: 12,
@@ -254,7 +255,7 @@ fn track_row(ui: &mut Ui, checked: &mut bool, name: &str, color: Color32) {
         })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.checkbox(checked, name);
+            crate::ui::theme::native::checkbox(ui,checked, name);
         });
     ui.painter().rect_filled(
         Rect::from_min_size(row.response.rect.min, vec2(3.0, row.response.rect.height())),
@@ -268,27 +269,13 @@ fn folder_button(ui: &mut Ui) -> Response {
         rect,
         3,
         if response.hovered() {
-            BUTTON_HOVER
+            button_hover_color()
         } else {
-            BORDER
+            border_color()
         },
-        Stroke::new(0.6, BUTTON),
+        Stroke::new(0.6, button_color()),
         StrokeKind::Inside,
     );
-    let c = rect.center();
-    let points = [
-        (-5.5, -3.0),
-        (-5.5, -5.0),
-        (-1.0, -5.0),
-        (1.0, -3.0),
-        (5.5, -3.0),
-        (5.5, 5.0),
-        (-5.5, 5.0),
-        (-5.5, -3.0),
-    ];
-    ui.painter().add(Shape::line(
-        points.into_iter().map(|(x, y)| c + vec2(x, y)).collect(),
-        Stroke::new(1.1, MUTED),
-    ));
+    crate::ui::icons::Icon::Folder.paint(ui, Rect::from_center_size(rect.center(),vec2(16.0,16.0)),muted_color());
     response.on_hover_text(crate::i18n::t("选择目标文件夹"))
 }

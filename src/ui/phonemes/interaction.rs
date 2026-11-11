@@ -43,7 +43,7 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, ce
     if let Some(c) = pointer.and_then(hit) {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
         ui.painter()
-            .vline(c.rect.left(), canvas.y_range(), Stroke::new(1.0, TEXT));
+            .vline(c.rect.left(), canvas.y_range(), Stroke::new(1.0, text_color()));
     }
     if response.double_clicked()
         && let Some(c) = pointer.and_then(|p| {
@@ -207,7 +207,7 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, ce
                     pos2(cell.rect.right(), body.canvas.bottom()),
                 );
                 let painter = ui.painter().with_clip_rect(canvas);
-                painter.rect_filled(area, 0, PANEL);
+                painter.rect_filled(area, 0, panel_color());
                 super::draw::body(
                     &painter,
                     &cell,
@@ -239,7 +239,7 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, ce
                     crate::model::beats(g.tempo.position_at(g.current).0),
                 );
                 ui.painter()
-                    .vline(x, canvas.y_range(), Stroke::new(1.0, GREEN));
+                    .vline(x, canvas.y_range(), Stroke::new(1.0, accent_color()));
             }
             g.frame = ui.ctx().cumulative_frame_nr();
         }

@@ -59,11 +59,11 @@ pub(super) fn show(ui: &mut Ui) {
                 ui.label(*label);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     Frame::new()
-                        .fill(BUTTON)
+                        .fill(button_color())
                         .corner_radius(3)
                         .inner_margin(Margin::symmetric(8, 4))
                         .show(ui, |ui| {
-                            ui.label(RichText::new(crate::ui::chrome::shortcut_text(key)).color(TEXT));
+                            ui.label(RichText::new(crate::ui::chrome::shortcut_text(key)).color(text_color()));
                         });
                 });
             });

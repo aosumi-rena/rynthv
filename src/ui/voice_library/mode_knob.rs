@@ -1,9 +1,6 @@
+use crate::ui::theme::palette;
 use eframe::egui::*;
 
-const ARC: Color32 = Color32::from_rgb(71,69,74);
-const ACTIVE: Color32 = Color32::from_rgb(239,232,242);
-const KNOB: Color32 = Color32::from_rgb(63,60,64);
-const CAPTION: Color32 = Color32::from_rgb(163,157,166);
 
 #[derive(Clone)]
 struct Draft {
@@ -96,22 +93,22 @@ pub(super) fn show(ui: &mut Ui, rect: Rect, id: Id, source: [Option<f64>;3],
         value = component.map_or_else(|| values.into_iter().fold(f64::NEG_INFINITY,f64::max),|index| values[index]);
     }
     if component.is_some() {
-        arc(&painter,center,16.0,high,ARC);
-        arc(&painter,center,16.0,value,ACTIVE);
+        arc(&painter,center,16.0,high,palette().mode_arc);
+        arc(&painter,center,16.0,value,palette().mode_active);
     } else {
 
         for (radius,value) in [20.0,25.0,30.0].into_iter().zip(values) {
-            arc(&painter,center,radius,high,ARC);
-            arc(&painter,center,radius,value,ACTIVE);
+            arc(&painter,center,radius,high,palette().mode_arc);
+            arc(&painter,center,radius,value,palette().mode_active);
         }
     }
     let radius = if component.is_some() {12.0} else {16.0};
-    painter.circle(center,radius,KNOB,Stroke::new(0.8,ARC));
+    painter.circle(center,radius,palette().mode_knob,Stroke::new(0.8,palette().mode_arc));
     let angle = (135.0+((value-low)/(high-low)) as f32*270.0).to_radians();
-    painter.line_segment([center,center+vec2(angle.cos(),angle.sin())*(radius-2.0)],Stroke::new(2.0,ACTIVE));
+    painter.line_segment([center,center+vec2(angle.cos(),angle.sin())*(radius-2.0)],Stroke::new(2.0,palette().mode_active));
     let caption = if hovered {format!("{value:.0} %")} else {label.to_owned()};
     if !editing {painter.text(caption_rect.center(),
-        Align2::CENTER_CENTER,caption,FontId::proportional(12.0),CAPTION);}
+        Align2::CENTER_CENTER,caption,FontId::proportional(12.0),palette().mode_caption);}
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Slider,enabled,label));
     if let Some(reason) = unavailable {response.clone().on_hover_text(crate::i18n::message(reason));}
     let commit = if explicit_commit.is_some() {explicit_commit}

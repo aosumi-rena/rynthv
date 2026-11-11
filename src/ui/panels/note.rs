@@ -89,7 +89,7 @@ fn language(app: &mut App, ui: &mut Ui, notes: &[Note]) {
         Language::parse(&selected).map_or_else(|| selected.clone(), |lang| crate::i18n::t(lang.label()).into())
     };
     let mut clicked = false;
-    ComboBox::from_id_salt("note-language")
+    crate::ui::theme::native::combo("note-language")
         .width(ui.available_width())
         .selected_text(label)
         .show_ui(ui, |ui| {
@@ -177,7 +177,7 @@ fn phonemes(app: &mut App, ui: &mut Ui) {
             .hint_text(if mixed { crate::i18n::t("多个值") } else { crate::i18n::t("自动") })
             .vertical_align(Align::Center)
             .margin(vec2(7.0, 5.0))
-            .background_color(crate::ui::theme::BORDER).desired_width(ui.available_width()).show(ui);
+            .background_color(crate::ui::theme::border_color()).desired_width(ui.available_width()).show(ui);
     let language=notes.first().and_then(|note|crate::ui::phoneme_candidates::language(app,note));
     let xsampa=crate::ui::phoneme_candidates::xsampa_enabled(app) && notes.first().is_some_and(|note|note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa"));
     let candidates=crate::ui::phoneme_candidates::show(app,ui,&output,&mut draft.text,language,xsampa);
@@ -206,7 +206,7 @@ fn phonemes(app: &mut App, ui: &mut Ui) {
     }
     let mut use_xsampa=xsampa;
     let mixed_alphabet=notes.iter().any(|note|(note.attributes.get("phoneset").and_then(serde_json::Value::as_str)==Some("xsampa"))!=xsampa);
-    if ui.add_enabled(crate::ui::phoneme_candidates::xsampa_enabled(app),Checkbox::new(&mut use_xsampa,crate::i18n::t("使用 X-SAMPA 音素符号")).indeterminate(mixed_alphabet && crate::ui::phoneme_candidates::xsampa_enabled(app))).changed() {
+    if ui.add_enabled(crate::ui::phoneme_candidates::xsampa_enabled(app),crate::ui::theme::native::Checkbox::new(&mut use_xsampa,crate::i18n::t("使用 X-SAMPA 音素符号")).indeterminate(mixed_alphabet && crate::ui::phoneme_candidates::xsampa_enabled(app))).changed() {
         if let (Some(language),Ok(catalog))=(crate::ui::phoneme_candidates::inherited_language(app),crate::ui::phoneme_candidates::catalog(app,ui.ctx())) {
             app.commit_lyric();
             if let Err(error)=app.editor.set_note_phoneme_alphabet(use_xsampa,&catalog,language) {app.error=Some(error);}
@@ -221,7 +221,7 @@ fn phonemes(app: &mut App, ui: &mut Ui) {
     let mut value = notes.first().is_none_or(even);
     let mixed = notes.iter().any(|note| even(note) != value);
     if ui
-        .add(Checkbox::new(&mut value, crate::i18n::t("按音符时值均匀分配音节")).indeterminate(mixed))
+        .add(crate::ui::theme::native::Checkbox::new(&mut value, crate::i18n::t("按音符时值均匀分配音节")).indeterminate(mixed))
         .changed()
     {
         app.commit_lyric();

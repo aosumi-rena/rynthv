@@ -7,6 +7,7 @@ pub mod instrumental;
 mod mixing_options;
 pub mod plan;
 pub mod parameters;
+pub mod phone_conversion;
 #[cfg(feature = "synth-profile")]
 pub mod profiling;
 pub mod render_cache;

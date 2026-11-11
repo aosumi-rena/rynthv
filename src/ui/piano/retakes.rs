@@ -7,7 +7,7 @@ use crate::{
         group_geometry::visible_note_rect,
         icons::Icon,
         retakes::{self, Target},
-        theme::CANVAS,
+        theme::canvas_color,
         track_color::TrackColors,
     },
 };
@@ -18,7 +18,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, canvas: Rect, groups: &[SceneGrou
         return;
     }
     let colors = TrackColors::new(app.editor.current_track());
-    let idle_color = colors.accent.lerp_to_gamma(CANVAS, 0.30);
+    let idle_color = colors.accent.lerp_to_gamma(canvas_color(), 0.30);
     for group in groups {
         for note in &group.notes {
             let Ok(takes) = TakeSet::from_extra(&note.extra) else {
@@ -84,7 +84,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, canvas: Rect, groups: &[SceneGrou
                 color,
             );
             let selection = RetakeSelection::from_set(&takes);
-            Popup::menu(&response).width(220.0).show(|ui| {
+            crate::ui::theme::menu::popup(&response).width(220.0).show(|ui| {
                 retakes::choices_at(
                     app,
                     ui,

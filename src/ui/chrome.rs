@@ -9,7 +9,11 @@ use eframe::egui::*;
 fn item(ui: &mut Ui, text: &str, shortcut: &str, enabled: bool) -> bool {
     let response = ui.add_enabled(
         enabled,
-        Button::new(text)
+        Button::new(if super::theme::current() == super::theme::InterfaceTheme::Classic {
+            RichText::new(text)
+        } else {
+            RichText::new(text)
+        })
             .shortcut_text(shortcut_text(shortcut))
             .min_size(vec2(180.0, 22.0)),
     );
@@ -36,8 +40,11 @@ pub(crate) fn shortcut_text(shortcut: &str) -> String {
 
 pub fn menus(app: &mut App, ui: &mut Ui) {
     let ctx = ui.ctx().clone();
-    MenuBar::new().ui(ui, |ui| {
-        ui.spacing_mut().button_padding = vec2(11.0, 4.0);
+    MenuBar::new().config(super::theme::menu::config()).ui(ui, |ui| {
+        if super::theme::current() == super::theme::InterfaceTheme::Classic {
+            ui.style_mut().text_styles.insert(TextStyle::Button, super::theme::native_font(17.0));
+        }
+        ui.spacing_mut().button_padding = vec2(11.0, 2.0);
         ui.spacing_mut().item_spacing.x = 0.0;
         ui.menu_button(crate::i18n::t("文件"), |ui| {
             if item(ui, crate::i18n::t("新建"), "Ctrl+N", true) {
@@ -81,7 +88,7 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             if item(ui, crate::i18n::t("全选"), "Ctrl+A", true) {
                 edit::select_all(app);
             }
-            ui.checkbox(&mut app.preferences.sync_note_parameters,crate::i18n::t("Sync Parameters with Note Movement"));
+            crate::ui::theme::native::checkbox(ui,&mut app.preferences.sync_note_parameters,crate::i18n::t("Sync Parameters with Note Movement"));
             if item(ui, crate::i18n::t("取消选择"), "Esc", true) {
                 edit::clear(app);
             }
@@ -101,18 +108,17 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             }
         });
         ui.menu_button(crate::i18n::t("查看"), |ui| {
-            ui.checkbox(&mut app.show_time_tracks, crate::i18n::t("显示曲速和拍号轨"));
-            if ui
-                .checkbox(&mut app.view.arrangement_collapsed, crate::i18n::t("折叠编排"))
+            crate::ui::theme::native::checkbox(ui,&mut app.show_time_tracks, crate::i18n::t("显示曲速和拍号轨"));
+            if crate::ui::theme::native::checkbox(ui,&mut app.view.arrangement_collapsed, crate::i18n::t("折叠编排"))
                 .clicked()
             {
                 ui.close();
             }
-            ui.checkbox(&mut app.view.arrangement_first, crate::i18n::t("编排位于上方"));
+            crate::ui::theme::native::checkbox(ui,&mut app.view.arrangement_first, crate::i18n::t("编排位于上方"));
             ui.separator();
             for column in Column::PANELS {
                 let mut active = app.view.columns.contains(&column);
-                if ui.checkbox(&mut active, column.label()).clicked() {
+                if crate::ui::theme::native::checkbox(ui,&mut active, column.label()).clicked() {
                     app.view.toggle(column);
                 }
             }
@@ -172,7 +178,7 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             if item(ui, crate::i18n::t("停止"), "Ctrl+Space", true) {
                 app.editor.transport.stop();
             }
-            ui.checkbox(&mut app.editor.transport.looping, crate::i18n::t("循环播放"));
+            crate::ui::theme::native::checkbox(ui,&mut app.editor.transport.looping, crate::i18n::t("循环播放"));
             if item(ui, crate::i18n::t("跳到开头"), "", true) {
                 app.editor.transport.position = 0;
             }

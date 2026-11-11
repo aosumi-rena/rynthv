@@ -10,6 +10,14 @@ impl LyricFrontend {
         }
     }
     pub(in crate::synthesis::score) fn model_token(&self,language:Language,token:&str,tree:&PreparedTree)->Result<String> {
+        if crate::synthesis::voice::is_converted_phone(token) {
+            if self.conversion.is_none() {return Err(VoiceError::new(crate::i18n::t("PHONE_CONVERSION_REQUIRED")))}
+            tree.resolve_phone(language.id(),token)?;return Ok(token.into());
+        }
+        if self.conversion.is_some() {
+            self.catalog.system(language,token).ok_or_else(||VoiceError::new(format!("{}不支持音素：{token}",language.label())))?;
+            return Ok(token.into());
+        }
         if self.local_alphabet {return tree.native_phone_token(language.id(),token);}
         let entry=self.catalog.system(language,token)
             .ok_or_else(||VoiceError::new(format!("{}不支持音素：{token}",language.label())))?;
@@ -18,6 +26,10 @@ impl LyricFrontend {
     }
 
     pub(in crate::synthesis::score) fn input_token(&self,language:Language,token:&str,xsampa:bool,tree:&PreparedTree)->Result<String> {
+        if self.conversion.is_some() {
+            return (if xsampa {self.catalog.xsampa(language,token)}else{self.catalog.system(language,token)})
+                .map(|entry|entry.symbol.clone()).ok_or_else(||VoiceError::new(format!("{}不支持音素：{token}",language.label())));
+        }
         if !self.xsampa(xsampa) {return self.model_token(language,token,tree);}
         if let Some(entry)=self.catalog.xsampa(language,token) {
             return self.model_token(language,&entry.symbol,tree);
@@ -27,6 +39,11 @@ impl LyricFrontend {
     }
 
     pub(in crate::synthesis::score) fn display_token(&self,language:Language,token:&str,xsampa:bool,tree:&PreparedTree)->Result<String> {
+        if self.conversion.is_some() && !crate::synthesis::voice::is_converted_phone(token) {
+            let entry=self.catalog.system(language,token)
+                .ok_or_else(||VoiceError::new(format!("{}不支持音素：{token}",language.label())))?;
+            return Ok(if self.xsampa(xsampa) {entry.xsampa.clone()} else {entry.symbol.clone()});
+        }
         if self.local_alphabet {return tree.native_phone_token(language.id(),token);}
         let xsampa=self.xsampa(xsampa);
         if let Some(symbol)=crate::synthesis::voice::resource_phone_symbol(token) {

@@ -173,7 +173,7 @@ fn split_syllables(
     let tokens: Vec<String> = phones.split_whitespace().map(str::to_owned).collect();
     let normalize = |token: &str| frontend.input_token(language,token,xsampa,tree);
     let model_tokens=tokens.iter().map(|token|normalize(token)).collect::<Result<Vec<_>>>()?;
-    let classes=model_tokens.iter().map(|token|frontend.resolve_token(language,token,tree).map(|phone|phone.source_class))
+    let classes=model_tokens.iter().map(|token|frontend.phone_class(language,token,tree))
         .collect::<Result<Vec<_>>>()?;
     // Partition in the user's alphabet. Model aliases can spell a different sound.
     let nuclei=classes.iter().enumerate().filter_map(|(i,class)|

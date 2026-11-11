@@ -3022,6 +3022,7 @@ dependencies = [
  "eframe",
  "egui_extras",
  "find-msvc-tools",
+ "flate2",
  "image",
  "midly",
  "num-bigint",

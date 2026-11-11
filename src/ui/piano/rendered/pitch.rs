@@ -23,7 +23,8 @@ pub(super) fn draw(
     let pitch = &snapshot.data.pitch;
     let tempo = &snapshot.input.tempo;
     let active = app.editor.reference == Some(group.reference.id);
-    let color = Color32::from_rgba_unmultiplied(213, 210, 213, if active { 150 } else { 78 });
+    let color = crate::ui::theme::palette().pitch;
+    let color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), if active { 150 } else { 78 });
     super::pitch_band::draw(app,painter,canvas,pitch,tempo,active);
     curve(app, painter, canvas, pitch, tempo, Stroke::new(1.0, color));
     if active && !app.piano_tool.is_pitch() {

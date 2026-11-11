@@ -88,9 +88,9 @@ impl Flash {
                 self.mesh.colored_vertex(
                     pos2(point.x, y + direction * offset * self.pixel),
                     Color32::from_rgba_unmultiplied(
-                        theme::GREEN.r(),
-                        theme::GREEN.g(),
-                        theme::GREEN.b(),
+                        theme::accent_color().r(),
+                        theme::accent_color().g(),
+                        theme::accent_color().b(),
                         (255.0 * opacity * point.intensity).round() as u8,
                     ),
                 );

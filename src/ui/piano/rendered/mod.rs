@@ -40,9 +40,8 @@ pub fn waveforms(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
 }
 
 pub fn pitch(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
-    if !app.show_pitch {
-        return;
-    }
+    let visible=if crate::ui::theme::current()==crate::ui::theme::InterfaceTheme::Classic {app.show_output_pitch}else{app.show_pitch};
+    if !visible {return;}
     for group in groups {
         for piece in app.synthesis.visuals(OwnerId::new(group.reference.id)).flat_map(|v|v.pieces()) {
             let painter = painter(ui, canvas, app, &piece.snapshot.input, &piece.range);

@@ -1,3 +1,5 @@
+mod popup;
+
 use crate::{app::App, model::{Language, Note, PhonemeCatalog, database_language}};
 use eframe::egui::{self, *};
 use std::sync::Arc;
@@ -16,7 +18,7 @@ pub(super) fn xsampa_enabled(app:&App)->bool {
 pub(super) fn resources(app:&App)->Result<(&std::path::Path,crate::model::PhonemeFormat),String> {
     let voice=app.voice_selection().ok_or(crate::i18n::t("PHONEME_DATA_REQUIRED"))?;
     let entry=app.synthesis.library.entry(&voice).ok_or("未加载歌声")?;
-    let version=crate::synthesis::settings::PhonemeVersion::entry(entry).ok_or("未加载歌声")?;
+    let version=app.synthesis.library.settings.phoneme_version(entry).ok_or("未加载歌声")?;
     let path=app.synthesis.dictionaries_for(&voice).ok_or(crate::i18n::t("PHONEME_DATA_REQUIRED"))?;
     Ok((path,version.format()))
 }
@@ -65,6 +67,7 @@ pub(super) fn show(app: &App, ui: &mut Ui, output: &egui::text_edit::TextEditOut
     let xsampa=xsampa && xsampa_enabled(app);
     let Some(language) = language else { return result; };
     if !output.response.has_focus() && !output.response.lost_focus() { return result; }
+    if output.cursor_range.is_some_and(|range| range.primary.index != range.secondary.index) { return result; }
     let Ok(catalog) = catalog(app, ui.ctx()) else { return result; };
     let caret = output.cursor_range.map_or(text.chars().count(), |range|range.primary.index.into());
     let byte = text.char_indices().nth(caret).map_or(text.len(), |(i,_)|i);
@@ -77,9 +80,11 @@ pub(super) fn show(app: &App, ui: &mut Ui, output: &egui::text_edit::TextEditOut
     let voice=app.voice_inventory().and_then(|inventory|inventory.prepare().ok());
     let tree=voice.as_ref().and_then(|voice|voice.model("duration").ok());
     let local=!catalog.uses_system_symbols();
+    let converting=app.voice_selection().and_then(|key|app.synthesis.library.entry(&key))
+        .is_some_and(|entry|entry.family.is_some_and(|family|app.synthesis.library.settings.converts_phones(family,entry.revision)));
     let mut seen=std::collections::HashSet::new();
     let mut entries: Vec<_> = inventory.into_iter().filter(|entry|seen.insert(symbol(entry)))
-        .filter(|entry|tree.is_none_or(|tree|if local {
+        .filter(|entry|converting || tree.is_none_or(|tree|if local {
             tree.native_phone_token(language.id(),&entry.symbol).is_ok()
         }else{tree.model_phone_token(language.id(),&entry.symbol,&entry.xsampa).is_ok()}))
         .filter(|entry| {
@@ -91,42 +96,35 @@ pub(super) fn show(app: &App, ui: &mut Ui, output: &egui::text_edit::TextEditOut
         let value = symbol(entry);
         (if value == query {0} else if value.starts_with(&query) {1} else if value.contains(&query) {2} else {3}, value.len(), value.to_owned())
     });
-    entries.truncate(8);
     if entries.is_empty() { return result; }
     let id = output.response.id.with("phone-candidates");
     let mut state = ui.ctx().data_mut(|data|data.get_temp::<Selection>(id).unwrap_or_default());
-    if state.query != query || state.start != start { state = Selection {query, start, ..Default::default()}; }
+    let reset = state.query != query || state.start != start;
+    if reset { state = Selection {query, start, ..Default::default()}; }
     state.index = state.index.min(entries.len()-1);
-    if ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::Escape)) && !state.dismissed {
+    if !state.dismissed && ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::Escape)) {
         state.dismissed = true; result.handled = true; output.response.request_focus();
     }
+    let down = ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::ArrowDown));
+    let up = ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::ArrowUp));
     if state.dismissed {
-        ui.ctx().data_mut(|data|data.insert_temp(id,state)); return result;
+        if down || up {
+            state.dismissed = false; state.index = 0; result.handled = true;
+        } else {
+            ui.ctx().data_mut(|data|data.insert_temp(id,state)); return result;
+        }
+    } else {
+        if down { state.index = (state.index+1).min(entries.len()-1); result.handled = true; }
+        if up { state.index = state.index.saturating_sub(1); result.handled = true; }
     }
-    if ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::ArrowDown)) {
-        state.index = (state.index+1)%entries.len(); result.handled = true;
-    }
-    if ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::ArrowUp)) {
-        state.index = (state.index+entries.len()-1)%entries.len(); result.handled = true;
-    }
-    let accept = ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::Tab) || i.consume_key(Modifiers::NONE, Key::Enter));
+    let accept = ui.input_mut(|i|i.consume_key(Modifiers::NONE, Key::Enter));
     let mut chosen = accept.then_some(state.index);
-    let height = entries.len() as f32*25.0+12.0;
-    let screen=ui.ctx().content_rect();
-    let top=output.response.rect.top().clamp(screen.top(),(screen.bottom()-height).max(screen.top()));
-    Area::new(id).order(Order::Foreground)
-        // Screen-edge constraints must not slide the popup back over the editor.
-        .constrain(false)
-        .fixed_pos(pos2(output.response.rect.right()+8.0,top))
-        .show(ui.ctx(), |ui| {
-            Frame::popup(ui.style()).show(ui, |ui| {
-                ui.set_min_width(250.0);
-                for (index, entry) in entries.iter().enumerate() {
-                    let label = format!("{}   {}   {}", symbol(entry), category_label(entry), entry.example);
-                    if ui.selectable_label(index == state.index, label).clicked() { chosen = Some(index); }
-                }
-            });
-        });
+    let rows: Vec<_> = entries.iter().map(|entry| popup::Row {
+        symbol: symbol(entry), category: category_label(entry), example: &entry.example,
+    }).collect();
+    if let Some(index) = popup::show(ui.ctx(), id, output.response.rect, &rows, state.index, result.handled || reset) {
+        chosen = Some(index);
+    }
     if let Some(index) = chosen {
         let value = symbol(entries[index]);
         text.replace_range(start..end, &value);

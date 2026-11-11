@@ -25,7 +25,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         let is_track=reference==track.main_ref.id;
         if !is_track {
             let mut inherit=controls.growl.is_none();
-            if ui.checkbox(&mut inherit,crate::i18n::t("继承轨道嘶吼设置")).changed() {
+            if crate::ui::theme::native::checkbox(ui,&mut inherit,crate::i18n::t("继承轨道嘶吼设置")).changed() {
                 controls.growl=if inherit {None}else{Some(global)};
             }
         }
@@ -40,7 +40,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         ui.separator();
     }
     if settings.random_styles && has_styles {
-        ui.checkbox(&mut controls.random_enabled,crate::i18n::t("随机唱法混合"));
+        crate::ui::theme::native::checkbox(ui,&mut controls.random_enabled,crate::i18n::t("随机唱法混合"));
         if controls.random_enabled {
             ui.label(crate::i18n::t("随机种子"));
             ui.horizontal_wrapped(|ui| {
@@ -49,9 +49,9 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
             });
             ui.label(crate::i18n::t("混合量"));
             ui.add(Slider::new(&mut controls.random_amount,0.0..=300.0).suffix("%"));
-            if settings.negative_styles {ui.checkbox(&mut controls.random_signed,crate::i18n::t("随机混合允许负唱法"));}
+            if settings.negative_styles {crate::ui::theme::native::checkbox(ui,&mut controls.random_signed,crate::i18n::t("随机混合允许负唱法"));}
             ui.horizontal_wrapped(|ui| {
-                for (i,label) in ["音高","音色","发音"].into_iter().enumerate() {if modern || i==1 {ui.checkbox(&mut controls.random_lanes[i],crate::i18n::t(label));}}
+                for (i,label) in ["音高","音色","发音"].into_iter().enumerate() {if modern || i==1 {crate::ui::theme::native::checkbox(ui,&mut controls.random_lanes[i],crate::i18n::t(label));}}
             });
         }
     }
@@ -59,7 +59,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         if settings.random_styles {ui.separator();}
         ui.label(crate::i18n::t("多歌声混合"));
         if settings.random_voices {
-            ui.checkbox(&mut controls.random_voice_enabled,crate::i18n::t("Random voice blend"));
+            crate::ui::theme::native::checkbox(ui,&mut controls.random_voice_enabled,crate::i18n::t("Random voice blend"));
             if controls.random_voice_enabled {
                 ui.horizontal(|ui| {
                     ui.add(DragValue::new(&mut controls.random_voice_seed).range(0..=i32::MAX as u32));
@@ -72,7 +72,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         let has_vectors=app.voice_inventory().and_then(|v|v.configuration.as_ref()).is_some_and(|c|c.family!=crate::synthesis::voice::VoiceFamily::Sv2);
         let mut domain=if has_vectors && settings.dds_controls && controls.dds.speaker_vectors {2}else{controls.acoustic_blend as u8};
         let old_domain=domain;
-        ComboBox::from_id_salt(("blend-domain",reference)).selected_text(crate::i18n::t(match domain {2=>"Speaker vectors",1=>"声学特征",_=>"渲染后的歌声"})).show_ui(ui,|ui| {
+        crate::ui::theme::native::combo(("blend-domain",reference)).selected_text(crate::i18n::t(match domain {2=>"Speaker vectors",1=>"声学特征",_=>"渲染后的歌声"})).show_ui(ui,|ui| {
             ui.selectable_value(&mut domain,0,crate::i18n::t("渲染后的歌声"));
             ui.selectable_value(&mut domain,1,crate::i18n::t("声学特征"));
             if has_vectors && settings.dds_controls {ui.selectable_value(&mut domain,2,crate::i18n::t("Speaker vectors"));}
@@ -90,7 +90,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
                 ui.horizontal(|ui| {
                     let response=ui.label(catalog.iter().find(|(key,_,_)|key==&target.voice).map_or_else(||target.voice.revision.to_string(),|(_,label,_)|label.clone()));
                     if let Some((_,_,path))=catalog.iter().find(|(key,_,_)|key==&target.voice) {response.on_hover_text(path);}
-                    if ui.small_button("×").clicked() {remove=Some(index);}
+                    if crate::ui::icons::close_button(ui).clicked() {remove=Some(index);}
                 });
                 ui.label(crate::i18n::t("混合比例"));
                 ui.add_enabled(!(settings.random_voices && controls.random_voice_enabled),Slider::new(&mut target.weight,0.0..=1.0));
@@ -98,10 +98,10 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
                     ui.label(crate::i18n::t("和声移调"));
                     ui.add(DragValue::new(&mut target.transpose).range(-24..=24).suffix(crate::i18n::t("半音")));
                 }
-                ui.checkbox(&mut target.inherit_modes,crate::i18n::t("应用同名唱法"));
+                crate::ui::theme::native::checkbox(ui,&mut target.inherit_modes,crate::i18n::t("应用同名唱法"));
                 if let Some(config)=app.synthesis.inventory(&target.voice).and_then(|v|v.configuration.as_ref()) {
                     if !config.speakers.is_empty() {
-                        ComboBox::from_id_salt("blend-member").selected_text(target.speaker_id.and_then(|id|config.speakers.iter().find(|m|m.id==id as usize)).map_or(crate::i18n::t("默认合唱成员"),|m|m.name.as_str())).show_ui(ui,|ui| {
+                        crate::ui::theme::native::combo("blend-member").selected_text(target.speaker_id.and_then(|id|config.speakers.iter().find(|m|m.id==id as usize)).map_or(crate::i18n::t("默认合唱成员"),|m|m.name.as_str())).show_ui(ui,|ui| {
                             ui.selectable_value(&mut target.speaker_id,None,crate::i18n::t("默认合唱成员"));
                             for member in &config.speakers {ui.selectable_value(&mut target.speaker_id,Some(member.id as i32),format!("{} · {}",member.name,member.part));}
                         });
@@ -111,7 +111,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         }
         if let Some(index)=remove {controls.voices.remove(index);}
         if controls.voices.len()<3 {
-            ComboBox::from_id_salt(("add-blend",reference)).selected_text(crate::i18n::t("添加歌声…")).show_ui(ui,|ui| {
+            crate::ui::theme::native::combo(("add-blend",reference)).selected_text(crate::i18n::t("添加歌声…")).show_ui(ui,|ui| {
                 for (voice,label,path) in &catalog {
                     if !controls.voices.iter().any(|t|&t.voice==voice) && ui.selectable_label(false,label).on_hover_text(path).clicked() {
                         controls.voices.push(BlendTarget{voice:voice.clone(),weight:0.0,transpose:0,inherit_modes:false,speaker_id:None});ui.close();

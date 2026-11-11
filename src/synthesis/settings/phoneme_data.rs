@@ -61,7 +61,31 @@ impl PhonemeData {
         PhonemeVersion::R3Ai2Beta2052=>&mut self.r3_ai_2_205b2};*field=path;}
 }
 impl SynthesisSettings {
-    pub fn phoneme_directory(&self,entry:&VoiceCatalogEntry)->Option<&Path> {self.phoneme_data.get(PhonemeVersion::entry(entry)?)}
+    pub fn converts_phones(&self,family:VoiceFamily,revision:VoiceRevision)->bool {
+        self.experiments.active(self.experiments.phone_conversion)
+            && (family==VoiceFamily::Sv2Compatible || family==VoiceFamily::Sv2
+                && matches!(PhonemeVersion::family(family,false,revision),Some(PhonemeVersion::R3Ai2Earlier|PhonemeVersion::R3Ai2Beta2041)))
+    }
+    pub fn converter_for(&self,entry:&VoiceCatalogEntry)->Result<Option<&Path>,String> {
+        let Some(family)=entry.family else {return Ok(None)};
+        self.phone_conversion_for(family,entry.revision)
+    }
+    pub fn phone_conversion_for(&self,family:VoiceFamily,revision:VoiceRevision)->Result<Option<&Path>,String> {
+        if !self.converts_phones(family,revision) {return Ok(None)}
+        self.phone_conversion.as_deref().filter(|path|path.is_file()).map(Some)
+            .ok_or_else(||crate::i18n::t("PHONE_CONVERSION_REQUIRED").into())
+    }
+    pub fn phoneme_version(&self,entry:&VoiceCatalogEntry)->Option<PhonemeVersion> {
+        let version=PhonemeVersion::entry(entry)?;
+        if self.experiments.active(self.experiments.phone_conversion)
+            && matches!(version,PhonemeVersion::R3Ai|PhonemeVersion::R3Ai2Earlier|PhonemeVersion::R3Ai2
+                |PhonemeVersion::R3Ai2Beta2041|PhonemeVersion::R3Ai2Beta2051|PhonemeVersion::R3Ai2Beta2052) {
+            Some(PhonemeVersion::R3Ai2)
+        } else {Some(version)}
+    }
+    pub fn phoneme_directory(&self,entry:&VoiceCatalogEntry)->Option<&Path> {
+        self.phoneme_data.get(self.phoneme_version(entry)?)
+    }
     pub fn require_phoneme_directory(&self,version:PhonemeVersion)->Result<&Path,String> {
         self.phoneme_data.get(version).filter(|p|p.is_dir()).ok_or_else(||format!("{}: {}",version.label(),crate::i18n::t("PHONEME_DATA_REQUIRED")))
     }

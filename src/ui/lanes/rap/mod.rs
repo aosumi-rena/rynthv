@@ -105,11 +105,11 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, fo
         .with_clip_rect(canvas.intersect(ui.clip_rect()));
     for cell in &cells {
         let color = if !foreground {
-            MUTED.gamma_multiply(0.45)
+            muted_color().gamma_multiply(0.45)
         } else if cell.explicit {
-            GREEN
+            accent_color()
         } else {
-            MUTED
+            muted_color()
         };
         let points: Vec<_> = (0..=32).map(|i| cell.point(i as f32 / 32.0)).collect();
         if cell.explicit && foreground {
@@ -122,7 +122,7 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, fo
                         pos2(p[1].x, area.bottom()),
                         pos2(p[0].x, area.bottom()),
                     ],
-                    GREEN.gamma_multiply(0.10),
+                    accent_color().gamma_multiply(0.10),
                     Stroke::NONE,
                 ));
             }

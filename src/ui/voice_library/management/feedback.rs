@@ -18,7 +18,7 @@ pub(super) fn status(
             });
         }
         VoiceState::Loaded(_) if app.synthesis.voice_error(selection).is_none() => {
-            text(ui, RichText::new(crate::i18n::t("已加载")).color(GREEN));
+            text(ui, RichText::new(crate::i18n::t("已加载")).color(accent_color()));
         }
         _ => {}
     }
@@ -32,7 +32,7 @@ pub(super) fn status(
                 crate::i18n::t("合成环境准备失败")
             },
         );
-        ui.collapsing(crate::i18n::t("查看错误详情"), |ui| error_label(ui, &error));
+        crate::ui::theme::native::collapsing(crate::i18n::t("查看错误详情")).show(ui, |ui| error_label(ui, &error));
         if app
             .synthesis
             .inventory(selection)
@@ -80,8 +80,8 @@ pub(super) fn diagnostics(app: &App, ui: &mut Ui, entry: &VoiceCatalogEntry) {
     if let Some(catalog) = app.synthesis.library.catalog()
         && !catalog.warnings.is_empty()
     {
-        ui.collapsing(
-            crate::lformat!("扫描提示（{}）", catalog.warnings.len()),
+        crate::ui::theme::native::collapsing(
+            crate::lformat!("扫描提示（{}）", catalog.warnings.len())).show(ui,
             |ui| {
                 for warning in &catalog.warnings {
                     weak(ui, warning);

@@ -71,7 +71,7 @@ pub fn section_title(ui: &mut Ui, text: &str, payload: state::DragPayload) -> Re
         Label::new(
             RichText::new(text)
                 .font(theme::section_title_font())
-                .color(theme::TEXT),
+                .color(theme::text_color()),
         )
         .selectable(false)
         .sense(Sense::drag()),

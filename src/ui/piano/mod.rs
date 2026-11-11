@@ -27,7 +27,7 @@ pub use pitch_anchor::{
 pub use pitch_edit::end_pitch_frame;
 use std::collections::BTreeSet;
 pub use toolbar::toolbar;
-pub const TOOLBAR_HEIGHT: f32 = 32.0;
+pub fn toolbar_height() -> f32 { crate::ui::theme::metrics().piano_header_height }
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Tool {
     #[default]

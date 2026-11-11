@@ -54,17 +54,17 @@ pub fn show(app: &mut App, ctx: &Context) {
             ui.spacing_mut().item_spacing.y = 12.0;
             ui.label(
                 RichText::new(crate::i18n::t("填入歌词"))
-                    .font(FontId::new(17.0, FontFamily::Name("SectionTitle".into()))),
+                    .font(crate::ui::theme::native_heading(17.0)),
             );
             ui.add_space(4.0);
-            ui.label(RichText::new(crate::i18n::t("用空格隔开字词。\n每个音符对应一个字词。")).color(MUTED));
+            ui.label(RichText::new(crate::i18n::t("用空格隔开字词。\n每个音符对应一个字词。")).color(muted_color()));
             let input_id = Id::new("fill-lyrics-text");
             if edit.focus {
                 TextEdit::store_state(ctx, input_id, Default::default());
             }
             Frame::new()
-                .fill(PANEL)
-                .stroke(Stroke::new(1.0, MUTED))
+                .fill(panel_color())
+                .stroke(Stroke::new(1.0, muted_color()))
                 .corner_radius(4)
                 .inner_margin(5)
                 .show(ui, |ui| {
@@ -96,8 +96,8 @@ pub fn show(app: &mut App, ctx: &Context) {
                             }
                         });
                 });
-            ui.checkbox(&mut edit.repeat, crate::i18n::t("循环填入"));
-            ui.checkbox(&mut edit.by_character, crate::i18n::t("逐字填入"));
+            crate::ui::theme::native::checkbox(ui,&mut edit.repeat, crate::i18n::t("循环填入"));
+            crate::ui::theme::native::checkbox(ui,&mut edit.by_character, crate::i18n::t("逐字填入"));
             words = split_lyrics(&edit.text, edit.by_character);
             ui.add_space(8.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
@@ -105,14 +105,14 @@ pub fn show(app: &mut App, ctx: &Context) {
                 submit = ui
                     .add_enabled(
                         !words.is_empty(),
-                        Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS))
-                            .fill(GREEN)
+                        Button::new(RichText::new(crate::i18n::t("确定")).color(canvas_color()))
+                            .fill(accent_color())
                             .min_size(size),
                     )
                     .on_hover_text(crate::ui::chrome::shortcut_text(crate::i18n::t("Ctrl+Enter 确定")))
                     .clicked();
                 cancel = ui
-                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))
+                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(button_hover_color()))
                     .clicked();
             });
         });

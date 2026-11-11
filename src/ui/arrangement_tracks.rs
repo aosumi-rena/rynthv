@@ -8,12 +8,12 @@ pub fn show(app: &mut App, ui: &mut Ui, timeline_left: f32, scroll: f32) {
     let mut track_rects = Vec::new();
     for (index, track) in tracks.iter().enumerate() {
         let colors = TrackColors::new(track);
-        let y = rect.top() + index as f32 * 56.0 - scroll;
+        let y = rect.top() + index as f32 * metrics().track_height - scroll;
         let head = Rect::from_min_size(
             pos2(rect.left(), y),
-            vec2(timeline_left - rect.left(), 56.0),
+            vec2(timeline_left - rect.left(), metrics().track_height),
         );
-        let body = Rect::from_min_max(pos2(timeline_left, y), pos2(rect.right(), y + 56.0));
+        let body = Rect::from_min_max(pos2(timeline_left, y), pos2(rect.right(), y + metrics().track_height));
         track_rects.push((track.id, body));
         if !head.intersects(rect) {
             continue;
@@ -24,7 +24,7 @@ pub fn show(app: &mut App, ui: &mut Ui, timeline_left: f32, scroll: f32) {
             if app.editor.selected_tracks.contains(&track.id) {
                 Color32::from_rgb(57, 55, 60)
             } else {
-                PANEL
+                panel_color()
             },
         );
         ui.painter().rect_filled(
@@ -64,7 +64,7 @@ pub fn show(app: &mut App, ui: &mut Ui, timeline_left: f32, scroll: f32) {
             app.editor.group_focus=true;
             app.editor.selected_groups.clear();
         }
-        response.context_menu(|ui| {
+        crate::ui::theme::menu::context_menu(&response,|ui| {
             if ui.button(crate::i18n::t("插入新的音符组")).clicked() {
                 let at = ui
                     .ctx()
@@ -136,7 +136,7 @@ fn group(app: &mut App, ui: &mut Ui, body: Rect, track: &Track, reference: &Grou
     let missing=app.synthesis.voice_not_installed(track,reference);
     let painter = ui.painter().with_clip_rect(body.intersect(ui.clip_rect()));
     let fill = if selected {
-        colors.accent.lerp_to_gamma(CANVAS, 0.15)
+        colors.accent.lerp_to_gamma(canvas_color(), 0.15)
     } else {
         colors.note
     };
@@ -164,10 +164,10 @@ fn group(app: &mut App, ui: &mut Ui, body: Rect, track: &Track, reference: &Grou
     }
     if missing {
         let center=pos2(clip.left()+11.0,body.bottom()-10.0);
-        super::icons::Icon::Warning.paint(ui,Rect::from_center_size(center,Vec2::splat(13.0)),TEXT);
+        super::icons::Icon::Warning.paint(ui,Rect::from_center_size(center,Vec2::splat(13.0)),text_color());
         let db=crate::model::effective_singer_database(&track.main_ref.database,&reference.database);
         let name=db.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
-        content.text(center+vec2(9.0,0.0),Align2::LEFT_CENTER,name,FontId::proportional(11.0),TEXT);
+        content.text(center+vec2(9.0,0.0),Align2::LEFT_CENTER,name,FontId::proportional(11.0),text_color());
     }
     let editable = reference.blick_absolute_end >= 0;
     let response = ui.interact(
@@ -220,5 +220,5 @@ fn group(app: &mut App, ui: &mut Ui, body: Rect, track: &Track, reference: &Grou
             true,
         );
     }
-    response.context_menu(|ui| group_edit::context_menu(app, ui, reference));
+    crate::ui::theme::menu::context_menu(&response,|ui| group_edit::context_menu(app, ui, reference));
 }

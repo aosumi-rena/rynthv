@@ -66,7 +66,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
 }
 
 fn tab(ui: &mut Ui, icon: Icon, text: &str, active: bool, lane: Option<u64>) -> (Response, bool) {
-    let color = if active { TEXT } else { MUTED };
+    let color = if active { text_color() } else { muted_color() };
     let galley = ui
         .painter()
         .layout_no_wrap(text.into(), FontId::proportional(12.0), color);
@@ -80,7 +80,7 @@ fn tab(ui: &mut Ui, icon: Icon, text: &str, active: bool, lane: Option<u64>) -> 
     let response = ui.interact(label_rect, id, Sense::click());
     response.widget_info(|| WidgetInfo::selected(WidgetType::SelectableLabel, true, active, text));
     if response.hovered() {
-        ui.painter().rect_filled(label_rect, 0, BUTTON);
+        ui.painter().rect_filled(label_rect, 0, button_color());
     }
     icon.paint(
         ui,
@@ -100,12 +100,12 @@ fn tab(ui: &mut Ui, icon: Icon, text: &str, active: bool, lane: Option<u64>) -> 
         let close = ui.interact(close_rect, id.with("close"), Sense::click());
         close.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, crate::lformat!("关闭{text}")));
         if close.hovered() {
-            ui.painter().rect_filled(close_rect, 3, BUTTON_HOVER);
+            ui.painter().rect_filled(close_rect, 3, button_hover_color());
         }
         Icon::Close.paint(
             ui,
             Rect::from_center_size(close_rect.center(), Vec2::splat(12.0)),
-            if close.hovered() { TEXT } else { MUTED },
+            if close.hovered() { text_color() } else { muted_color() },
         );
         closed = close.clicked();
         close
@@ -115,7 +115,7 @@ fn tab(ui: &mut Ui, icon: Icon, text: &str, active: bool, lane: Option<u64>) -> 
     ui.painter().vline(
         rect.right(),
         rect.top() + 5.0..=rect.bottom() - 5.0,
-        Stroke::new(1.0, BORDER),
+        Stroke::new(1.0, border_color()),
     );
     (response.on_hover_cursor(CursorIcon::Default), closed)
 }

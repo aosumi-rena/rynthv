@@ -28,7 +28,7 @@ pub(super) fn lyric(app: &mut App, ui: &mut Ui, rect: Rect, reference: &GroupRef
         r=Rect::from_min_max(pos2(r.left(),r.top()-app.view.row_height),pos2(r.right(),r.top()));
     }
     r.max.x = if edit.phonemes {
-        let text=ui.painter().layout_no_wrap(edit.text.clone(),FontId::proportional(12.0),super::super::theme::TEXT);
+        let text=ui.painter().layout_no_wrap(edit.text.clone(),FontId::proportional(12.0),super::super::theme::text_color());
         (r.min.x+(text.size().x+8.0).max(50.0)).min(clip.right())
     }else {r.max.x.max(r.min.x+130.0).min(clip.right())};
     let mut edit_ui = child(ui, r, ("lyric", edit.id));
@@ -76,7 +76,12 @@ pub(super) fn lyric(app: &mut App, ui: &mut Ui, rect: Rect, reference: &GroupRef
             if let Some(next) = notes
                 .iter()
                 .position(|n| n.id == edit.id)
-                .and_then(|i| notes.get(i + 1))
+                .and_then(|i| if ui.input(|input| input.modifiers.shift) {
+                    i.checked_sub(1)
+                } else {
+                    i.checked_add(1)
+                })
+                .and_then(|i| notes.get(i))
             {
                 let text=if edit.phonemes {super::phonemes::text(app,reference,next)}else{next.lyrics.clone()};
                 app.lyric = Some(LyricEdit {

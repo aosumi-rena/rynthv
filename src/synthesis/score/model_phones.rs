@@ -10,7 +10,7 @@ pub(super) fn materialize(
         let mut changed = false;
         let mut phones = Vec::with_capacity(syllable.len());
         for token in syllable {
-            let missing = frontend.resolve_token(language, &token,tree)?.used_silence_fallback
+            let missing = !frontend.converting() && frontend.resolve_token(language, &token,tree)?.used_silence_fallback
                 && frontend.unmapped_phone_class(language, &token)?.is_some();
             changed |= missing;
             let display=if missing {token.clone()}else{frontend.display_token(language,&token,xsampa,tree)?};

@@ -1,5 +1,6 @@
 use eframe::egui::{Context, FontData, FontDefinitions, FontFamily};
 use std::path::Path;
+use std::cell::Cell;
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -8,10 +9,38 @@ mod linux;
 mod macos;
 
 mod native;
+mod metrics;
+
+thread_local! {
+    static NATIVE_SCALE: Cell<f32> = const { Cell::new(1.0) };
+    static HEADING_SCALE: Cell<f32> = const { Cell::new(1.0) };
+}
+
+pub(super) fn native_size(height: f32, heading: bool) -> f32 {
+    height * if heading { HEADING_SCALE.with(Cell::get) } else { NATIVE_SCALE.with(Cell::get) }
+}
 
 pub fn install(ctx: &Context) -> Result<(), String> {
     let mut fonts = FontDefinitions::default();
     let result = load(&mut fonts);
+
+    if let Some(faces) = fonts.families.get_mut(&FontFamily::Proportional)
+        && let Some(index) = faces.iter().position(|name| name == "NativeNoto")
+    {
+        let name = faces.remove(index);
+        faces.insert(0, name);
+    }
+
+    let native_ui = fonts.families[&FontFamily::Proportional].clone();
+    let scale = install_height_family(&mut fonts, "NativeUI", &native_ui);
+    NATIVE_SCALE.with(|value| value.set(scale));
+
+    let mut settings = fonts.families[&FontFamily::Proportional].clone();
+    if fonts.font_data.contains_key("NativeNoto") {
+        settings.retain(|name|name != "NativeNoto");
+        settings.insert(0,"NativeNoto".into());
+    }
+    fonts.families.insert(FontFamily::Name("NativeSettings".into()),settings);
 
     let mut heading = fonts.families[&FontFamily::Proportional].clone();
     if fonts.font_data.contains_key("ChineseBold") {
@@ -22,9 +51,20 @@ pub fn install(ctx: &Context) -> Result<(), String> {
         .insert(FontFamily::Name("Transport".into()), heading.clone());
     fonts
         .families
-        .insert(FontFamily::Name("SectionTitle".into()), heading);
+        .insert(FontFamily::Name("SectionTitle".into()), heading.clone());
+    let scale = install_height_family(&mut fonts, "NativeHeading", &heading);
+    HEADING_SCALE.with(|value| value.set(scale));
     ctx.set_fonts(fonts);
     result
+}
+
+fn install_height_family(fonts: &mut FontDefinitions, family: &str, faces: &[String]) -> f32 {
+    let scale = faces.first()
+        .and_then(|name| fonts.font_data.get(name))
+        .and_then(|font| metrics::height_scale(font))
+        .unwrap_or(1.0);
+    fonts.families.insert(FontFamily::Name(family.into()), faces.to_vec());
+    scale
 }
 
 fn load(fonts: &mut FontDefinitions) -> Result<(), String> {

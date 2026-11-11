@@ -109,7 +109,7 @@ pub(in crate::ui::piano) fn interaction(
 }
 
 fn context_menu(app: &mut App, response: &Response) {
-    response.context_menu(|ui| {
+    crate::ui::theme::menu::context_menu(&response,|ui| {
         if ui
             .add_enabled(
                 !app.piano_anchor.ids.is_empty(),

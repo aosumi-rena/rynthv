@@ -260,6 +260,7 @@ impl ExplicitScore {
             previous_pitch = pitch;
         }
 
+        lexicon.convert_score(&mut score.notes,duration_tree)?;
         Ok(score)
     }
 }

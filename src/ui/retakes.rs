@@ -212,7 +212,7 @@ pub fn choices_at(app: &mut App, ui: &mut Ui, selection: &RetakeSelection, targe
 pub fn selector(app: &mut App, ui: &mut Ui, selection: &RetakeSelection) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 3.0;
-        ComboBox::from_id_salt("retake-choice")
+        crate::ui::theme::native::combo("retake-choice")
             .width((ui.available_width() - 54.0).max(30.0))
             .selected_text(
                 selection

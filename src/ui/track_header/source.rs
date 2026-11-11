@@ -12,19 +12,19 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, rect: Rect, text_rect: Rect, trac
     if track.is_instrumental() {
         Icon::Waveform.paint(
             ui,
-            Rect::from_center_size(rect.min + vec2(24.0, 39.0), Vec2::splat(12.0)),
-            MUTED,
+            Rect::from_center_size(rect.min + if current() == InterfaceTheme::Classic {vec2(25.0,34.5)} else {vec2(24.0,42.0)}, Vec2::splat(12.0)),
+            muted_color(),
         );
         let text = track.audio_clip().map_or(crate::i18n::t("导入伴奏…"), |clip| clip.name());
         painter.text(
-            rect.min + vec2(35.0, 39.0),
+            rect.min + if current() == InterfaceTheme::Classic {vec2(32.0,34.5)} else {vec2(34.0,42.0)},
             Align2::LEFT_CENTER,
             text,
-            FontId::proportional(12.0),
-            MUTED,
+            caption_font(ui,rect.width(),text),
+            muted_color(),
         );
         let click = Rect::from_min_max(
-            rect.min + vec2(16.0, 29.0),
+            rect.min + vec2(16.0, if current() == InterfaceTheme::Classic {25.0} else {29.0}),
             pos2(text_rect.right(), rect.bottom()),
         );
         if ui
@@ -44,8 +44,8 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, rect: Rect, text_rect: Rect, trac
     let missing=app.synthesis.voice_not_installed(track,&track.main_ref);
     (if missing {Icon::Warning}else{Icon::Microphone}).paint(
         ui,
-        Rect::from_center_size(rect.min + vec2(24.0, 39.0), vec2(12.0, 12.0)),
-        MUTED,
+        Rect::from_center_size(rect.min + if current() == InterfaceTheme::Classic {vec2(25.0,34.5)} else {vec2(24.0,42.0)}, vec2(12.0, 12.0)),
+        muted_color(),
     );
     let voice = track
         .main_ref
@@ -55,14 +55,14 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, rect: Rect, text_rect: Rect, trac
         .filter(|s| !s.is_empty())
         .unwrap_or(crate::i18n::t("未指定歌声"));
     painter.text(
-        rect.min + vec2(35.0, 39.0),
+        rect.min + if current() == InterfaceTheme::Classic {vec2(32.0,34.5)} else {vec2(34.0,42.0)},
         Align2::LEFT_CENTER,
         voice,
-        FontId::proportional(12.0),
-        MUTED,
+        caption_font(ui,rect.width(),voice),
+        muted_color(),
     );
     let voice_rect = Rect::from_min_max(
-        rect.min + vec2(16.0, 29.0),
+        rect.min + vec2(16.0, if current() == InterfaceTheme::Classic {25.0} else {29.0}),
         pos2(text_rect.right(), rect.bottom()),
     );
     let voice_response = ui
@@ -78,4 +78,11 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, rect: Rect, text_rect: Rect, trac
         app.editor.select_track(track.id);
     }
     crate::ui::voice_library::popup(app, &voice_response);
+}
+
+fn caption_font(ui: &Ui, width: f32, text: &str) -> FontId {
+    if current()==InterfaceTheme::Classic {
+        let measured=ui.painter().layout_no_wrap(text.into(),native_font(17.0),muted_color()).size().x.ceil();
+        native_font(if measured+8.0<width-116.0 {17.0}else{16.0})
+    } else {FontId::proportional(12.0)}
 }

@@ -1,4 +1,4 @@
-use super::{super::language_name, CARD, INK, Sort, State};
+use super::{super::language_name, manager_card_color, manager_ink_color, Sort, State};
 use crate::{
     app::App,
     ui::{
@@ -12,8 +12,8 @@ use std::collections::BTreeSet;
 
 pub(super) fn show(app: &mut App, ui: &mut Ui, state: &mut State) {
     ui.spacing_mut().interact_size.y = 36.0;
-    ui.visuals_mut().widgets.inactive.bg_fill = CARD;
-    ui.visuals_mut().widgets.inactive.weak_bg_fill = CARD;
+    ui.visuals_mut().widgets.inactive.bg_fill = manager_card_color();
+    ui.visuals_mut().widgets.inactive.weak_bg_fill = manager_card_color();
     ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(12);
     let wide = ui.available_width() >= 670.0;
     if wide {
@@ -36,10 +36,10 @@ fn search(ui: &mut Ui, query: &mut String, width: f32) {
         .rect_filled(rect, 5, Color32::from_rgb(43, 43, 43));
     let center = rect.left_center() + vec2(19.0, -1.0);
     ui.painter()
-        .circle_stroke(center, 5.5, Stroke::new(1.8, TEXT));
+        .circle_stroke(center, 5.5, Stroke::new(1.8, text_color()));
     ui.painter().line_segment(
         [center + vec2(4.0, 4.0), center + vec2(9.0, 9.0)],
-        Stroke::new(1.8, TEXT),
+        Stroke::new(1.8, text_color()),
     );
     let has_text = !query.is_empty();
     let mut input = child(
@@ -89,7 +89,7 @@ fn filters(app: &App, ui: &mut Ui, state: &mut State) {
         .min_size(vec2(76.0, 36.0))
         .corner_radius(14),
     );
-    Popup::from_toggle_button_response(&filter)
+    crate::ui::theme::menu::toggle(&filter)
         .width(240.0)
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
         .show(|ui| {
@@ -105,9 +105,9 @@ fn filters(app: &App, ui: &mut Ui, state: &mut State) {
                         }
                     }
                 }
-                ui.label(RichText::new(crate::i18n::t("筛选歌声")).strong().color(INK));
+                ui.label(RichText::new(crate::i18n::t("筛选歌声")).strong().color(manager_ink_color()));
                 ui.weak(crate::i18n::t("声库语言"));
-                ComboBox::from_id_salt("manager-language-filter")
+                crate::ui::theme::native::combo("manager-language-filter")
                     .width(ui.available_width())
                     .selected_text(if state.language.is_empty() {
                         crate::i18n::t("全部语言")
@@ -122,7 +122,7 @@ fn filters(app: &App, ui: &mut Ui, state: &mut State) {
                         }
                     });
                 ui.weak(crate::i18n::t("厂商"));
-                ComboBox::from_id_salt("manager-vendor-filter")
+                crate::ui::theme::native::combo("manager-vendor-filter")
                     .width(ui.available_width())
                     .selected_text(if state.vendor.is_empty() {
                         crate::i18n::t("全部厂商")
@@ -161,9 +161,9 @@ fn actions(app: &mut App, ui: &mut Ui, state: &mut State) {
 
 fn sorting(ui: &mut Ui, state: &mut State, reverse: bool) {
     if !reverse {
-        ui.label(RichText::new(crate::i18n::t("排序方式")).color(MUTED));
+        ui.label(RichText::new(crate::i18n::t("排序方式")).color(muted_color()));
     }
-    ComboBox::from_id_salt("voice-manager-sort")
+    crate::ui::theme::native::combo("voice-manager-sort")
         .width(90.0)
         .selected_text(state.sort.label())
         .show_ui(ui, |ui| {
@@ -172,7 +172,7 @@ fn sorting(ui: &mut Ui, state: &mut State, reverse: bool) {
             }
         });
     if reverse {
-        ui.label(RichText::new(crate::i18n::t("排序方式")).color(MUTED));
+        ui.label(RichText::new(crate::i18n::t("排序方式")).color(muted_color()));
     }
 }
 

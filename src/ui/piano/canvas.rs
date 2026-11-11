@@ -30,13 +30,13 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         app.editor.group_focus=false;
         app.editor.track_focus=false;
     }
-    ui.painter().rect_filled(all, 0, PANEL);
+    ui.painter().rect_filled(all, 0, panel_color());
     let ruler = Rect::from_min_max(
-        pos2(all.left() + GUTTER, all.top()),
-        pos2(all.right(), all.top() + 38.0),
+        pos2(all.left() + gutter(), all.top()),
+        pos2(all.right(), all.top() + metrics().piano_ruler_height),
     );
     let canvas = Rect::from_min_max(
-        pos2(ruler.left(), ruler.bottom() + 20.0),
+        pos2(ruler.left(), ruler.bottom() + metrics().piano_group_strip_height),
         all.max - vec2(0.0, 6.0),
     );
     if canvas.height() < 8.0 {
@@ -135,9 +135,9 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         && let Some(p) = ui.input(|i| i.pointer.interact_pos())
     {
         let r = Rect::from_two_pos(*origin, p).intersect(canvas);
-        ui.painter().rect_filled(r, 0, GREEN.gamma_multiply(0.12));
+        ui.painter().rect_filled(r, 0, accent_color().gamma_multiply(0.12));
         ui.painter()
-            .rect_stroke(r, 0, Stroke::new(1.0, GREEN), StrokeKind::Inside);
+            .rect_stroke(r, 0, Stroke::new(1.0, accent_color()), StrokeKind::Inside);
     }
     if let Some(position) = hover_position {
         hover_playhead(ui,Rect::from_min_max(ruler.min,canvas.max),ruler.bottom(),&app.view.piano,position);
@@ -249,7 +249,7 @@ fn interaction(
             app.editor.selected = BTreeSet::from([note.id]);
         }
     }
-    response.context_menu(|ui| {
+    crate::ui::theme::menu::context_menu(&response,|ui| {
         let selected = !app.editor.selected.is_empty();
         if ui
             .add_enabled(selected, Button::new(crate::i18n::t("填入歌词…")).shortcut_text(crate::ui::chrome::shortcut_text("Ctrl+L")))

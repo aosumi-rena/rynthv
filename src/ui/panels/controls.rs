@@ -2,7 +2,7 @@ use crate::ui::theme::*;
 use eframe::egui::*;
 
 pub(super) fn padded(ui: &mut Ui, content: impl FnOnce(&mut Ui)) {
-    Frame::new().inner_margin(16).show(ui, |ui| {
+    Frame::new().inner_margin(Margin{left:20,right:20,top:20,bottom:24}).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing.y = 12.0;
         content(ui);
@@ -10,29 +10,16 @@ pub(super) fn padded(ui: &mut Ui, content: impl FnOnce(&mut Ui)) {
 }
 
 pub(super) fn section(ui: &mut Ui, title: &str, content: impl FnOnce(&mut Ui)) {
-    ui.painter().hline(
-        ui.available_rect_before_wrap().x_range(),
-        ui.next_widget_position().y,
-        Stroke::new(1.0, EDGE),
-    );
-    padded(ui, |ui| {
-        CollapsingHeader::new(RichText::new(title).font(section_title_font()))
-            .id_salt(("property-section", title))
-            .default_open(true)
-            .show_unindented(ui, |ui| {
-                ui.set_width(ui.available_width());
-                content(ui);
-            });
-    });
+    native::section(ui,("property-section",title),title,|_|{},content);
 }
 
 pub(super) fn field(ui: &mut Ui, text: &mut String) -> Response {
     ui.add_sized(
-        vec2(ui.available_width(), 28.0),
+        vec2(ui.available_width(), native::control_height()),
         TextEdit::singleline(text)
             .vertical_align(Align::Center)
             .margin(vec2(7.0, 5.0))
-            .background_color(BORDER),
+            .background_color(border_color()),
     )
 }
 
@@ -55,7 +42,7 @@ pub(super) fn combo<T: PartialEq + Clone>(
         .iter()
         .find(|(v, _)| v == value)
         .map_or(crate::i18n::t("未支持的值"), |(_, label)| *label);
-    ComboBox::from_id_salt(id)
+    crate::ui::theme::native::combo(id)
         .width(ui.available_width())
         .selected_text(label)
         .show_ui(ui, |ui| {

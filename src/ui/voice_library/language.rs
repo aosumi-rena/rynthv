@@ -59,9 +59,9 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
     ui.scope(|ui| {
         ui.spacing_mut().interact_size.y = 28.0;
         ui.spacing_mut().button_padding = vec2(8.0, 5.0);
-        ui.visuals_mut().widgets.inactive.bg_fill = BORDER;
+        ui.visuals_mut().widgets.inactive.bg_fill = border_color();
         ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(4);
-        ComboBox::from_id_salt("voice-language")
+        crate::ui::theme::native::combo("voice-language")
             .width(ui.available_width())
             .selected_text(selected_label)
             .show_ui(ui, |ui| {
@@ -93,7 +93,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
         ui.add_space(6.0);
         match app.editor.pronunciation_option(key,default) {
             Ok((reference, mut enabled)) => {
-                if ui.checkbox(&mut enabled, label).changed() {
+                if crate::ui::theme::native::checkbox(ui,&mut enabled, label).changed() {
                     app.commit_lyric();
                     if let Err(error) = app.editor.set_pronunciation_option(reference,key,enabled) {
                         app.error = Some(error);
@@ -104,7 +104,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
         }
     }
     ui.add_space(12.0);
-    ui.label(RichText::new(crate::i18n::t("辅音")).color(TEXT));
+    ui.label(RichText::new(crate::i18n::t("辅音")).color(text_color()));
     ui.spacing_mut().item_spacing.y=0.0;
     for spec in crate::synthesis::parameters::CONSONANT_CONTROLS {
         super::parameters::control(app,ui,spec);

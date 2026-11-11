@@ -21,7 +21,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, selection: &PerformanceSelection,
         };
         let mut clicked = None;
         ui.add_enabled_ui(accent_enabled, |ui| {
-            ComboBox::from_id_salt("note-rap-accent")
+            crate::ui::theme::native::combo("note-rap-accent")
                 .width(ui.available_width())
                 .selected_text(label)
                 .show_ui(ui, |ui| {

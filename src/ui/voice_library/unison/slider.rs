@@ -27,14 +27,14 @@ pub(super) fn show(ui:&mut Ui,id:Id,label:&str,source:f64,min:f64,max:f64,step:f
     if response.drag_stopped()||response.clicked()||response.double_clicked() {
         ui.ctx().data_mut(|d|d.remove::<Drag>(id.with("drag")));commit=Some(value);
     }
-    ui.painter().text(rect.min+vec2(0.0,1.0),Align2::LEFT_TOP,label,FontId::proportional(12.0),MUTED);
+    ui.painter().text(rect.min+vec2(0.0,1.0),Align2::LEFT_TOP,label,FontId::proportional(12.0),muted_color());
     let y=rail.center().y;
     let center=pos2(lerp(rail.x_range(),((value-min)/(max-min)) as f32),y);
-    ui.painter().hline(rail.x_range(),y,Stroke::new(2.0,EDGE));
-    ui.painter().line_segment([pos2(rail.left(),y),center],Stroke::new(2.0,MUTED));
-    ui.painter().circle(center,9.5,EDGE,Stroke::NONE);
-    ui.painter().circle(center,8.5,Color32::from_rgb(65,63,68),Stroke::new(0.7,BUTTON_ACTIVE));
-    ui.painter().circle_filled(center,3.0,TEXT);
+    ui.painter().hline(rail.x_range(),y,Stroke::new(2.0,edge_color()));
+    ui.painter().line_segment([pos2(rail.left(),y),center],Stroke::new(2.0,muted_color()));
+    ui.painter().circle(center,9.5,edge_color(),Stroke::NONE);
+    ui.painter().circle(center,8.5,Color32::from_rgb(65,63,68),Stroke::new(0.7,button_active_color()));
+    ui.painter().circle_filled(center,3.0,text_color());
     let value_rect=Rect::from_min_size(rect.right_top()+vec2(-75.0,1.0),vec2(75.0,16.0));
     let value_response=ui.interact(value_rect,id.with("value"),Sense::click());
     let input_id=id.with("input");let frame=ui.ctx().cumulative_frame_nr();
@@ -68,7 +68,7 @@ pub(super) fn show(ui:&mut Ui,id:Id,label:&str,source:f64,min:f64,max:f64,step:f
     } else {
         ui.ctx().data_mut(|d|d.remove::<Entry>(input_id));
         if response.hovered()||response.dragged()||value_response.hovered() {
-            ui.painter().text(value_rect.right_top(),Align2::RIGHT_TOP,format(value),FontId::proportional(12.0),MUTED);
+            ui.painter().text(value_rect.right_top(),Align2::RIGHT_TOP,format(value),FontId::proportional(12.0),muted_color());
         }
     }
     response.widget_info(||WidgetInfo::labeled(WidgetType::Slider,true,label));

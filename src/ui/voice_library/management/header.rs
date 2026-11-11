@@ -1,4 +1,4 @@
-use super::{super::paths, INK};
+use super::{super::paths, manager_ink_color};
 use crate::{
     app::App,
     ui::{
@@ -29,10 +29,10 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, rect: Rect) -> bool {
             RichText::new("RynthV")
                 .font(section_title_font())
                 .size(18.0)
-                .color(INK),
+                .color(manager_ink_color()),
         );
         if wide {
-            ui.label(RichText::new(crate::i18n::t("歌声")).size(13.0).color(MUTED));
+            ui.label(RichText::new(crate::i18n::t("歌声")).size(13.0).color(muted_color()));
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             close = ui
@@ -47,7 +47,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, rect: Rect) -> bool {
                     .size(Vec2::splat(28.0))
                     .icon_size(18.0),
             );
-            Popup::from_toggle_button_response(&resources)
+            crate::ui::theme::menu::toggle(&resources)
                 .width((ui.ctx().content_rect().width() - 48.0).clamp(180.0, 380.0))
                 .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
                 .show(|ui| {

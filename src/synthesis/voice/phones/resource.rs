@@ -1,9 +1,10 @@
 use super::super::{PhoneSet, ResolvedPhone, Result, VoiceError};
 
 const PREFIX: &str = "phoneme:";
+const CONVERTED_PREFIX: &str = "converted:";
 
 fn spelling(token: &str) -> Option<(&str, &str)> {
-    let (length, value) = token.strip_prefix(PREFIX)?.split_once(':')?;
+    let (length, value) = token.strip_prefix(PREFIX).or_else(||token.strip_prefix(CONVERTED_PREFIX))?.split_once(':')?;
     let length = length.parse::<usize>().ok()?;
     (length > 0 && length < value.len() && value.is_char_boundary(length))
         .then(|| value.split_at(length))
@@ -17,12 +18,18 @@ pub fn token(symbol: &str, xsampa: &str) -> String {
     format!("{PREFIX}{}:{symbol}{xsampa}", symbol.len())
 }
 
+pub fn converted_token(symbol: &str, native: &str) -> String {
+    format!("{CONVERTED_PREFIX}{}:{symbol}{native}",symbol.len())
+}
+
+pub fn is_converted(token: &str) -> bool { token.starts_with(CONVERTED_PREFIX) && spelling(token).is_some() }
+
 pub(in crate::synthesis::voice) fn resolve<'a>(
     index: usize, table: &'a PhoneSet, unified: &'a PhoneSet, token: &str,
 ) -> Result<ResolvedPhone<'a>> {
     let (symbol, xsampa) = spelling(token)
         .ok_or_else(|| VoiceError::new("Invalid resource phoneme identity"))?;
-    let local = if table.name.ends_with("-xsampa-phones") {
+    let local = if is_converted(token) || table.name.ends_with("-xsampa-phones") {
         table.lookup(xsampa)
     } else {
         table.lookup(symbol)

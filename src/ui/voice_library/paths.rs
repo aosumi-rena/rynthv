@@ -15,7 +15,7 @@ pub fn settings(app: &mut App, ui: &mut Ui) {
         let mut replacement=None;
         ui.horizontal(|ui|{
             if ui.button(crate::i18n::t("VOICE_SOURCE_CHANGE")).clicked(){replacement=folder_dialog(selected.as_deref()).pick_folder().map(Some);}
-            if ui.small_button("×").clicked(){replacement=Some(None);}
+            if crate::ui::icons::close_button(ui).clicked(){replacement=Some(None);}
         });
         if let Some(path)=replacement {
             let settings=&app.synthesis.library.settings;
@@ -29,7 +29,7 @@ pub fn settings(app: &mut App, ui: &mut Ui) {
     for version in PhonemeVersion::ALL.into_iter().rev().filter(|version|!PhonemeVersion::BETA.contains(version)) {
         phoneme_path(app,ui,version);
     }
-    CollapsingHeader::new(crate::i18n::t("BETA_DICTIONARIES"))
+    crate::ui::theme::native::collapsing(crate::i18n::t("BETA_DICTIONARIES"))
         .id_salt("beta-phoneme-directories").default_open(false)
         .show(ui,|ui|{for version in PhonemeVersion::BETA {phoneme_path(app,ui,version);}});
     super::duration_key::settings(app, ui);
@@ -44,7 +44,7 @@ fn phoneme_path(app:&mut App,ui:&mut Ui,version:crate::synthesis::settings::Phon
         path_label(ui,app.synthesis.library.settings.phoneme_data.get(version));
         ui.horizontal(|ui|{
             if ui.button(crate::i18n::t("VOICE_SOURCE_CHANGE")).clicked(){choose_phoneme_data(app,version);}
-            if ui.small_button("×").clicked(){app.synthesis.set_phoneme_data(version,None);}
+            if crate::ui::icons::close_button(ui).clicked(){app.synthesis.set_phoneme_data(version,None);}
         });
     });
 }
@@ -73,7 +73,7 @@ fn source_list(app:&mut App,ui:&mut Ui) {
                 if ui.small_button(crate::i18n::t("VOICE_SOURCE_CHANGE")).clicked() {
                     replace=folder_dialog(Some(path)).pick_folder().map(|p|(index,p));
                 }
-                if ui.small_button("×").clicked() {remove=Some(index);}
+                if crate::ui::icons::close_button(ui).clicked() {remove=Some(index);}
                 path_label(ui,Some(path));
             });
         });

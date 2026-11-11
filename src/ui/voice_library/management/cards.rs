@@ -1,7 +1,7 @@
 mod actions;
 use super::{
     super::{artwork, family_name, language_name},
-    ACCENT, CARD, INK, State, catalog, details,
+    ACCENT, manager_card_color, manager_ink_color, State, catalog, details,
 };
 use crate::{
     app::App,
@@ -13,7 +13,7 @@ use eframe::egui::*;
 pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &VoiceCatalogEntry, state: &mut State) {
     ui.push_id((&entry.database_id, "voice-product"), |ui| {
         Frame::new()
-            .fill(CARD)
+            .fill(manager_card_color())
             .corner_radius(13)
             .inner_margin(20)
             .show(ui, |ui| {
@@ -41,7 +41,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &VoiceCatalogEntry, state:
                             if compact { 17.0 } else { 20.0 },
                             section_title_font().family,
                         ),
-                        INK,
+                        manager_ink_color(),
                     );
                 let meta = Rect::from_min_max(origin + vec2(0.0, 30.0), pos2(end, origin.y + 54.0));
                 let changed = version(ui, app, entry, state, meta);
@@ -101,14 +101,14 @@ fn version(
     let text_width = (rect.width() - 76.0).max(0.0);
     let galley =
         ui.painter()
-            .layout_no_wrap(entry.localized_vendor().to_owned(), FontId::proportional(12.0), MUTED);
+            .layout_no_wrap(entry.localized_vendor().to_owned(), FontId::proportional(12.0), muted_color());
     let vendor_width = galley.size().x.min(text_width);
     ui.painter()
         .with_clip_rect(
             Rect::from_min_size(rect.min, vec2(vendor_width, rect.height()))
                 .intersect(ui.clip_rect()),
         )
-        .galley(rect.min + vec2(0.0, 3.0), galley, MUTED);
+        .galley(rect.min + vec2(0.0, 3.0), galley, muted_color());
     let mut revision = entry.revision;
     let mut controls = child(
         ui,
@@ -117,9 +117,9 @@ fn version(
     );
     controls.spacing_mut().interact_size.y = 22.0;
     controls.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(10);
-    controls.visuals_mut().widgets.inactive.bg_fill = BUTTON;
-    controls.visuals_mut().widgets.inactive.weak_bg_fill = BUTTON;
-    ComboBox::from_id_salt("version")
+    controls.visuals_mut().widgets.inactive.bg_fill = button_color();
+    controls.visuals_mut().widgets.inactive.weak_bg_fill = button_color();
+    crate::ui::theme::native::combo("version")
         .width(64.0)
         .selected_text(format!("v{}", revision))
         .show_ui(&mut controls, |ui| {
@@ -163,7 +163,7 @@ fn tags_row(ui: &Ui, entry: &VoiceCatalogEntry, rect: Rect) {
     let mut x = rect.left();
     let painter = ui.painter().with_clip_rect(rect.intersect(ui.clip_rect()));
     for value in values {
-        let galley = painter.layout_no_wrap(value.to_owned(), FontId::proportional(11.0), TEXT);
+        let galley = painter.layout_no_wrap(value.to_owned(), FontId::proportional(11.0), text_color());
         let width = galley.size().x + 18.0;
         if x + width > rect.right() {
             break;
@@ -173,7 +173,7 @@ fn tags_row(ui: &Ui, entry: &VoiceCatalogEntry, rect: Rect) {
         painter.galley(
             badge.left_center() + vec2(9.0, -galley.size().y / 2.0),
             galley,
-            TEXT,
+            text_color(),
         );
         x = badge.right() + 6.0;
     }
@@ -188,14 +188,14 @@ fn badge(ui: &Ui, app: &App, entry: &VoiceCatalogEntry, current: bool, rect: Rec
                 (crate::i18n::t("待配置"), Color32::from_rgb(219, 167, 101), false)
             }
             VoiceState::Loaded(_) => (if current { crate::i18n::t("当前音轨") } else { crate::i18n::t("已加载") }, ACCENT, true),
-            VoiceState::Loading => (crate::i18n::t("正在加载"), MUTED, false),
+            VoiceState::Loading => (crate::i18n::t("正在加载"), muted_color(), false),
             VoiceState::Failed(_) => (crate::i18n::t("加载失败"), Color32::from_rgb(218, 142, 126), false),
-            VoiceState::Unloaded => (crate::i18n::t("未加载"), MUTED, false),
+            VoiceState::Unloaded => (crate::i18n::t("未加载"), muted_color(), false),
         }
     } else if entry.availability.is_loadable() {
-        (crate::i18n::t("可加载"), MUTED, false)
+        (crate::i18n::t("可加载"), muted_color(), false)
     } else {
-        (crate::i18n::t("不可用"), MUTED, false)
+        (crate::i18n::t("不可用"), muted_color(), false)
     };
     let point = if left {
         rect.left_center() + vec2(if check { 19.0 } else { 0.0 }, 0.0)
@@ -214,13 +214,6 @@ fn badge(ui: &Ui, app: &App, entry: &VoiceCatalogEntry, current: bool, rect: Rec
         .galley(pos2(x, point.y - galley.size().y / 2.0), galley, color);
     if check {
         let c = pos2(x - 12.0, point.y);
-        ui.painter().add(Shape::line(
-            vec![
-                c + vec2(-4.0, 0.0),
-                c + vec2(-1.0, 3.0),
-                c + vec2(6.0, -4.0),
-            ],
-            Stroke::new(1.8, color),
-        ));
+        crate::ui::icons::Icon::MenuCheck.paint(ui,Rect::from_center_size(c,vec2(18.0,15.0)),color);
     }
 }

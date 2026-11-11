@@ -14,7 +14,7 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
     if response.double_clicked() {
         app.rename = Some(super::rename::Rename::track(track.id, &track.name));
     }
-    response.context_menu(|ui| {
+    crate::ui::theme::menu::context_menu(&response,|ui| {
         if !app.editor.selected_tracks.contains(&track.id){app.editor.select_track_header(track.id,false,false);}
         app.editor.track_focus=true;
         if ui.button(crate::i18n::t("Duplicate Track")).clicked(){app.commit_lyric();app.editor.duplicate_tracks(false);ui.close();}
@@ -71,18 +71,18 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
         }
     });
     let text_rect = Rect::from_min_max(
-        rect.min + vec2(16.0, 0.0),
+        rect.min + vec2(if current() == InterfaceTheme::Classic {32.0} else {16.0}, 0.0),
         pos2(rect.right() - 95.0, rect.bottom()),
     );
     let painter = ui
         .painter()
         .with_clip_rect(ui.clip_rect().intersect(text_rect));
     painter.text(
-        rect.min + vec2(18.0, 17.0),
+        rect.min + if current() == InterfaceTheme::Classic {vec2(32.0,15.5)} else {vec2(16.0,16.5)},
         Align2::LEFT_CENTER,
         &track.name,
-        FontId::proportional(12.0),
-        TEXT,
+        if current()==InterfaceTheme::Classic {native_font(17.0)}else{FontId::proportional(12.0)},
+        text_color(),
     );
     source::show(app, ui, rect, text_rect, track);
     if rect.width() < 210.0 {
@@ -92,7 +92,7 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
         (
             "gainDecibel",
             crate::i18n::t("音量"),
-            pos2(rect.right() - 79.0, rect.top() + 23.0),
+            pos2(rect.right() - if current() == InterfaceTheme::Classic {74.5} else {79.5}, rect.top() + if current() == InterfaceTheme::Classic {20.5} else {24.5}),
             -48.0,
             12.0,
             0.0,
@@ -100,7 +100,7 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
         (
             "pan",
             crate::i18n::t("声像"),
-            pos2(rect.right() - 49.0, rect.top() + 23.0),
+            pos2(rect.right() - if current() == InterfaceTheme::Classic {47.5} else {46.5}, rect.top() + if current() == InterfaceTheme::Classic {20.5} else {24.5}),
             -1.0,
             1.0,
             0.0,
@@ -129,49 +129,68 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
         if response.drag_stopped() || response.double_clicked() {
             app.editor.finish();
         }
-        if field == "pan" {
-            Icon::Pan.paint(
-                ui,
-                Rect::from_center_size(pos2(center.x, rect.top() + 43.0), vec2(13.0, 13.0)),
-                Color32::from_rgb(120, 117, 124),
-            );
-        } else {
-            let x = center.x - 6.0;
+        if current()==InterfaceTheme::Classic {
+            let heights=if field=="pan" {[6.0,4.0,2.0,2.0,4.0,6.0]}else{[1.0,2.0,3.0,4.0,5.0,6.0]};
+            let offsets=if field=="pan" {[1.0,2.0,3.0,3.0,2.0,1.0]}else{[1.0;6]};
             for i in 0..6 {
-                ui.painter().vline(
-                    x + i as f32 * 2.0,
-                    rect.top() + 45.0 - (1.0 + i as f32)..=rect.top() + 45.0,
-                    Stroke::new(1.0, MUTED.gamma_multiply(0.55)),
-                );
+                let bottom=rect.bottom()-9.0-offsets[i];
+                let bar=Rect::from_min_size(pos2(center.x-5.5+i as f32*2.0,bottom-heights[i]),vec2(1.0,heights[i]));
+                ui.painter().rect_filled(bar,0,Color32::from_gray(148));
             }
+        } else {
+            let label_rect=Rect::from_min_size(pos2(center.x-5.5,center.y+14.5),vec2(11.0,6.0));
+            let label_color=Color32::from_rgb(108,107,110);
+            if field=="pan" {Icon::Pan.paint(ui,label_rect,label_color);}
+            else {for i in 0..6 {
+                let height=(i+1) as f32;
+                ui.painter().rect_filled(Rect::from_min_size(label_rect.min+vec2(i as f32*2.0,6.0-height),vec2(1.0,height)),0,label_color);
+            }}
         }
     }
-    for (field, text, y) in [("mute", "M", 10.0), ("solo", "S", 30.0)] {
+    for (field, text, y) in [("mute", "M", if current() == InterfaceTheme::Classic {9.0} else {11.0}), ("solo", "S", if current() == InterfaceTheme::Classic {27.0} else {32.0})] {
         let value = track
             .mixer
             .get(field)
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
-        let r = Rect::from_min_size(pos2(rect.right() - 27.0, rect.top() + y), vec2(16.0, 16.0));
+        let r = Rect::from_min_size(pos2(rect.right() - 24.0, rect.top() + y), Vec2::splat(if current() == InterfaceTheme::Classic {14.0} else {16.0}));
         let response = ui.interact(r, Id::new((track.id, field)), Sense::click());
-        ui.painter().rect_filled(
-            r,
-            2,
-            if value {
-                GREEN
-            } else if response.hovered() {
-                BUTTON_HOVER
-            } else {
-                BUTTON
-            },
-        );
-        ui.painter().text(
-            r.center(),
-            Align2::CENTER_CENTER,
-            text,
-            FontId::proportional(9.0),
-            if value { CANVAS } else { TEXT },
-        );
+        if current() == InterfaceTheme::Classic {
+            let fill = if value {
+                let [red, green, blue, alpha] = track.disp_color.rgba();
+                let brighten = |channel: u8| {
+                    (255.0 - (255.0 - channel as f32) * 0.9090908765792847_f32) as u8
+                };
+                Color32::from_rgba_unmultiplied(brighten(red), brighten(green), brighten(blue), alpha)
+            } else { Color32::from_rgba_unmultiplied(26, 26, 26, 160) };
+            ui.painter().rect_filled(r, 0, fill);
+            ui.painter().text(
+                r.center() - vec2(0.0, 1.0),
+                Align2::CENTER_CENTER,
+                text,
+                native_font(14.0),
+                if value { Color32::from_rgb(37, 38, 38) } else { Color32::from_gray(184) },
+            );
+        } else {
+            ui.painter().rect_filled(
+                r,
+                2,
+                if value {
+                    accent_color()
+                } else if response.hovered() {
+                    button_hover_color()
+                } else {
+                    button_color()
+                },
+            );
+            ui.painter().text(
+                r.center(),
+                Align2::CENTER_CENTER,
+                text,
+                FontId::proportional(9.0),
+                if value { canvas_color() } else { text_color() },
+            );
+        }
         if response
             .on_hover_text(if field == "mute" {
                 crate::i18n::t("音轨静音")
@@ -202,13 +221,14 @@ fn knob(
     max: f64,
     reset: f64,
 ) -> (f64, Response) {
-    let rect = Rect::from_center_size(center, vec2(21.0, 25.0));
+    let size=if current()==InterfaceTheme::Classic {vec2(19.0,19.0)}else{vec2(21.0,25.0)};
+    let rect=Rect::from_center_size(center,size);
     let response = ui.interact(rect, Id::new(id), Sense::click_and_drag());
     ui.painter().circle_filled(
         center,
-        9.5,
+        if current() == InterfaceTheme::Classic {9.5} else {10.5},
         if response.hovered() {
-            BUTTON_HOVER
+            button_hover_color()
         } else {
             Color32::from_rgb(77, 75, 81)
         },
@@ -221,7 +241,7 @@ fn knob(
     let angle = (-225.0 + normalized as f32 * 270.0).to_radians();
     let end = center + vec2(angle.cos(), angle.sin()) * 8.0;
     ui.painter()
-        .line_segment([center, end], Stroke::new(1.0, MUTED));
+        .line_segment([center, end], Stroke::new(1.0, muted_color()));
     let next = if response.double_clicked() {
         reset
     } else if response.dragged() {

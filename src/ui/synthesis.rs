@@ -25,7 +25,7 @@ pub fn render_status(app: &mut App, ui: &mut Ui) {
         }
     }
     if !app.synthesis.failures.is_empty() {
-        ui.collapsing(crate::i18n::t("失败详情"), |ui| {
+        crate::ui::theme::native::collapsing(crate::i18n::t("失败详情")).show(ui, |ui| {
             for (owner, error) in &app.synthesis.failures {
                 ui.label(crate::lformat!("音符组 {}：{error}", owner.0));
             }
@@ -44,7 +44,7 @@ pub fn render_status(app: &mut App, ui: &mut Ui) {
     if let Some(duration) = app.synthesis.audio_duration() {
         ui.label(crate::lformat!("当前混音 {:.2} 秒 · 48 kHz · 立体声", duration));
     }
-    ui.collapsing(crate::i18n::t("合成计划"), |ui| {
+    crate::ui::theme::native::collapsing(crate::i18n::t("合成计划")).show(ui, |ui| {
         let summary = app.synthesis.planner.summary();
         ui.label(crate::lformat!("{} 个音符组纳入当前计划", summary.pending_owners));
         ui.label(crate::lformat!(

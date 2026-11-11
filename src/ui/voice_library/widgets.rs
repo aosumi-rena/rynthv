@@ -1,15 +1,14 @@
 use crate::ui::{icons::Icon, theme::*};
 use eframe::egui::*;
 
-const CONTROL_FILL: Color32 = Color32::from_rgb(58, 56, 59);
 
 pub(super) fn field(ui: &mut Ui, value: &str, dropdown: bool, reason: &str) {
-    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0),Sense::hover());
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), native::control_height()),Sense::hover());
     ui.painter().rect(
         rect,
         4,
-        CONTROL_FILL,
-        Stroke::new(0.6, BUTTON),
+        palette().control_fill,
+        Stroke::new(0.6, button_color()),
         StrokeKind::Inside,
     );
     let text_rect = Rect::from_min_max(
@@ -23,13 +22,13 @@ pub(super) fn field(ui: &mut Ui, value: &str, dropdown: bool, reason: &str) {
             Align2::LEFT_CENTER,
             value,
             FontId::proportional(12.0),
-            TEXT,
+            text_color(),
         );
     if dropdown {
-        Icon::ChevronDown.paint(
+        Icon::Dropdown.paint(
             ui,
             Rect::from_center_size(rect.right_center() - vec2(17.0, 0.0), Vec2::splat(12.0)),
-            MUTED,
+            muted_color(),
         );
     }
     response.widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox,false,value));
@@ -38,7 +37,6 @@ pub(super) fn field(ui: &mut Ui, value: &str, dropdown: bool, reason: &str) {
         .on_hover_text(crate::i18n::message(reason));
 }
 
-const POPUP_KNOB: Color32 = Color32::from_rgb(65, 63, 68);
 
 pub(super) fn slider(ui: &mut Ui, label: &str) {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 51.0), Sense::hover());
@@ -48,14 +46,14 @@ pub(super) fn slider(ui: &mut Ui, label: &str) {
         Align2::LEFT_TOP,
         label,
         FontId::proportional(12.0),
-        MUTED,
+        muted_color(),
     );
     let y = rect.top() + 32.0;
-    painter.hline(rect.x_range(), y, Stroke::new(2.0, EDGE));
+    painter.hline(rect.x_range(), y, Stroke::new(2.0, edge_color()));
     let center = pos2(rect.center().x, y);
-    painter.circle(center, 9.5, EDGE, Stroke::NONE);
-    painter.circle(center, 8.5, POPUP_KNOB, Stroke::new(0.7, BUTTON_ACTIVE));
-    painter.circle_filled(center, 3.0, TEXT);
+    painter.circle(center, 9.5, edge_color(), Stroke::NONE);
+    painter.circle(center, 8.5, palette().popup_knob, Stroke::new(0.7, button_active_color()));
+    painter.circle_filled(center, 3.0, text_color());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Slider, false, label));
     response
         .on_hover_cursor(CursorIcon::NotAllowed)

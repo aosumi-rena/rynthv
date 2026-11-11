@@ -77,13 +77,13 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect) {
             if response.clicked() && !app.view_pan.is_active() {
                 time_edit::open(app, target);
             }
-            response.context_menu(|ui| event_menu(app, ui, target));
+            crate::ui::theme::menu::context_menu(&response,|ui| event_menu(app, ui, target));
         }
     }
 }
 
 fn marker(painter: &Painter, pos: Pos2, text: &str, flag: bool) -> Option<Rect> {
-    let text = painter.layout_no_wrap(text.into(), FontId::proportional(12.0), TEXT);
+    let text = painter.layout_no_wrap(text.into(), FontId::proportional(12.0), text_color());
     let rect = Rect::from_min_size(pos - vec2(5.0, 9.0), vec2(text.size().x + 9.0, 19.0));
     let bounds = Rect::from_min_max(rect.min, rect.max + vec2(if flag { 7.0 } else { 0.0 }, 0.0));
     let hit = bounds.intersect(painter.clip_rect());
@@ -99,13 +99,13 @@ fn marker(painter: &Painter, pos: Pos2, text: &str, flag: bool) -> Option<Rect> 
                 rect.right_bottom(),
                 rect.left_bottom(),
             ],
-            BUTTON,
+            button_color(),
             Stroke::NONE,
         ));
     } else {
-        painter.rect_filled(rect, 1, BUTTON);
+        painter.rect_filled(rect, 1, button_color());
     }
-    painter.galley(pos2(pos.x, pos.y - text.size().y / 2.0), text, TEXT);
+    painter.galley(pos2(pos.x, pos.y - text.size().y / 2.0), text, text_color());
     Some(hit)
 }
 

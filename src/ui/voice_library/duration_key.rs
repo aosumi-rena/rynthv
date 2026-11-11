@@ -8,7 +8,7 @@ pub(super) fn settings(app: &mut App, ui: &mut Ui) {
         .unwrap_or((settings.duration_key_override_enabled, settings.duration_key_override_value.to_string()));
     ui.add_space(12.0);
     ui.label(RichText::new(crate::i18n::t("DURATION_MODEL_KEY_R3")).strong());
-    ui.checkbox(&mut draft.0, crate::i18n::t("覆盖 DUR key"));
+    crate::ui::theme::native::checkbox(ui,&mut draft.0, crate::i18n::t("覆盖 DUR key"));
     ui.add_enabled_ui(draft.0, |ui| {
         ui.label(crate::i18n::t("DUR key（无符号 64 位整数）"));
         ui.add(TextEdit::singleline(&mut draft.1).desired_width(ui.available_width()));
@@ -34,7 +34,7 @@ pub(super) fn voice_settings(app: &mut App, ui: &mut Ui, entry: &VoiceCatalogEnt
         .unwrap_or((initial.0, initial.1.to_string()));
     ui.separator();
     ui.label(RichText::new(crate::lformat!("时长模型键值 · {}", entry.revision)).strong());
-    ui.checkbox(&mut draft.0, crate::i18n::t("覆盖此版本 DUR key"));
+    crate::ui::theme::native::checkbox(ui,&mut draft.0, crate::i18n::t("覆盖此版本 DUR key"));
     ui.add_enabled_ui(draft.0, |ui| {
         ui.label(crate::i18n::t("DUR key（无符号 64 位整数）"));
         ui.add(TextEdit::singleline(&mut draft.1).desired_width(ui.available_width()));

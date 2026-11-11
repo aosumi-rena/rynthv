@@ -1,4 +1,4 @@
-use super::theme::{CANVAS, TEXT};
+use super::theme::{canvas_color, text_color};
 use crate::model::{Track, TrackColor};
 use eframe::egui::*;
 
@@ -16,7 +16,7 @@ impl TrackColors {
         Self {
             accent,
             note: accent.lerp_to_gamma(Color32::BLACK, 0.30),
-            inactive: accent.lerp_to_gamma(CANVAS, 0.60),
+            inactive: accent.lerp_to_gamma(canvas_color(), 0.60),
             highlight: accent.lerp_to_gamma(Color32::WHITE, 0.40),
         }
     }
@@ -39,7 +39,7 @@ pub fn foreground(color: Color32) -> Color32 {
     let luminance =
         0.2126 * linear(color.r()) + 0.7152 * linear(color.g()) + 0.0722 * linear(color.b());
     if luminance > 0.20 {
-        CANVAS
+        canvas_color()
     } else {
         Color32::from_gray(240)
     }
@@ -48,7 +48,7 @@ pub fn foreground(color: Color32) -> Color32 {
 pub fn picker(ui: &mut Ui, current: TrackColor) -> Option<TrackColor> {
     let mut picked = None;
     ui.scope(|ui| {
-        ui.label(RichText::new(crate::i18n::t("音轨颜色")).size(11.0).color(TEXT));
+        ui.label(RichText::new(crate::i18n::t("音轨颜色")).size(11.0).color(text_color()));
         ui.add_space(5.0);
         ui.spacing_mut().item_spacing = vec2(3.0, 3.0);
         for row in TrackColor::PALETTE.chunks(6) {
@@ -71,7 +71,7 @@ pub fn picker(ui: &mut Ui, current: TrackColor) -> Option<TrackColor> {
                         ui.painter().rect_stroke(
                             rect,
                             3,
-                            Stroke::new(1.0, if selected { Color32::WHITE } else { TEXT }),
+                            Stroke::new(1.0, if selected { Color32::WHITE } else { text_color() }),
                             StrokeKind::Inside,
                         );
                     }

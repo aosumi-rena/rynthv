@@ -4,7 +4,7 @@ use eframe::egui::*;
 pub(super) fn expression(ui: &mut Ui, value: &mut [f64; 2], mixed: bool) -> Response {
     let (rect, mut response) =
         ui.allocate_exact_size(Vec2::splat(ui.available_width()), Sense::click_and_drag());
-    let bounds = rect.shrink(9.0);
+    let bounds = rect;
     if ui.is_enabled() {
         let original = *value;
         if response.double_clicked() {
@@ -39,9 +39,9 @@ pub(super) fn expression(ui: &mut Ui, value: &mut [f64; 2], mixed: bool) -> Resp
         }
     }
     let painter = ui.painter();
-    painter.rect_filled(rect, 4, Color32::from_rgb(31, 30, 34));
-    painter.hline(rect.x_range(), rect.center().y, Stroke::new(1.0, BUTTON));
-    painter.vline(rect.center().x, rect.y_range(), Stroke::new(1.0, BUTTON));
+    painter.rect_filled(rect, 4, native::expression_fill());
+    painter.hline(rect.x_range(), rect.center().y, Stroke::new(1.0, button_color()));
+    painter.vline(rect.center().x, rect.y_range(), Stroke::new(1.0, button_color()));
     for (position, anchor, text) in [
         (rect.min + vec2(8.0, 8.0), Align2::LEFT_TOP, crate::i18n::t("鲜活")),
         (
@@ -56,25 +56,21 @@ pub(super) fn expression(ui: &mut Ui, value: &mut [f64; 2], mixed: bool) -> Resp
         ),
         (rect.max - vec2(8.0, 8.0), Align2::RIGHT_BOTTOM, crate::i18n::t("原生")),
     ] {
-        painter.text(position, anchor, text, FontId::proportional(12.0), MUTED);
+        painter.text(position, anchor, text, FontId::proportional(12.0), native::expression_caption());
     }
     let center = pos2(
-        bounds.left() + bounds.width() * value[0] as f32,
-        bounds.bottom() - bounds.height() * value[1] as f32,
+        rect.left() + rect.width() * value[0] as f32,
+        rect.bottom() - rect.height() * value[1] as f32,
     );
-    painter.circle_filled(center, 7.0, PANEL);
-    painter.circle_stroke(
-        center,
-        8.0,
-        Stroke::new(2.0, if mixed { MUTED } else { TEXT }),
-    );
+    let marker=Rect::from_center_size(center,Vec2::splat(16.0));
+    painter.rect_filled(marker,2,if mixed {native::expression_caption()} else {native::expression_ink()});
     if mixed {
         painter.text(
             rect.center() + vec2(0.0, 18.0),
             Align2::CENTER_TOP,
             crate::i18n::t("多个值"),
             FontId::proportional(11.0),
-            MUTED,
+            muted_color(),
         );
     }
     response.on_hover_cursor(CursorIcon::Crosshair)
@@ -128,12 +124,12 @@ pub(super) fn slider(
         rect.center().y,
     );
     ui.painter()
-        .hline(bounds.x_range(), center.y, Stroke::new(2.0, EDGE));
+        .hline(bounds.x_range(), center.y, Stroke::new(2.0, edge_color()));
     ui.painter()
-        .hline(bounds.left()..=center.x, center.y, Stroke::new(2.0, MUTED));
+        .hline(bounds.left()..=center.x, center.y, Stroke::new(2.0, muted_color()));
     ui.painter()
-        .circle(center, 9.0, BUTTON, Stroke::new(0.7, BUTTON_ACTIVE));
-    ui.painter().circle_filled(center, 3.0, TEXT);
+        .circle(center, 9.0, button_color(), Stroke::new(0.7, button_active_color()));
+    ui.painter().circle_filled(center, 3.0, text_color());
     response
         .on_hover_cursor(CursorIcon::PointingHand)
         .on_hover_text(crate::lformat!(

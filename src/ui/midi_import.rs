@@ -28,7 +28,7 @@ pub fn show(app: &mut App, ctx: &Context) {
             ui.spacing_mut().item_spacing.y = 12.0;
             ui.label(
                 RichText::new(crate::i18n::t("导入 MIDI"))
-                    .font(FontId::new(18.0, FontFamily::Name("SectionTitle".into()))),
+                    .font(crate::ui::theme::native_heading(18.0)),
             );
             ui.label(
                 RichText::new(
@@ -39,7 +39,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                         .to_string_lossy(),
                 )
                 .size(11.0)
-                .color(MUTED),
+                .color(muted_color()),
             )
             .on_hover_text(import.path.display().to_string());
             match &mut import.phase {
@@ -54,7 +54,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                 }
                 MidiImportPhase::Ready { file, selected } => {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(crate::i18n::t("要导入的音轨")).color(MUTED));
+                        ui.label(RichText::new(crate::i18n::t("要导入的音轨")).color(muted_color()));
                         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                             if ui.small_button(crate::i18n::t("取消全选")).clicked() {
                                 selected.fill(false);
@@ -77,7 +77,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                                 if ui
                                     .add_enabled(
                                         !track.notes.is_empty(),
-                                        Checkbox::new(selected, track_label(track)),
+                                        crate::ui::theme::native::Checkbox::new(selected, track_label(track)),
                                     )
                                     .changed()
                                 {
@@ -96,15 +96,15 @@ pub fn show(app: &mut App, ctx: &Context) {
                             MidiImportMode::Tracks => crate::i18n::t("从工程起点追加音轨，保留当前曲速和拍号。"),
                         })
                         .size(11.0)
-                        .color(MUTED),
+                        .color(muted_color()),
                     );
                     ui.label(
                         RichText::new(crate::i18n::t("重叠音符会拆分为独立声部。"))
                             .size(11.0)
-                            .color(MUTED),
+                            .color(muted_color()),
                     );
                     if !file.warnings.is_empty() {
-                        CollapsingHeader::new(crate::lformat!("导入提示（{}）", file.warnings.len())).show(
+                        crate::ui::theme::native::collapsing(crate::lformat!("导入提示（{}）", file.warnings.len())).show(
                             ui,
                             |ui| {
                                 ScrollArea::vertical()
@@ -113,7 +113,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                                     .show(ui, |ui| {
                                         for warning in &file.warnings {
                                             ui.label(
-                                                RichText::new(crate::i18n::message(warning)).size(11.0).color(MUTED),
+                                                RichText::new(crate::i18n::message(warning)).size(11.0).color(muted_color()),
                                             );
                                         }
                                     });
@@ -132,14 +132,14 @@ pub fn show(app: &mut App, ctx: &Context) {
             ui.horizontal(|ui| {
                 let size = vec2((ui.available_width() - 10.0) / 2.0, 34.0);
                 cancel = ui
-                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))
+                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(button_hover_color()))
                     .clicked();
                 ui.add_space(2.0);
                 submit = ui
                     .add_enabled(
                         can_import,
-                        Button::new(RichText::new(crate::i18n::t("导入")).color(CANVAS))
-                            .fill(GREEN)
+                        Button::new(RichText::new(crate::i18n::t("导入")).color(canvas_color()))
+                            .fill(accent_color())
                             .min_size(size),
                     )
                     .clicked();

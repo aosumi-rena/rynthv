@@ -102,7 +102,7 @@ pub(super) fn distribute(notes: &[&NoteInput], rows: &mut [ResolvedNote], tree: 
             else {
                 let phones:Vec<_>=rows[index].syllables.iter().flatten().cloned().collect();
                 for (i,token) in phones.iter().enumerate() {
-                    if matches!(frontend.resolve_token(rows[index].language,token,tree)?.source_class,Some("vowel"|"diphthong")) {
+                    if matches!(frontend.phone_class(rows[index].language,token,tree)?,Some("vowel"|"diphthong")) {
                         previous_tail=Some(phones[i..].to_vec());
                         previous_tail_alphabet=rows[index].dictionary_alphabet;
                         previous_tail_owner=Some(index);
@@ -117,6 +117,7 @@ pub(super) fn distribute(notes: &[&NoteInput], rows: &mut [ResolvedNote], tree: 
 pub(super) fn validate(row:&mut ResolvedNote,tree:&PreparedTree,frontend:&super::LyricFrontend)->Result<()> {
     if row.kind==2 || row.error.is_some() {return Ok(());}
     for token in row.syllables.iter().flatten() {
+        if frontend.converting() {frontend.phone_class(row.language,token,tree)?;continue;}
         if frontend.resolve_token(row.language,token,tree)?.used_silence_fallback {
             if frontend.unmapped_phone_class(row.language,token)?.is_some() {
 

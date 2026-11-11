@@ -8,13 +8,13 @@ use eframe::egui::*;
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     ui.spacing_mut().item_spacing.y = 0.0;
-    Frame::new().inner_margin(16).show(ui, |ui| {
+    Frame::new().inner_margin(Margin{left:20,right:20,top:18,bottom:18}).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing.y = 8.0;
         selector::selected_card(app, ui);
-        weak(ui, crate::i18n::t("版本"));
+        native::label(ui, crate::i18n::t("版本"));
         version(app, ui);
-        weak(ui, crate::i18n::t("预设"));
+        native::label(ui, crate::i18n::t("预设"));
         super::style_presets::show(app, ui);
         status(app, ui);
     });
@@ -50,10 +50,10 @@ fn version(app: &mut App, ui: &mut Ui) {
     let label=if missing {crate::lformat!("{} (未安装)",requested)}else{selected.revision.to_string()};
     let mut revision = None;
     ui.scope(|ui| {
-        ui.spacing_mut().interact_size.y = 28.0;
-        ui.visuals_mut().widgets.inactive.bg_fill = BORDER;
+        ui.spacing_mut().interact_size.y = native::control_height();
+        ui.visuals_mut().widgets.inactive.bg_fill = border_color();
         ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(4);
-        ComboBox::from_id_salt("voice-revision")
+        crate::ui::theme::native::combo("voice-revision")
             .width(ui.available_width())
             .selected_text(label)
             .show_ui(ui, |ui| {
@@ -107,41 +107,7 @@ fn status(app: &mut App, ui: &mut Ui) {
 }
 
 fn section(ui: &mut Ui, title: &str, content: impl FnOnce(&mut Ui)) {
-    let y = ui.next_widget_position().y;
-    ui.painter().hline(
-        ui.available_rect_before_wrap().x_range(),
-        y,
-        Stroke::new(1.0, EDGE),
-    );
-    Frame::new()
-        .inner_margin(Margin {
-            left: 16,
-            right: 16,
-            top: 12,
-            bottom: 16,
-        })
-        .show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.spacing_mut().item_spacing.y = 12.0;
-            if title == crate::i18n::t("唱法") {
-                let mut toggle = false;
-                let mut header = collapsing_header::CollapsingState::load_with_default_open(
-                    ui.ctx(),ui.make_persistent_id(("voice-section",title)),true)
-                    .show_header(ui,|ui| {
-                        toggle = ui.add(Label::new(RichText::new(title).font(section_title_font()))
-                            .sense(Sense::click())).clicked();
-                        super::mode_controls::snap_button(ui);
-                    });
-                if toggle {header.toggle();}
-                header.body_unindented(|ui| {ui.set_width(ui.available_width());content(ui);});
-            } else {
-                CollapsingHeader::new(RichText::new(title).font(section_title_font()))
-                .id_salt(("voice-section", title))
-                .default_open(true)
-                .show_unindented(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    content(ui);
-                });
-            }
-        });
+    native::section(ui,("voice-section",title),title,|ui|{
+        if title == crate::i18n::t("唱法") {super::mode_controls::snap_button(ui);}
+    },content);
 }

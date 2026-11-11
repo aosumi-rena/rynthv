@@ -13,7 +13,7 @@ pub(super) fn toggle(app: &mut App, ui: &mut Ui) {
     if ui
         .add(
             IconButton::new(Icon::Scale, crate::i18n::t("显示调式音阶"))
-                .framed()
+                .framed().tool()
                 .size(vec2(32.0, 24.0))
                 .selected(app.view.scale.enabled),
         )

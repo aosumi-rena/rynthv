@@ -35,12 +35,17 @@ pub fn visible_note_rect(
 }
 
 pub fn label_rect(group: Rect, canvas: Rect, width: f32) -> Option<Rect> {
-    let left = group.left().max(canvas.left());
+    let classic=crate::ui::theme::current() == crate::ui::theme::InterfaceTheme::Classic;
+
+    let left = group.left().max(canvas.left()) + if classic {6.0} else {0.0};
+    let width = width + if classic {16.0} else {0.0};
     let right = group.right().min(canvas.right());
     (right > left).then(|| {
         Rect::from_min_size(
-            pos2(left, canvas.top() - 20.0),
-            vec2(width.min(right - left), 20.0),
+            pos2(left, if crate::ui::theme::current() == crate::ui::theme::InterfaceTheme::Classic {
+
+                canvas.bottom() - 26.0 } else { canvas.top() - 20.0 }),
+            vec2(width.min(right - left), if crate::ui::theme::current() == crate::ui::theme::InterfaceTheme::Classic { 18.0 } else { 20.0 }),
         )
     })
 }

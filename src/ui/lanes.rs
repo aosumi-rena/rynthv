@@ -64,17 +64,17 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     };
     let mut lane = app.view.lanes[index].clone();
     let rect = ui.max_rect();
-    ui.painter().rect_filled(rect, 0, PANEL);
+    ui.painter().rect_filled(rect, 0, panel_color());
     let header = Rect::from_min_size(rect.min, vec2(rect.width(), 30.0));
     let mut header_ui = child(ui, header, ("lane-header", id));
     header::show(app, &mut header_ui, &mut lane);
     app.view.lanes[index] = lane.clone();
     let unavailable = parameter_unavailable(app, &lane.foreground);
-    let canvas = Rect::from_min_max(pos2(rect.left() + GUTTER, header.bottom()), rect.max);
+    let canvas = Rect::from_min_max(pos2(rect.left() + gutter(), header.bottom()), rect.max);
     if canvas.height() < 5.0 {
         return;
     }
-    ui.painter().rect_filled(canvas, 0, CANVAS);
+    ui.painter().rect_filled(canvas, 0, canvas_color());
     let response = ui.interact(
         canvas,
         Id::new(("parameter-canvas", id)),
@@ -98,12 +98,12 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     let (low_label, high_label) = geometry::labels(&lane.foreground, min, max);
     for (value, text) in [(min, low_label), (max, high_label)] {
         let y = y_for(value).clamp(canvas.top() + 10.0, canvas.bottom() - 10.0);
-        label(ui, pos2(rect.left() + 4.0, y), text, MUTED);
+        label(ui, pos2(rect.left() + 4.0, y), text, muted_color());
     }
     if lane.foreground != Parameter::Rap {ui.painter().hline(
         canvas.x_range(),
         y_for(lane.foreground.default_value()),
-        Stroke::new(0.5, GRID),
+        Stroke::new(0.5, grid_color()),
     );}
     let Some(reference) = app.editor.active_ref().cloned() else {
         return;
@@ -122,7 +122,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
                 crate::ui::parameter_label(&lane.foreground)
             ),
             FontId::proportional(12.0),
-            MUTED,
+            muted_color(),
         );
         if response.clicked() {
             app.editor.begin(crate::i18n::t("开始编辑唱法曲线"));
@@ -145,8 +145,8 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     let group_clip = canvas;
     if lane.background == Parameter::Rap {rap::show(app,ui,&response,canvas,false);}
     for (parameter, color, editable) in [
-        (&lane.background, MUTED.gamma_multiply(0.5), false),
-        (&lane.foreground, GREEN, true),
+        (&lane.background, muted_color().gamma_multiply(0.5), false),
+        (&lane.foreground, accent_color(), true),
     ] {
         if *parameter == Parameter::Rap {continue;}
         let Some(curve) = app.editor.group().unwrap().automation(parameter) else {
@@ -215,15 +215,15 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
             }
             if editable && unavailable.is_none() && lane.tool == CurveTool::Point {
                 for &point in &curve.points {
-                    painter.circle_filled(map(point), if selection::contains(app,id,point.0) {4.0} else {2.0}, GREEN);
+                    painter.circle_filled(map(point), if selection::contains(app,id,point.0) {4.0} else {2.0}, accent_color());
                 }
             }
         }
     }
     if let Some(reason) = unavailable {
-        ui.painter().rect_filled(Rect::from_min_size(canvas.min,vec2(canvas.width(),30.0)),0,PANEL);
+        ui.painter().rect_filled(Rect::from_min_size(canvas.min,vec2(canvas.width(),30.0)),0,panel_color());
         ui.painter().text(canvas.left_top()+vec2(8.0,15.0),Align2::LEFT_CENTER,
-            crate::i18n::t(reason),FontId::proportional(12.0),MUTED);
+            crate::i18n::t(reason),FontId::proportional(12.0),muted_color());
         response.on_hover_text(crate::i18n::t(reason));
         playhead_line(ui,canvas,&app.view.piano,app.editor.transport.position);
         return;
@@ -238,7 +238,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     }
     if lane.foreground == Parameter::Rap {
         let y=canvas.center().y+1.0;
-        ui.painter().extend(Shape::dotted_line(&[pos2(canvas.left(),y),pos2(canvas.right(),y)], MUTED, 2.5, 0.5));
+        ui.painter().extend(Shape::dotted_line(&[pos2(canvas.left(),y),pos2(canvas.right(),y)], muted_color(), 2.5, 0.5));
         rap::show(app,ui,&response,canvas,true);
         playhead_line(ui,canvas,&app.view.piano,app.editor.transport.position);
         return;
@@ -298,7 +298,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     if lane.tool == CurveTool::Point && response.drag_stopped_by(PointerButton::Primary) {
         selection::finish_drag(app,true);
     }
-    response.context_menu(|ui| {
+    crate::ui::theme::menu::context_menu(&response,|ui| {
         selection::menu(app,ui);
         if ui.button(crate::i18n::t("清空此参数的控制点")).clicked() {
             app.editor.begin(crate::i18n::t("清空参数"));

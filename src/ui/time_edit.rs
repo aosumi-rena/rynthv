@@ -85,10 +85,10 @@ pub fn show(app: &mut App, ctx: &Context) {
             };
             ui.label(
                 RichText::new(title)
-                    .font(FontId::new(16.0, FontFamily::Name("SectionTitle".into()))),
+                    .font(crate::ui::theme::native_heading(16.0)),
             );
             ui.add_space(4.0);
-            ui.label(RichText::new(label).color(MUTED));
+            ui.label(RichText::new(label).color(muted_color()));
             let input = ui.add_sized(
                 vec2(WIDTH, 28.0),
                 TextEdit::singleline(&mut edit.value)
@@ -109,8 +109,8 @@ pub fn show(app: &mut App, ctx: &Context) {
             }
             if matches!(edit.target, Target::Meter(_)) {
                 ui.add_space(4.0);
-                ui.label(RichText::new(crate::i18n::t("分母")).color(MUTED));
-                ComboBox::from_id_salt("time-event-denominator")
+                ui.label(RichText::new(crate::i18n::t("分母")).color(muted_color()));
+                crate::ui::theme::native::combo("time-event-denominator")
                     .width(WIDTH)
                     .selected_text(edit.denominator.to_string())
                     .show_ui(ui, |ui| {
@@ -127,12 +127,12 @@ pub fn show(app: &mut App, ctx: &Context) {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 let size = vec2((WIDTH - 8.0) / 2.0, 32.0);
                 cancel = ui
-                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))
+                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(button_hover_color()))
                     .clicked();
                 submit |= ui
                     .add_sized(
                         size,
-                        Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS)).fill(GREEN),
+                        Button::new(RichText::new(crate::i18n::t("确定")).color(canvas_color())).fill(accent_color()),
                     )
                     .clicked();
             });

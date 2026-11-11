@@ -24,7 +24,7 @@ pub(super) fn mode(app: &mut App, ui: &mut Ui) {
         .add_enabled_ui(enabled, |ui| {
             let (rect, _) =
                 ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::hover());
-            ui.painter().rect_filled(rect, 3, BACKGROUND);
+            ui.painter().rect_filled(rect, 3, canvas_color());
             let mut clicked = None;
             for (index, value, label) in
                 [(0, NoteMode::Singing, crate::i18n::t("歌唱")), (1, NoteMode::Rap, crate::i18n::t("说唱"))]
@@ -49,9 +49,9 @@ pub(super) fn mode(app: &mut App, ui: &mut Ui) {
                         half,
                         3,
                         if response.hovered() {
-                            BUTTON_HOVER
+                            button_hover_color()
                         } else {
-                            BUTTON
+                            button_color()
                         },
                     );
                 }
@@ -61,11 +61,11 @@ pub(super) fn mode(app: &mut App, ui: &mut Ui) {
                     label,
                     FontId::proportional(12.0),
                     if !supported {
-                        MUTED.gamma_multiply(0.5)
+                        muted_color().gamma_multiply(0.5)
                     } else if mode == Some(value) {
-                        TEXT
+                        text_color()
                     } else {
-                        MUTED
+                        muted_color()
                     },
                 );
                 if response.clicked() {

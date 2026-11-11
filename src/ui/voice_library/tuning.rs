@@ -12,7 +12,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
     let (rect,_)=ui.allocate_exact_size(vec2(ui.available_width(),28.0),Sense::hover());
     ui.painter().rect_filled(rect,4,Color32::from_rgb(58,56,59));
     ui.painter().text(rect.left_center()+vec2(5.0,0.0),Align2::LEFT_CENTER,
-        crate::lformat!("调性: {key}，A4 = {frequency} Hz"),FontId::proportional(12.0),TEXT);
+        crate::lformat!("调性: {key}，A4 = {frequency} Hz"),FontId::proportional(12.0),text_color());
     ui.add_space(10.0);
     ui.spacing_mut().item_spacing.y=0.0;
     for spec in TUNING_CONTROLS {super::parameters::control(app,ui,spec);}

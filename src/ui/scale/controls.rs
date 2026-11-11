@@ -1,14 +1,14 @@
 use super::{Scale, Tonic};
 use crate::{
     app::App,
-    ui::theme::{BORDER, MUTED},
+    ui::theme::{border_color, muted_color},
 };
 use eframe::egui::*;
 use serde_json::{Value, json};
 
 pub fn toolbar(app: &mut App, ui: &mut Ui) {
     ui.add_space(15.0);
-    ui.label(RichText::new(crate::i18n::t("调式音阶")).color(MUTED));
+    ui.label(RichText::new(crate::i18n::t("调式音阶")).color(muted_color()));
     ui.add_space(8.0);
     ui.push_id("scale-toolbar", |ui| controls(app, ui, false));
 }
@@ -16,7 +16,7 @@ pub fn toolbar(app: &mut App, ui: &mut Ui) {
 pub fn panel(app: &mut App, ui: &mut Ui) {
     ui.push_id("voice-scale", |ui| {
         ui.spacing_mut().interact_size.y = 28.0;
-        ui.visuals_mut().widgets.inactive.bg_fill = BORDER;
+        ui.visuals_mut().widgets.inactive.bg_fill = border_color();
         ui.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(4);
         controls(app, ui, true);
     });
@@ -44,7 +44,7 @@ fn controls(app: &mut App, ui: &mut Ui, vertical: bool) {
 
 fn tonic_selector(ui: &mut Ui, current: &Selection, width: f32) -> Option<Tonic> {
     let mut result = None;
-    ComboBox::from_id_salt("scale-tonic")
+    crate::ui::theme::native::combo("scale-tonic")
         .width(width)
         .selected_text(current.tonic_label.as_str())
         .show_ui(ui, |ui| {
@@ -62,7 +62,7 @@ fn tonic_selector(ui: &mut Ui, current: &Selection, width: f32) -> Option<Tonic>
 
 fn scale_selector(ui: &mut Ui, current: &Selection, width: f32) -> Option<Scale> {
     let mut result = None;
-    ComboBox::from_id_salt("scale-mode")
+    crate::ui::theme::native::combo("scale-mode")
         .width(width)
         .selected_text(current.scale_label.as_str())
         .show_ui(ui, |ui| {

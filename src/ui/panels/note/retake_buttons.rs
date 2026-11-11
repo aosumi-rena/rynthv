@@ -1,6 +1,6 @@
 use crate::{
     model::RetakeComponent,
-    ui::{icons::Icon, theme::*},
+    ui::icons::Icon,
 };
 use eframe::egui::*;
 
@@ -51,101 +51,30 @@ fn button(ui: &mut Ui, width: f32, component: RetakeComponent) -> Response {
     );
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
     let hovered = response.hovered() && enabled;
+    let opacity = ui.opacity();
+    ui.set_opacity(1.0);
     ui.painter().rect(
-        rect,
-        3,
-        if response.is_pointer_button_down_on() {
-            BUTTON_ACTIVE
-        } else if hovered {
-            BUTTON_HOVER
-        } else {
-            BORDER
-        },
-        Stroke::new(0.6, BUTTON),
+        rect, 3,
+        Color32::from_white_alpha(if hovered {31} else {18}),
+        Stroke::new(1.0,Color32::from_white_alpha(18)),
         StrokeKind::Inside,
     );
-    let ink = if enabled { TEXT } else { MUTED };
-    let center = pos2(rect.center().x, rect.top() + 34.0);
-    match component {
-        RetakeComponent::Duration | RetakeComponent::Pitch => {
-            let icon = if component == RetakeComponent::Duration {
-                Icon::Phonemes
-            } else {
-                Icon::Notes
-            };
-            icon.paint(ui, Rect::from_center_size(center, Vec2::splat(25.0)), ink);
-        }
-        RetakeComponent::All | RetakeComponent::PitchAndTimbre => sparkles(ui, center, ink),
-        RetakeComponent::Timbre => lips(ui, center, ink),
-    }
+    let ink = Color32::from_rgba_unmultiplied(163,157,166,if enabled {255}else{128});
+    let icon = match component {
+        RetakeComponent::All | RetakeComponent::PitchAndTimbre => Icon::AllRetakes,
+        RetakeComponent::Duration => Icon::TimingRetake,
+        RetakeComponent::Pitch => Icon::PitchRetake,
+        RetakeComponent::Timbre => Icon::TimbreRetake,
+    };
+    icon.paint_control(ui, rect, ink);
     ui.painter().text(
-        pos2(center.x, rect.bottom() - 12.0),
-        Align2::CENTER_BOTTOM,
+        pos2(rect.center().x, rect.bottom() - 18.0),
+        Align2::CENTER_CENTER,
         label,
-        FontId::proportional(12.0),
+        crate::ui::theme::native_font(18.0),
         ink,
     );
+    ui.set_opacity(opacity);
     response.on_hover_text(crate::lformat!("重录{label}采样"))
 }
 
-fn lips(ui: &Ui, center: Pos2, ink: Color32) {
-    let contour = [
-        (-11.0, -1.0),
-        (-5.0, -6.0),
-        (0.0, -4.0),
-        (5.0, -6.0),
-        (11.0, -1.0),
-        (7.0, 5.0),
-        (0.0, 8.0),
-        (-7.0, 5.0),
-        (-11.0, -1.0),
-    ];
-    ui.painter().add(Shape::line(
-        contour
-            .into_iter()
-            .map(|(x, y)| center + vec2(x, y))
-            .collect(),
-        Stroke::new(1.3, ink),
-    ));
-    ui.painter().add(Shape::line(
-        [
-            (-10.0, -1.0),
-            (-4.0, 1.0),
-            (0.0, 0.0),
-            (4.0, 1.0),
-            (10.0, -1.0),
-        ]
-        .into_iter()
-        .map(|(x, y)| center + vec2(x, y))
-        .collect(),
-        Stroke::new(1.2, ink),
-    ));
-}
-
-fn sparkles(ui: &Ui, center: Pos2, ink: Color32) {
-    for (offset, radius) in [
-        (vec2(-4.0, 0.0), 9.0),
-        (vec2(8.0, -8.0), 3.5),
-        (vec2(9.0, 8.0), 3.0),
-    ] {
-        let center = center + offset;
-        let outline = [
-            (0.0, -1.0),
-            (0.3, -0.3),
-            (1.0, 0.0),
-            (0.3, 0.3),
-            (0.0, 1.0),
-            (-0.3, 0.3),
-            (-1.0, 0.0),
-            (-0.3, -0.3),
-            (0.0, -1.0),
-        ];
-        ui.painter().add(Shape::line(
-            outline
-                .into_iter()
-                .map(|(x, y)| center + vec2(x, y) * radius)
-                .collect(),
-            Stroke::new(1.3, ink),
-        ));
-    }
-}

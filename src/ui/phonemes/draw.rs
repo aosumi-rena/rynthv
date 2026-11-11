@@ -52,7 +52,7 @@ pub(super) fn body(painter: &Painter, cell: &Cell, body: Rect, color: Color32) {
             Stroke::new(
                 0.7,
                 if cell.phone.strength == 0.0 {
-                    MUTED
+                    muted_color()
                 } else {
                     color
                 },

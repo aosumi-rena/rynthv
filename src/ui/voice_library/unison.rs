@@ -25,7 +25,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
             ui.spacing_mut().item_spacing.y=4.0;
             super::weak(ui,crate::i18n::t("歌声声部"));
             ui.spacing_mut().interact_size.y=28.0;
-            ComboBox::from_id_salt(("choir-part",reference)).width(ui.available_width())
+            crate::ui::theme::native::combo(("choir-part",reference)).width(ui.available_width())
                 .selected_text(part_label(&plan.part)).show_ui(ui,|ui| {
                     let mut seen=std::collections::BTreeSet::new();
                     for speaker in &speakers {

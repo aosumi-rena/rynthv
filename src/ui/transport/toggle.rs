@@ -1,6 +1,6 @@
 use crate::ui::{
     icons::Icon,
-    theme::{MUTED, PANEL},
+    theme::muted_color,
 };
 use eframe::egui::*;
 
@@ -10,37 +10,18 @@ pub(super) fn show(
     label: &str,
     selected: bool,
     width: f32,
-    icon_size: f32,
 ) -> Response {
     let (rect, response) = ui.allocate_exact_size(vec2(width, 28.0), Sense::click());
     response.widget_info(|| {
         WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), selected, label)
     });
-    ui.painter().rect_filled(
-        rect,
-        CornerRadius {
-            nw: 0,
-            ne: 3,
-            sw: 0,
-            se: 3,
-        },
-        PANEL,
-    );
-    let tint = if selected {
-        Color32::from_rgb(235, 232, 240)
-    } else {
-        MUTED
-    };
-    icon.paint(
-        ui,
-        Rect::from_center_size(rect.center(), Vec2::splat(icon_size)),
-        tint,
-    );
+    let tint=if selected {Color32::from_rgb(239,232,242)}else{Color32::from_rgb(138,133,140)};
+    icon.paint_control(ui,rect,tint);
     if response.has_focus() {
         ui.painter().rect_stroke(
             rect.shrink(1.0),
             2,
-            Stroke::new(1.0, MUTED),
+            Stroke::new(1.0, muted_color()),
             StrokeKind::Inside,
         );
     }
