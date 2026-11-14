@@ -84,11 +84,7 @@ impl<'a> Frontend<'a> {
                 Contract::Native { .. } => timing::duration_seconds(note)?,
             };
             let pitch = note.pitch + note.pitch_offset + transpose;
-            let maximum_kind = match contract {
-                Contract::Compatible => 2,
-                Contract::Native { .. } => 1,
-            };
-            if !pitch.is_finite() || note.kind > maximum_kind {
+            if !pitch.is_finite() || note.kind > 2 {
                 return Err(VoiceError::new(
                     "Invalid DDS F0 note kind or pitch",
                 ));

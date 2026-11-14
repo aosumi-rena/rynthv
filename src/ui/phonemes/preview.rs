@@ -1,19 +1,28 @@
-use crate::{model::Group,synthesis::{plan::OwnerInput,rendered::{PhonemeTrack,RenderedPhone}}};
+use crate::{model::Note, synthesis::{plan::{NoteInput, OwnerInput}, rendered::{PhonemeTrack, RenderedPhone}}};
+use std::{borrow::Cow, collections::HashMap};
 
-pub(super) fn phones(group:&Group,input:&OwnerInput,track:&PhonemeTrack)->Vec<RenderedPhone> {
-    let mut phones=track.0.to_vec();
-
-    let changed=input.notes.iter().any(|old|group.notes.iter().any(|now|now.id==old.id && now.attributes.get("phonemes")!=old.attributes.get("phonemes")));
-    if !changed {return phones;}
-    if input.notes.iter().any(|old|!group.notes.iter().any(|now|now.id==old.id && now.onset==old.onset.0 && now.duration==old.duration && now.lyrics==old.lyrics && now.phonemes==old.phonemes)) {return phones;}
+pub(super) fn phones<'a>(
+    notes: &HashMap<u64, &Note>,
+    originals: &HashMap<u64, &NoteInput>,
+    input: &OwnerInput,
+    track: &'a PhonemeTrack,
+) -> Cow<'a, [RenderedPhone]> {
+    let changed = originals.iter().any(|(id, old)| notes.get(id).is_some_and(|now|
+        now.attributes.get("phonemes") != old.attributes.get("phonemes")));
+    if !changed || originals.iter().any(|(id, old)| !notes.get(id).is_some_and(|now|
+        now.onset==old.onset.0 && now.duration==old.duration && now.lyrics==old.lyrics && now.phonemes==old.phonemes))
+    {
+        return Cow::Borrowed(&track.0);
+    }
+    let mut phones = track.0.to_vec();
     for phone in &mut phones {phone.start_seconds=phone.predicted_start_seconds;phone.end_seconds=phone.predicted_end_seconds;}
     let model_origin=phones.first().map_or(0.0,|p|p.start_seconds);
     let strength_offset=input.voice.instance_options.get("voice")
         .and_then(|v|v.get("consonantStrength")).and_then(serde_json::Value::as_f64).unwrap_or(0.0) as f32;
     for index in 0..phones.len() {
         let Some(source)=phones[index].source else {continue;};
-        let Some(current)=group.notes.iter().find(|n|n.id==source.note_id) else {continue;};
-        let Some(original)=input.notes.iter().find(|n|n.id==source.note_id) else {continue;};
+        let Some(current)=notes.get(&source.note_id) else {continue;};
+        let Some(original)=originals.get(&source.note_id) else {continue;};
         if current.onset!=original.onset.0 || current.duration!=original.duration
             || current.lyrics!=original.lyrics || current.phonemes!=original.phonemes {continue;}
         let now=current.attributes.get("phonemes");
@@ -40,5 +49,5 @@ pub(super) fn phones(group:&Group,input:&OwnerInput,track:&PhonemeTrack)->Vec<Re
             phones[last].end_seconds=phones[last].end_seconds.max(phones[last].start_seconds+0.005);
         }
     }
-    phones
+    Cow::Owned(phones)
 }

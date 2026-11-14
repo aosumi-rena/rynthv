@@ -25,7 +25,7 @@ pub(super) struct Sink<'a> {
 impl<'a> Sink<'a> {
     pub fn new(input:&'a OwnerInput,errors:BTreeMap<u64,String>,emit:&'a mut dyn FnMut(StreamEvent)->Result<()>)->Self {
         Self {input,emit,origin:None,rate:0,hop:0.005,raw_cursor:0,first:0,stop:None,pcm:None,
-            converted:Vec::new(),phones:Vec::new(),errors,track:PhonemeTrack(Arc::from([])),pitch:Vec::new()}
+            converted:Vec::new(),phones:Vec::new(),errors,track:PhonemeTrack::from_phones(Arc::from([])),pitch:Vec::new()}
     }
     pub fn update(&mut self,event:NativeEvent<'_>)->Result<()> {
         match event {

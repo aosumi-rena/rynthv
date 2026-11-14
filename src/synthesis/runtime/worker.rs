@@ -10,7 +10,7 @@ pub use scheduling::diagnostic as scheduling_diagnostic;
 use super::{
     VoiceState,
     control::Control,
-    events::{Events, WakeOnExit},
+    events::{Events, RenderWake, WakeOnExit},
 };
 use crate::synthesis::{
     audio::{LiveAudio, RenderedAudio},
@@ -74,6 +74,12 @@ pub(super) enum Event {
         owners: Vec<PublishedOwner>,
         visuals: BTreeMap<OwnerId, VisualSnapshot>,
     },
+    MorphInput {
+        revision: u64,
+        owners: Vec<OwnerId>,
+        pcm: Option<Arc<RenderedAudio>>,
+        start: Option<i64>,
+    },
     VisualPatches {
         revision: u64,
         patches: Vec<(OwnerId, VisualPatch)>,
@@ -104,6 +110,7 @@ impl Worker {
         phone_conversion: Option<PathBuf>,
         duration_key_override: Option<u64>,
         repaint: eframe::egui::Context,
+        wake: RenderWake,
     ) -> Result<Self, String> {
         let (tx, commands) = mpsc::channel();
         let (events, rx) = mpsc::channel();
@@ -121,7 +128,7 @@ impl Worker {
                     phone_conversion,
                     duration_key_override,
                     commands,
-                    Events::new(events, repaint),
+                    Events::new(events, wake),
                     running,
                     dispatch,
                 );

@@ -37,8 +37,12 @@ cargo build --release --locked --bins
 
 | 声库类型 | Windows | Linux |
 | --- | --- | --- |
-| 一代声库 | 支持 | 支持 |
-| 二代声库 | 需要导入模型上下文 | 需要导入模型上下文 |
+| R1 STD | 支持 | 支持 |
+| R2 STD | 支持 | 支持 |
+| R2 AI | 支持 | 支持 |
+| R2 AI Flat | 支持 | 支持 |
+| R3 AI | 需要导入模型上下文 | 需要导入模型上下文 |
+| R3 AI 2 | 需要导入模型上下文 | 需要导入模型上下文 |
 
 配置目录：Windows 为 `%LOCALAPPDATA%/RynthV`，Linux 为 `$XDG_CONFIG_HOME/RynthV`（未设置时为 `$HOME/.config/RynthV`）。模型上下文在 Windows 保存在 `%APPDATA%/RynthV/context.json`，Linux 保存在上述配置目录的 `context.json`。
 

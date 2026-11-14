@@ -5,6 +5,10 @@ use crate::synthesis::{
 };
 use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
+fn current_input(first: &Arc<crate::synthesis::plan::OwnerInput>, second: &Arc<crate::synthesis::plan::OwnerInput>) -> bool {
+    Arc::ptr_eq(first, second) || first == second
+}
+
 impl Runtime {
     pub(super) fn sync_visuals(&mut self) {
         let plan = self.planner.plan();
@@ -26,7 +30,7 @@ impl Runtime {
     }
 
     pub(super) fn prepared_phonemes(&mut self,owner:OwnerId,snapshot:crate::synthesis::rendered::PhonemeSnapshot) {
-        if self.planner.plan().requests.get(&owner).is_some_and(|r|*r.input==*snapshot.input) {
+        if self.planner.plan().requests.get(&owner).is_some_and(|r|current_input(&r.input, &snapshot.input)) {
             self.phonemes.insert(owner,snapshot);
         }
     }
@@ -39,7 +43,7 @@ impl Runtime {
                 .plan()
                 .requests
                 .get(&owner)
-                .is_some_and(|request| *request.input == *patch.input)
+                .is_some_and(|request| current_input(&request.input, &patch.input))
             {
                 self.visuals.entry(owner).or_default().apply(patch, now);
             }
@@ -53,7 +57,7 @@ impl Runtime {
                 .plan()
                 .requests
                 .get(&owner)
-                .is_some_and(|request| *request.input == *snapshot.input)
+                .is_some_and(|request| current_input(&request.input, &snapshot.input))
             {
 
                 self.phonemes.insert(owner,crate::synthesis::rendered::PhonemeSnapshot {

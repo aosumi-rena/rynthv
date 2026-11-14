@@ -6,6 +6,7 @@ mod owner;
 mod model_phones;
 mod performance;
 mod pitch;
+mod saved_pitch;
 mod pronunciation;
 mod records;
 pub mod phonemes;

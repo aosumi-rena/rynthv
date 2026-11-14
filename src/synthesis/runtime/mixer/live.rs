@@ -19,6 +19,7 @@ struct Owner {
     coverage: Range<usize>,
     controls: Controls,
     ready: ReadySpans,
+    completed: Option<Arc<RenderedAudio>>,
 }
 
 pub(crate) struct LiveMixer {
@@ -51,6 +52,7 @@ impl LiveMixer {
                 ));
             }
             if coverage.is_empty()
+                || output.rocoflex
                 || output.reference_muted
                 || controls.mute
                 || (!solo_tracks.is_empty() && !controls.solo)
@@ -63,6 +65,7 @@ impl LiveMixer {
                     coverage,
                     controls,
                     ready: ReadySpans::default(),
+                    completed: None,
                 },
             );
         }
@@ -91,6 +94,7 @@ impl LiveMixer {
                 .ready
                 .insert_audio(Arc::clone(&audio), &owner.coverage)?;
             if !range.is_empty() {
+                owner.completed = None;
                 dirty = Some(match dirty {
                     Some(previous) => previous.start.min(range.start)..previous.end.max(range.end),
                     None => range,
@@ -111,12 +115,20 @@ impl LiveMixer {
         let Some(owner) = self.owners.get_mut(&id) else {
             return Ok(());
         };
+        if owner.completed.as_ref().is_some_and(|previous| Arc::ptr_eq(previous, &audio)) {
+            return Ok(());
+        }
         let range = owner.coverage.clone();
         let mut ready = ReadySpans::default();
         ready.insert_silence(range.clone());
-        ready.insert_audio(audio, &range)?;
+        ready.insert_audio(Arc::clone(&audio), &range)?;
         owner.ready = ready;
-        self.publish_blocks(range)
+        owner.completed = None;
+        self.publish_blocks(range)?;
+        if let Some(owner) = self.owners.get_mut(&id) {
+            owner.completed = Some(audio);
+        }
+        Ok(())
     }
 
     pub(crate) fn prepared(&mut self, id: OwnerId, model: Range<i64>) -> Result<(), String> {
@@ -131,6 +143,9 @@ impl LiveMixer {
         let before = owner.coverage.start..owner.coverage.end.min(start);
         let after = owner.coverage.start.max(end)..owner.coverage.end;
 
+        if !before.is_empty() || !after.is_empty() {
+            owner.completed = None;
+        }
         owner.ready.insert_silence(before.clone());
         owner.ready.insert_silence(after.clone());
         self.publish_blocks(before)?;

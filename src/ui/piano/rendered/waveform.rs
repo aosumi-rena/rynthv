@@ -3,8 +3,8 @@ use crate::{
     app::App,
     model::beats,
     synthesis::{
-        plan::NoteInput,
-        rendered::{VisualSnapshot, VisualTimeline},
+        plan::{NoteInput, OwnerInput},
+        rendered::{VisualSnapshot, VisualTimeline, Waveform},
     },
     ui::{piano::scene::SceneGroup, timeline::x_at},
 };
@@ -17,15 +17,48 @@ pub(super) fn draw(
     canvas: Rect,
     group: &SceneGroup,
     snapshot: &VisualSnapshot,
+    notes: &[&NoteInput],
     visuals: &VisualTimeline,
     now: Instant,
 ) -> bool {
-    let waveform = &snapshot.data.waveform;
+    let track = app.editor.current_track();
+    let inputs = Draw { app, painter, canvas, group, snapshot, notes, visuals, now };
+    if app.synthesis.morph_enabled(track.id) {
+        let left = seconds_at_x(app, &snapshot.input.tempo, canvas, painter.clip_rect().left());
+        let right = seconds_at_x(app, &snapshot.input.tempo, canvas, painter.clip_rect().right());
+        let mut animating = false;
+        for waveform in app.synthesis.morph_waveforms_in(track.id, left..right) {
+            animating |= draw_waveform(&inputs, waveform);
+        }
+        animating
+    } else {
+        draw_waveform(&inputs, &snapshot.data.waveform)
+    }
+}
+
+pub(super) fn active_notes(input: &OwnerInput) -> Vec<&NoteInput> {
+    input.notes.iter().filter(|note|
+        note.attributes.get("muted").and_then(serde_json::Value::as_bool) != Some(true)).collect()
+}
+
+#[derive(Clone, Copy)]
+struct Draw<'a> {
+    app: &'a App,
+    painter: &'a Painter,
+    canvas: Rect,
+    group: &'a SceneGroup,
+    snapshot: &'a VisualSnapshot,
+    notes: &'a [&'a NoteInput],
+    visuals: &'a VisualTimeline,
+    now: Instant,
+}
+
+fn draw_waveform(context: &Draw<'_>, waveform: &Waveform) -> bool {
+    let Draw { app, painter, canvas, group, snapshot, notes, visuals, now } = *context;
     let input = &snapshot.input;
     let tempo = &input.tempo;
     let active = app.editor.reference == Some(group.reference.id);
-    let color = crate::ui::theme::palette().waveform;
-    let color = Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), if active { 72 } else { 40 });
+    let color = Color32::from_rgba_unmultiplied(166, 164, 170, if active { 72 } else { 40 });
     let clip = painter.clip_rect();
     let flash_active = visuals.animating_in(
         position_at_x(app, canvas, clip.left())..position_at_x(app, canvas, clip.right()),
@@ -36,17 +69,9 @@ pub(super) fn draw(
     let scale = app.view.row_height * 2.0;
     let audio_left = x_at_seconds(app, tempo, canvas, waveform.start_seconds());
     let audio_right = x_at_seconds(app, tempo, canvas, waveform.end_seconds());
-    let mut notes: Vec<_> = input
-        .notes
-        .iter()
-        .filter(|note| {
-            note.attributes
-                .get("muted")
-                .and_then(serde_json::Value::as_bool)
-                != Some(true)
-        })
-        .collect();
-    notes.sort_by_key(|note| (note.onset.0, note.id));
+    let visible_left = audio_left.max(clip.left());
+    let visible_right = audio_right.min(clip.right());
+    if visible_right <= visible_left { return false; }
     let onset_x = |note: &NoteInput| {
         x_at(
             canvas,
@@ -54,20 +79,20 @@ pub(super) fn draw(
             beats(note.onset.0 + input.content_offset.0),
         )
     };
-    for (index, note) in notes.iter().enumerate() {
+    let first = notes.partition_point(|note| onset_x(note) <= visible_left).saturating_sub(1);
+    for (index, note) in notes.iter().enumerate().skip(first) {
 
         let left = if index == 0 {
-            audio_left
+            f32::NEG_INFINITY
         } else {
             onset_x(note)
         }
-        .max(audio_left)
-        .max(clip.left());
+        .max(visible_left);
+        if left >= visible_right { break; }
         let right = notes
             .get(index + 1)
             .map_or(audio_right, |next| onset_x(next))
-            .min(audio_right)
-            .min(clip.right());
+            .min(visible_right);
         if right <= left {
             continue;
         }

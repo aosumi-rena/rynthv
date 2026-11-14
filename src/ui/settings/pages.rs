@@ -3,18 +3,8 @@ use crate::{app::App, ui::state::Column};
 use eframe::egui::*;
 
 pub(super) fn general(app: &mut App, ui: &mut Ui) {
-    row(ui, crate::i18n::t("UI_THEME"), |ui| {
-        crate::ui::theme::native::settings_combo("interface-theme")
-            .width(ui.available_width())
-            .selected_text(app.preferences.theme.label())
-            .show_ui(ui, |ui| {
-                for theme in crate::ui::theme::InterfaceTheme::ALL {
-                    ui.selectable_value(&mut app.preferences.theme, theme, theme.label());
-                }
-            });
-    });
     row(ui, crate::i18n::t("界面语言"), |ui| {
-        crate::ui::theme::native::settings_combo("interface-language").width(ui.available_width())
+        ComboBox::from_id_salt("interface-language").width(ui.available_width())
             .selected_text(app.preferences.language.name()).show_ui(ui,|ui| {
                 for language in crate::i18n::Language::ALL {
                     if ui.selectable_value(&mut app.preferences.language,language,language.name()).changed() {
@@ -64,6 +54,20 @@ pub(super) fn general(app: &mut App, ui: &mut Ui) {
             app.view = Default::default();
         }
     });
+    section(ui, "Rocoflex");
+    row(ui, crate::i18n::t("ROCOFLEX_EXECUTABLE"), |ui| {
+        let status = crate::ui::rocoflex::status(app).to_owned();
+        if ui.button(crate::i18n::t("ROCOFLEX_BROWSE")).clicked() {
+            crate::ui::rocoflex::choose_executable(app, ui.ctx());
+        }
+        if ui.add_enabled(crate::ui::rocoflex::can_unload(app), Button::new(crate::i18n::t("ROCOFLEX_UNLOAD"))).clicked() {
+            crate::ui::rocoflex::unload(app, ui.ctx());
+        }
+        ui.add(Label::new(status).truncate());
+    });
+    if let Some(error) = crate::ui::rocoflex::diagnostic(app) {
+        ui.label(RichText::new(crate::i18n::message(error)).color(crate::ui::theme::MUTED));
+    }
 }
 
 pub(super) fn audio(app: &mut App, ui: &mut Ui) {
@@ -95,7 +99,7 @@ pub(super) fn editing(app: &mut App, ui: &mut Ui) {
     });
     toggle(ui, crate::i18n::t("音符对齐网格"), &mut app.view.snap);
     row(ui, crate::i18n::t("网格精度"), |ui| {
-        crate::ui::theme::native::settings_combo("settings-grid")
+        ComboBox::from_id_salt("settings-grid")
             .width(ui.available_width())
             .selected_text(crate::lformat!("{} 分音符", app.view.grid))
             .show_ui(ui, |ui| {

@@ -107,6 +107,7 @@ impl Runtime {
                     self.library.settings.converter_for(entry)?.map(ToOwned::to_owned),
                     self.library.settings.duration_key_override_for(&key),
                     self.repaint.clone(),
+                    self.render_wake.clone(),
                 )
             })();
             let slot = VoiceSlot::new(worker);
@@ -148,6 +149,7 @@ impl Runtime {
                 prepared:inventory.preparation()?.clone(),identity_override:self.library.settings.duration_key_override_for(key),
             })
         }).collect();
+        self.planner.rocoflex_available = self.morphs.provider_available();
         self.planner
             .update(project, revision, |owner| identities.get(&owner).cloned());
         self.sync_visuals();
@@ -181,6 +183,7 @@ impl Runtime {
             Ok(solo) => self.solo_tracks = solo,
             Err(error) => {
                 self.project_error = Some(error);
+                self.morphs.reset();
                 self.recordings = super::mixer::RecordingMix::default();
                 for voice in self.voices.values_mut() {
                     if let Some(worker) = &voice.worker {
@@ -200,6 +203,7 @@ impl Runtime {
         self.dispatch_voices();
         self.aggregate_voices();
         self.prepare_recordings(project);
+        self.sync_morph_tracks(project);
         self.refresh_playback();
     }
 

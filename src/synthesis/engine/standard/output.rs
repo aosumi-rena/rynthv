@@ -50,7 +50,7 @@ pub(super) fn phone_track(phones:Vec<super::NativePhone>,errors:std::collections
                 error:Some(Arc::from(message)),predicted_activity:None,predicted_position:0.0});
         }
     }
-    PhonemeTrack(phones.into())
+    PhonemeTrack::from_phones(phones.into())
 }
 
 pub(super) fn pitch_track(points:&[(f64,f64)],origin:f64,hop:f64,end:f64)->Result<PitchTrack> {

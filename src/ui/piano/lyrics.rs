@@ -28,7 +28,7 @@ pub(super) fn lyric(app: &mut App, ui: &mut Ui, rect: Rect, reference: &GroupRef
         r=Rect::from_min_max(pos2(r.left(),r.top()-app.view.row_height),pos2(r.right(),r.top()));
     }
     r.max.x = if edit.phonemes {
-        let text=ui.painter().layout_no_wrap(edit.text.clone(),FontId::proportional(12.0),super::super::theme::text_color());
+        let text=ui.painter().layout_no_wrap(edit.text.clone(),FontId::proportional(12.0),super::super::theme::TEXT);
         (r.min.x+(text.size().x+8.0).max(50.0)).min(clip.right())
     }else {r.max.x.max(r.min.x+130.0).min(clip.right())};
     let mut edit_ui = child(ui, r, ("lyric", edit.id));

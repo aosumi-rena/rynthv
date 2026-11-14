@@ -39,10 +39,7 @@ pub(super) fn prepare(
         || !defaults.temperature.is_finite()
         || !defaults.flagged_temperature_scale.is_finite()
         || !defaults.position_scale.is_finite()
-        || notes.iter().any(|note| note.kind > match contract {
-            Contract::Compatible => 2,
-            Contract::Native { .. } => 1,
-        })
+        || notes.iter().any(|note| note.kind > 2)
     {
         return Err(VoiceError::new("Invalid version 1 F0 default controls"));
     }
@@ -79,7 +76,7 @@ pub(super) fn prepare(
 
                 (
                     defaults.temperature,
-                    if note.kind == 0 { enhancement } else { 0.0 },
+                    if note.kind == 1 { 0.0 } else { enhancement },
                 )
             }
         };

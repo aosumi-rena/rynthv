@@ -8,6 +8,7 @@ mod mixer;
 mod playback;
 mod recordings;
 mod routing;
+mod rocoflex;
 mod transport;
 mod visuals;
 mod voices;
@@ -40,6 +41,7 @@ pub enum VoiceState {
 }
 
 pub struct Runtime {
+    morphs: rocoflex::Morphs,
     pub library: VoiceLibrary,
     pub context_import: ContextImport,
     pub planner: Planner,
@@ -71,11 +73,14 @@ pub struct Runtime {
     demand_block: Option<u64>,
     solo_tracks: BTreeSet<u64>,
     repaint: eframe::egui::Context,
+    render_wake: events::RenderWake,
+    last_voice_polled: Option<VoiceSelection>,
 }
 
 impl Runtime {
     pub fn new(repaint: eframe::egui::Context) -> Self {
         Self {
+            morphs: Default::default(),
             library: VoiceLibrary::new(repaint.clone()),
             context_import: ContextImport::default(),
             planner: Planner::default(),
@@ -106,15 +111,19 @@ impl Runtime {
             loop_range: None,
             demand_block: None,
             solo_tracks: BTreeSet::new(),
+            render_wake: events::RenderWake::new(repaint.clone()),
+            last_voice_polled: None,
             repaint,
         }
     }
 
     pub fn poll(&mut self) {
+        self.render_wake.begin_poll();
         self.instrumentals.poll();
         self.poll_library();
         self.poll_context_import();
         self.poll_voices();
+        self.update_morphs();
         if let Some(rx) = &self.export {
             match rx.try_recv() {
                 Ok(result) => {
@@ -151,13 +160,18 @@ impl Runtime {
         self.voices.get(key).and_then(|v| v.elapsed)
     }
     pub fn reload_voice(&mut self, key: &VoiceSelection) {
-        self.voices.remove(key);
+        if let Some(voice) = self.voices.remove(key) {
+            self.morphs.forget_voice(voice.plan.requests.keys().copied());
+        }
         self.last_revision = None;
         self.export_owners
             .retain(|owner| self.routes.get(&owner.owner.reference()) != Some(key));
+        self.morphs.dirty = true;
+        self.update_morphs();
         self.refresh_playback();
     }
     pub fn reset_project(&mut self) {
+        self.morphs.reset();
         self.audition_key(None);
         self.clear_voices();
         self.instrumentals = super::instrumental::AudioLibrary::default();
@@ -178,6 +192,7 @@ impl Runtime {
         self.playback.clear();
     }
     pub fn retry(&mut self) {
+        self.morphs.retry();
         let mut reload = Vec::new();
         for (key, voice) in &mut self.voices {
             if let Some(worker) = voice.worker.as_ref().filter(|_| voice.ready) {
@@ -209,6 +224,7 @@ impl Runtime {
     pub fn is_busy(&self) -> bool {
         self.library.is_scanning()
             || self.export.is_some()
+            || self.morphs.busy()
             || self.voices.values().any(|v| {
                 v.waiting
                     || (v.worker.is_some() && !v.ready)
@@ -223,10 +239,10 @@ impl Runtime {
         self.voices.values().any(|voice|voice.ready && (voice.waiting || voice.stats.running>0 || voice.stats.queued>0))
     }
     pub fn visuals(&self, owner: OwnerId) -> impl Iterator<Item = &VisualTimeline> {
-        self.visuals.iter().filter_map(move |(id,visuals)| (id.0==owner.0).then_some(visuals))
+        self.visuals.range(owner.reference()..=owner.reference().section(u64::MAX)).map(|(_, visuals)| visuals)
     }
     pub fn phonemes(&self, owner: OwnerId) -> impl Iterator<Item = &crate::synthesis::rendered::PhonemeSnapshot> {
-        self.phonemes.iter().filter_map(move |(id,phones)| (id.0==owner.0).then_some(phones))
+        self.phonemes.range(owner.reference()..=owner.reference().section(u64::MAX)).map(|(_, phones)| phones)
     }
     pub fn is_exporting(&self) -> bool {
         self.export.is_some()

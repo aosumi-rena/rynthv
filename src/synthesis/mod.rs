@@ -12,6 +12,7 @@ pub mod phone_conversion;
 pub mod profiling;
 pub mod render_cache;
 pub mod rendered;
+pub mod rocoflex;
 pub mod runtime;
 pub mod score;
 pub mod settings;

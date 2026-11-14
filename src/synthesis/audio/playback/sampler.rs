@@ -87,6 +87,11 @@ impl<'a> MixSampler<'a> {
             output[0] += sample[0];
             output[1] += sample[1];
         }
+        for layer in &self.source.morphs {
+            let sample = layer.sample(position)?;
+            output[0] += sample[0];
+            output[1] += sample[1];
+        }
         if let Some(metronome) = &mut self.metronome {
             let click = metronome.sample(position);
             output[0] += click;

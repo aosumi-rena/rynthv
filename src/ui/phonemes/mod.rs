@@ -12,7 +12,7 @@ use crate::{
 };
 use eframe::egui::*;
 pub use interaction::{PhonemeGesture, end_frame};
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::{BTreeSet, HashMap}, sync::Arc};
 
 #[derive(Clone)]
 struct Cell {
@@ -23,16 +23,15 @@ struct Cell {
 }
 pub fn show(app: &mut App, ui: &mut Ui) {
     let rect = ui.max_rect();
-    let canvas = Rect::from_min_max(rect.min + vec2(gutter(), 0.0), rect.max);
-    ui.painter().rect_filled(rect, 0, panel_color());
-    ui.painter().rect_filled(Rect::from_min_max(rect.min,pos2(canvas.left(),rect.bottom())),0,native::phoneme_gutter());
+    let canvas = Rect::from_min_max(rect.min + vec2(GUTTER, 0.0), rect.max);
+    ui.painter().rect_filled(rect, 0, PANEL);
     Icon::Phonemes.paint(
         ui,
         Rect::from_center_size(
-            pos2(rect.left() + gutter() * 0.5, rect.top() + 16.0),
-            vec2(18.0, 10.0),
+            pos2(rect.left() + 22.0, rect.top() + 16.0),
+            vec2(18.0, 18.0),
         ),
-        text_color(),
+        TEXT,
     );
     let response = ui.interact(
         canvas,
@@ -57,7 +56,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     );
     let labels = Rect::from_min_size(canvas.min, vec2(canvas.width(), 32.0));
     ui.painter()
-        .hline(canvas.x_range(), labels.bottom(), Stroke::new(1.0, native::section_divider()));
+        .hline(canvas.x_range(), labels.bottom(), Stroke::new(0.7, EDGE));
     let mut cells = Vec::new();
     let mut seen = BTreeSet::new();
     let color = crate::ui::track_color::TrackColors::new(app.editor.current_track()).accent;
@@ -70,25 +69,21 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             let input = &snapshot.input;
             let (begin,limit)=input.publication_bounds();
             let Some(group)=app.editor.project.group(&reference.group_id) else {continue;};
-            let mut phones=preview::phones(group,input,&snapshot.phones);
-            phones.retain_mut(|phone| {
-                let Some(source)=phone.source else {return false;};
-                let Some(note)=group.notes.iter().find(|n|n.id==source.note_id) else {return false;};
-                let Some(original)=input.notes.iter().find(|n|crate::ui::phoneme_alphabet::matches(note,n)) else {return false;};
-                match crate::ui::phoneme_alphabet::label(app,reference,note,original,input.voice.dictionary.as_ref(),&phone.token) {
-                    Ok(value)=>phone.token=value,
-                    Err(error)=>phone.error=Some(Arc::from(error)),
-                }
-                true
-            });
-            for phone in &phones {
+            let notes: HashMap<_, _> = group.notes.iter().map(|note| (note.id, note)).collect();
+            let originals: HashMap<_, _> = input.notes.iter().map(|note| (note.id, note)).collect();
+            let phones = preview::phones(&notes, &originals, input, &snapshot.phones);
+            for phone in phones.iter() {
+                let Some(source) = phone.source else { continue; };
+                let Some(note) = notes.get(&source.note_id) else { continue; };
+                let Some(original) = originals.get(&source.note_id)
+                    .filter(|original| crate::ui::phoneme_alphabet::matches(note, original))
+                else { continue; };
                 let start = input.tempo.position_at(phone.start_seconds).0;
                 let end = input.tempo.position_at(phone.end_seconds).0;
 
-                if end <= begin.0 || limit.is_some_and(|limit|start>=limit.0) || phone.source.is_none() {
+                if end <= begin.0 || limit.is_some_and(|limit|start>=limit.0) {
                     continue;
                 }
-                let source = phone.source.unwrap();
                 if !seen.insert((reference.id, source.note_id, source.phone_index)) {
                     continue;
                 }
@@ -99,15 +94,22 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                 if !r.intersects(canvas) {
                     continue;
                 }
+                let mut phone = phone.clone();
+                match crate::ui::phoneme_alphabet::label(app, reference, note, original,
+                    input.voice.dictionary.as_ref(), &phone.token) {
+                    Ok(value) => phone.token = value,
+                    Err(error) => phone.error = Some(Arc::from(error)),
+                }
+                let editable = active && !standard && phone.error.is_none();
                 let painter = ui
                     .painter()
                     .with_clip_rect(canvas.intersect(ui.clip_rect()));
-                painter.rect_filled(r.shrink2(vec2(0.5,0.0)),CornerRadius{nw:4,ne:4,sw:0,se:0},button_color().gamma_multiply(0.45));
-                painter.vline(r.left(), canvas.y_range(), Stroke::new(0.7, grid_color()));
+                painter.rect_filled(r.shrink2(vec2(0.5,0.0)),CornerRadius{nw:4,ne:4,sw:0,se:0},BUTTON.gamma_multiply(0.45));
+                painter.vline(r.left(), canvas.y_range(), Stroke::new(0.7, GRID));
                 if active && ui.input(|i|i.pointer.hover_pos().is_some_and(|p|r.contains(p))) {
                     painter.rect_filled(r,0,Color32::WHITE.gamma_multiply(0.04));
-                    painter.vline(r.left(),canvas.y_range(),Stroke::new(1.0,text_color()));
-                    painter.vline(r.right(),canvas.y_range(),Stroke::new(1.0,text_color()));
+                    painter.vline(r.left(),canvas.y_range(),Stroke::new(1.0,TEXT));
+                    painter.vline(r.right(),canvas.y_range(),Stroke::new(1.0,TEXT));
                 }
                 let label = r.intersect(labels);
                 painter
@@ -117,19 +119,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                         Align2::CENTER_CENTER,
                         &phone.token,
                         FontId::proportional(12.0),
-                        if active { text_color() } else { muted_color() },
+                        if active { TEXT } else { MUTED },
                     );
                 let cell = Cell {
-                    phone: phone.clone(),
+                    phone,
                     input: input.clone(),
                     rect: r,
-                    editable: active && !standard && phone.error.is_none(),
+                    editable,
                 };
                 draw::body(
                     &painter,
                     &cell,
                     Rect::from_min_max(pos2(canvas.left(), labels.bottom()), canvas.max),
-                    if active { color } else { muted_color() },
+                    if active { color } else { MUTED },
                 );
                 cells.push(cell);
             }

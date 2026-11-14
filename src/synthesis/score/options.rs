@@ -112,6 +112,8 @@ pub(super) fn validate_note(note: &NoteInput, family: VoiceFamily) -> Result<()>
             "phoneset" => value.is_string(),
 
             "expValueX" | "expValueY" | "dF0VbrMod" | "rTone" | "rIntonation" => true,
+            "tF0Offset" | "tF0Left" | "tF0Right" | "dF0Left" | "dF0Right" =>
+                value.as_f64().is_some_and(|v| (v as f32).is_finite()),
             "cTimeDispersion" | "cPhraseTailDispersion" | "cPitchDispersion" if family == VoiceFamily::Sv2 => true,
             "phonemes" if family==VoiceFamily::Sv2=>value.as_array().is_some_and(|rows|rows.iter().all(|r|r.as_object().is_some_and(|v|v.iter().all(|(k,v)|matches!(k.as_str(),"leftOffset"|"activity"|"position"|"strength") || (k=="alt" && v.as_i64()==Some(0)))))),
             _ => false,
@@ -126,7 +128,8 @@ pub(super) fn validate_note(note: &NoteInput, family: VoiceFamily) -> Result<()>
             "rynthvBlendWeights" => value.is_object(),
             "detune" => value.as_f64().is_some_and(f64::is_finite),
 
-            "instantMode" if family==VoiceFamily::Sv2 => value.is_boolean(),
+            "instantMode" => value.is_boolean(),
+            "systemAttributes" => value.is_object(),
             "pitchTakes" | "timbreTakes" => super::retakes::neutral_legacy(value),
             "takes" => {
                 super::retakes::validate(value, family)?;

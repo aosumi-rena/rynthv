@@ -7,10 +7,11 @@ use crate::{
     model::Extra,
     synthesis::{
         audio::{AudioLayer, ChannelLayout, RenderedAudio},
+        plan::{Coverage, OwnerId},
         render_cache::PublishedOwner,
     },
 };
-use std::{collections::BTreeSet, sync::Arc};
+use std::{collections::{BTreeMap, BTreeSet}, ops::Range, sync::Arc};
 
 const NATIVE_SAMPLE_RATE: u32 = 48_000;
 
@@ -48,6 +49,9 @@ pub(super) fn mix_with_recordings(
         .map_err(|error| format!("无法分配混音片段：{error}"))?;
     let mut output_frames = 0;
     for owner in owners {
+        if owner.controls.rocoflex {
+            continue;
+        }
         if owner.audio.sample_rate() != NATIVE_SAMPLE_RATE {
             return Err(format!(
                 "音符组 {} 的 PCM 采样率为 {} Hz，混音要求所有音符组使用 48000 Hz",
@@ -160,6 +164,64 @@ fn prepare_span(owner: &PublishedOwner, controls: Controls) -> Result<Option<Spa
         left,
         right,
     }))
+}
+
+pub(super) fn morph_range(coverage: Coverage) -> Result<Range<usize>, String> {
+    if coverage.sample_rate == 0 || coverage.sample_end.0 < coverage.sample_start.0 {
+        return Err("Invalid Rocoflex source coverage".into());
+    }
+    Ok(native_bound(coverage.sample_start.0, coverage.sample_rate)?
+        ..native_bound(coverage.sample_end.0, coverage.sample_rate)?)
+}
+
+pub(super) struct MorphSpan {
+    pub end: usize,
+    pub start: usize,
+    offset: usize,
+    audio: Arc<RenderedAudio>,
+}
+
+impl MorphSpan {
+    pub fn clipped(&self, start: usize, end: usize) -> Self {
+        Self { start, end, offset: self.offset + start - self.start, audio: Arc::clone(&self.audio) }
+    }
+}
+
+pub(super) fn morph_span(audio: &Arc<RenderedAudio>, coverage: Range<usize>) -> Option<MorphSpan> {
+    if audio.sample_rate() != NATIVE_SAMPLE_RATE { return None; }
+    let origin = (audio.start_seconds() * f64::from(NATIVE_SAMPLE_RATE)).round() as usize;
+    let end = origin.checked_add(audio.frames())?.min(coverage.end);
+    let start = origin.max(coverage.start);
+    (start < end).then(|| MorphSpan { start, end, offset: start - origin, audio: Arc::clone(audio) })
+}
+
+pub(super) fn mix_morph(spans: &BTreeMap<(OwnerId, usize), MorphSpan>, range: Range<usize>, samples: &mut [f32]) -> Result<(), String> {
+    for span in spans.values() {
+        let first = span.start.max(range.start);
+        let end = span.end.min(range.end);
+        if end <= first { continue; }
+        let channels = span.audio.layout().channels();
+        let source = span.offset + first - span.start;
+        let input = &span.audio.samples()[source * channels..(source + end - first) * channels];
+        for (input, output) in input.chunks_exact(channels).zip(&mut samples[first - range.start..end - range.start]) {
+            *output += if channels == 1 { input[0] } else { (input[0] + input[1]) * 0.5 };
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn morph_gains(mixer: &Extra, solo: &BTreeSet<u64>) -> Option<[f32; 2]> {
+    let controls = Controls::read(mixer).ok()?;
+    if controls.mute || !solo.is_empty() && !controls.solo { return None; }
+    let (left, right) = controls.gains(ChannelLayout::Mono);
+    Some([left as f32, right as f32])
+}
+
+pub(super) fn morph_layer(track_id: u64, gains: [f32; 2], audio: Arc<RenderedAudio>) -> AudioLayer {
+    AudioLayer {
+        track_id, start_frame: (audio.start_seconds() * f64::from(NATIVE_SAMPLE_RATE)).round() as i64,
+        source_start: 0, frames: audio.frames(), audio, gains,
+    }
 }
 
 impl Controls {

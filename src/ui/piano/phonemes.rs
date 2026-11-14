@@ -7,7 +7,7 @@ fn readback(app:&App,reference:&GroupRef,note:&Note)->(String,Option<String>) {
     let mut phones=BTreeMap::new();let mut error=None;
     for snapshot in app.synthesis.phonemes(OwnerId::new(reference.id)) {
         let Some(source_note)=snapshot.input.notes.iter().find(|n|crate::ui::phoneme_alphabet::matches(note,n)) else {continue;};
-        for phone in snapshot.phones.0.iter() {
+        for phone in snapshot.phones.for_note(note.id) {
             if let Some(source)=phone.source.filter(|s|s.note_id==note.id) {
                 // Published labels already use the job's selected alphabet.
                 // Only convert an older snapshot while a toggle is rerendering.
@@ -31,11 +31,12 @@ pub(super) fn text(app:&App,reference:&GroupRef,note:&Note)->String {
 }
 pub(super) fn error(app:&App,reference:&GroupRef,note:&Note)->Option<String> {
     for snapshot in app.synthesis.phonemes(OwnerId::new(reference.id)) {
-        if !snapshot.input.notes.iter().any(|n|crate::ui::phoneme_alphabet::matches(note,n)
-            && note.onset==n.onset.0 && note.duration==n.duration && note.pitch==n.pitch
-            && note.attributes.get("muted")==n.attributes.get("muted")) {continue;}
-        if let Some(error)=snapshot.phones.0.iter().find_map(|phone|
-            phone.source.filter(|s|s.note_id==note.id).and(phone.error.as_ref())) {return Some(error.to_string());}
+        let Some(error) = snapshot.phones.for_note(note.id).find_map(|phone| phone.error.as_ref()) else { continue; };
+        if snapshot.input.notes.iter().any(|n| crate::ui::phoneme_alphabet::matches(note, n)
+            && note.pitch == n.pitch && note.attributes.get("muted") == n.attributes.get("muted"))
+        {
+            return Some(error.to_string());
+        }
     }
     None
 }
@@ -59,7 +60,7 @@ pub(super) fn draw(app:&App,ui:&Ui,canvas:Rect,groups:&[SceneGroup]) {
             let error=issues.get(&note.id).cloned().or(error);
             let value=if error.is_some() {"!"} else if !note.phonemes.is_empty() {note.phonemes.as_str()}else{&computed};
             painter.with_clip_rect(label).text(label.left_center()+vec2(4.0,0.0),Align2::LEFT_CENTER,
-                value,FontId::proportional(12.0),if error.is_some(){Color32::LIGHT_RED}else{text_color()});
+                value,FontId::proportional(12.0),if error.is_some(){Color32::LIGHT_RED}else{TEXT});
             if let Some(error)=error {
                 let note_rect=super::canvas::note_rect(note,group.reference.blick_offset,group.reference.pitch_offset,canvas,app);
                 ui.interact(label.union(note_rect).intersect(canvas),ui.id().with(("note-phoneme-error",group.reference.id,note.id)),Sense::hover())

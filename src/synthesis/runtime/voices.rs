@@ -8,8 +8,20 @@ use crate::synthesis::{
 use std::{
     collections::BTreeSet,
     sync::{Arc, mpsc::TryRecvError},
-    time::Duration,
+    time::{Duration, Instant},
 };
+
+const EVENT_BUDGET: Duration = Duration::from_millis(3);
+const EVENT_LIMIT: usize = 96;
+const PER_VOICE_LIMIT: usize = 24;
+
+#[derive(Default)]
+struct Updates {
+    status: bool,
+    owners: bool,
+    playback: bool,
+    morph: bool,
+}
 
 pub(super) struct VoiceSlot {
     pub state: VoiceState,
@@ -57,10 +69,18 @@ impl VoiceSlot {
 }
 impl Runtime {
     pub(super) fn poll_voices(&mut self) {
-        let keys: Vec<_> = self.voices.keys().cloned().collect();
-        let mut changed = false;
-        for key in keys {
-            loop {
+        let mut keys: Vec<_> = self.voices.keys().cloned().collect();
+        if let Some(previous) = &self.last_voice_polled {
+            let start = keys.partition_point(|key| key <= previous);
+            keys.rotate_left(start);
+        }
+        let deadline = Instant::now() + EVENT_BUDGET;
+        let mut events = 0;
+        let mut updates = Updates::default();
+        let mut more = false;
+        'voices: for key in keys {
+            self.last_voice_polled = Some(key.clone());
+            for index in 0..PER_VOICE_LIMIT {
                 let event = self
                     .voices
                     .get(&key)
@@ -68,8 +88,13 @@ impl Runtime {
                     .map(|w| w.rx.try_recv());
                 match event {
                     Some(Ok(event)) => {
-                        self.receive_voice(&key, event);
-                        changed = true;
+                        self.receive_voice(&key, event, &mut updates);
+                        events += 1;
+                        if events >= EVENT_LIMIT || Instant::now() >= deadline {
+                            more = true;
+                            break 'voices;
+                        }
+                        more |= index + 1 == PER_VOICE_LIMIT;
                     }
                     Some(Err(TryRecvError::Disconnected)) => {
                         let v = self.voices.get_mut(&key).unwrap();
@@ -83,18 +108,21 @@ impl Runtime {
                         v.stats.queued = 0;
                         v.stats.running = 0;
                         v.progress = None;
-                        changed = true;
+                        updates.status = true;
+                        updates.morph = true;
                         break;
                     }
                     _ => break,
                 }
             }
         }
-        if changed {
-            self.aggregate_voices();
-        }
+        if updates.status { self.aggregate_voice_status(); }
+        if updates.owners { self.aggregate_voice_owners(); }
+        if updates.morph || updates.owners { self.morphs.dirty = true; }
+        if updates.playback { self.refresh_playback(); }
+        if more { self.render_wake.request(); }
     }
-    fn receive_voice(&mut self, key: &VoiceSelection, event: worker::Event) {
+    fn receive_voice(&mut self, key: &VoiceSelection, event: worker::Event, updates: &mut Updates) {
         let Some(v) = self.voices.get_mut(key) else {
             return;
         };
@@ -103,19 +131,26 @@ impl Runtime {
                 v.state = state;
                 v.elapsed = Some(elapsed);
                 self.last_revision = None;
+                updates.status = true;
+                updates.morph = true;
             }
             worker::Event::Ready => {
                 v.ready = true;
                 v.context_required = false;
+                updates.status = true;
             }
             worker::Event::ContextRequired { error } => {
                 v.context_required = true;
                 v.error = Some(error);
+                updates.status = true;
+                updates.morph = true;
             }
             worker::Event::Error { revision, error }
                 if revision.is_none_or(|r| r == v.revision) =>
             {
-                v.error = Some(error)
+                v.error = Some(error);
+                updates.status = true;
+                updates.morph = true;
             }
             worker::Event::Progress {
                 revision,
@@ -123,6 +158,7 @@ impl Runtime {
                 stage,
             } if revision == v.revision => {
                 v.progress = Some(format!("音符组 {} · {stage}", owner.0));
+                updates.status = true;
             }
             worker::Event::Publication {
                 revision,
@@ -132,7 +168,15 @@ impl Runtime {
             } if revision == v.revision => {
                 v.audio = audio;
                 v.owners = owners;
+                updates.owners = true;
                 self.complete_visuals(visuals);
+            }
+            worker::Event::MorphInput { revision, owners, pcm, start } if revision == v.revision => {
+                for id in owners {
+                    if let Some(request) = v.plan.requests.get(&id) {
+                        self.morphs.source(id, request.epoch, request.coverage, pcm.as_ref(), start);
+                    }
+                }
             }
             worker::Event::VisualPatches { revision, patches } if revision == v.revision => {
                 self.patch_visuals(patches)
@@ -141,15 +185,13 @@ impl Runtime {
                 self.prepared_phonemes(owner,snapshot);
             }
             worker::Event::Source { revision, source } if revision == v.revision => {
-                let unchanged = v
-                    .live
-                    .as_ref()
-                    .zip(source.as_ref())
-                    .is_some_and(|(a, b)| Arc::ptr_eq(a, b));
+                let unchanged = match (&v.live, &source) {
+                    (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                    (None, None) => true,
+                    _ => false,
+                };
                 v.live = source;
-                if !unchanged {
-                    self.refresh_playback();
-                }
+                updates.playback |= !unchanged;
             }
             worker::Event::Status {
                 revision,
@@ -158,15 +200,28 @@ impl Runtime {
             } if revision == v.revision => {
                 v.stats = stats;
                 v.waiting = false;
+                updates.morph |= v.failures != failures;
                 v.failures = failures;
                 if stats.running == 0 {
                     v.progress = None;
                 }
+                updates.status = true;
             }
             _ => {}
         }
     }
     pub(super) fn aggregate_voices(&mut self) {
+        self.aggregate_voice_status();
+        self.aggregate_voice_owners();
+        self.morphs.dirty = true;
+    }
+
+    fn aggregate_voice_owners(&mut self) {
+        self.export_owners.clear();
+        for voice in self.voices.values() { self.export_owners.extend_from_slice(&voice.owners); }
+    }
+
+    fn aggregate_voice_status(&mut self) {
         self.stats = CacheStats::default();
         self.failures = self
             .binding_errors
@@ -178,7 +233,6 @@ impl Runtime {
             .clone()
             .or_else(|| self.binding_errors.values().next().cloned());
         self.progress = None;
-        self.export_owners.clear();
         for (key, voice) in &self.voices {
             self.stats.queued += voice.stats.queued;
             self.stats.running += voice.stats.running;
@@ -187,7 +241,6 @@ impl Runtime {
             self.stats.current_render_bytes += voice.stats.current_render_bytes;
             self.stats.discarded_completions += voice.stats.discarded_completions;
             self.failures.extend(voice.failures.clone());
-            self.export_owners.extend(voice.owners.clone());
             let name = self
                 .library
                 .entry(key)
@@ -224,6 +277,7 @@ impl Runtime {
             self.context_import = super::ContextImport::default();
         }
         self.voices.clear();
+        self.last_voice_polled = None;
         self.export_owners.clear();
         self.stats = CacheStats::default();
         self.error = None;

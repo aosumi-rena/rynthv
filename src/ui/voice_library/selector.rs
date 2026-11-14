@@ -5,22 +5,31 @@ use crate::{
     app::App,
     synthesis::{
         settings::VoiceSelection,
-        voice::{VoiceAvailability, VoiceCatalogEntry},
+        voice::{VoiceAvailability, VoiceCatalog, VoiceCatalogEntry},
     },
     ui::{icons::Icon, theme::*},
 };
 use eframe::egui::*;
 
+const POPUP_FILL: Color32 = Color32::from_rgb(61, 59, 64);
+
 pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
     let entry = selected_entry(app);
     let track=app.editor.current_track();
     let missing=app.synthesis.voice_not_installed(track,app.editor.active_ref().unwrap_or(&track.main_ref));
+    let name = if missing { crate::i18n::t("选择歌声") }
+        else { app.voice_name().unwrap_or(crate::i18n::t("选择歌声")) };
+    let response = selection_card(ui, entry, name);
+    popup(app, &response);
+}
+
+fn selection_card(ui: &mut Ui, entry: Option<&VoiceCatalogEntry>, name: &str) -> Response {
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 60.0), Sense::click());
     ui.painter().rect(
         rect,
         4,
-        if response.hovered() { button_color() } else { border_color() },
-        Stroke::new(0.7, button_color()),
+        if response.hovered() { BUTTON } else { BORDER },
+        Stroke::new(0.7, BUTTON),
         StrokeKind::Inside,
     );
     let art = Rect::from_min_size(rect.min, Vec2::splat(60.0));
@@ -34,12 +43,9 @@ pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
         .text(
             label_rect.left_center() - vec2(0.0, if entry.is_some() { 9.0 } else { 0.0 }),
             Align2::LEFT_CENTER,
-            entry.map_or_else(
-                || if missing {crate::i18n::t("选择歌声")}else{app.voice_name().unwrap_or(crate::i18n::t("选择歌声"))},
-                |entry| entry.localized_display_name(),
-            ),
+            entry.map_or(name, |entry| entry.localized_display_name()),
             FontId::proportional(13.0),
-            text_color(),
+            TEXT,
         );
     if let Some(entry) = entry {
         ui.painter()
@@ -49,24 +55,49 @@ pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
                 Align2::LEFT_CENTER,
                 source_hint(entry),
                 FontId::proportional(10.5),
-                muted_color(),
+                MUTED,
             );
     }
-    Icon::Dropdown.paint(
+    Icon::ChevronDown.paint(
         ui,
         Rect::from_center_size(rect.right_center() - vec2(16.0, 0.0), Vec2::splat(12.0)),
-        muted_color(),
+        MUTED,
     );
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, crate::i18n::t("选择歌声")));
     let response = if let Some(entry) = entry {
         response.on_hover_text(entry.directory.display().to_string())
     } else { response };
-    popup(app, &response.on_hover_cursor(CursorIcon::Default));
+    response.on_hover_cursor(CursorIcon::Default)
 }
 
+enum Choice { Voice(VoiceSelection), Manage, Clear }
+
 pub fn popup(app: &mut App, anchor: &Response) {
-    let list_height=(anchor.ctx.content_rect().height()-300.0).clamp(80.0,440.0);
-    let popup = crate::ui::theme::menu::popup(anchor);
+    let selected = app.voice_selection();
+    match voice_picker(anchor, app.synthesis.library.catalog(), selected.as_ref(), true,
+        app.has_voice(), app.synthesis.library.is_scanning(), app.synthesis.library.catalog_error().is_some())
+    {
+        Some(Choice::Voice(voice)) => app.select_voice(voice),
+        Some(Choice::Manage) => app.voice_manager = true,
+        Some(Choice::Clear) => app.unload_voice(),
+        None => {}
+    }
+}
+
+pub(crate) fn donor_picker(ui: &mut Ui, catalog: &VoiceCatalog, donor: &mut Option<VoiceSelection>) {
+    let entry = donor.as_ref().and_then(|donor| catalog.entries.iter().find(|entry| entry.selection() == *donor));
+    let anchor = selection_card(ui, entry, crate::i18n::t("选择歌声"));
+    if let Some(Choice::Voice(voice)) = voice_picker(&anchor, Some(catalog), donor.as_ref(), false, false, false, false) {
+        *donor = Some(voice);
+    }
+}
+
+fn voice_picker(anchor: &Response, catalog: Option<&VoiceCatalog>, selected: Option<&VoiceSelection>,
+    track_actions: bool, can_clear: bool, scanning: bool, catalog_error: bool) -> Option<Choice>
+{
+    let picker_height = (anchor.ctx.content_rect().height() - 28.0).clamp(48.0, 1000.0);
+    let mut choice = None;
+    let popup = Popup::menu(anchor);
     let search_id = popup.get_id().with("voice-name-search");
     let focus_id = search_id.with("pending-focus");
     let filter_id = popup.get_id().with("voice-family-filter");
@@ -84,13 +115,15 @@ pub fn popup(app: &mut App, anchor: &Response) {
         .width(288.0)
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
         .frame(
-            crate::ui::theme::menu::frame(&anchor.ctx.style_of(Theme::Dark))
-                .stroke(Stroke::new(0.8, button_active_color()))
+            Frame::popup(&anchor.ctx.style_of(Theme::Dark))
+                .fill(POPUP_FILL)
+                .stroke(Stroke::new(0.8, BUTTON_ACTIVE))
                 .corner_radius(5)
                 .inner_margin(4),
         )
         .show(|ui| {
             ui.set_width(280.0);
+            ui.set_height(picker_height);
             ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
             header(ui);
             let input_id=search_id.with("input");
@@ -114,26 +147,29 @@ pub fn popup(app: &mut App, anchor: &Response) {
             let filter_changed = filter.show(ui);
             ui.ctx().data_mut(|data| data.insert_temp(filter_id, filter));
             separator(ui);
-            if menu_row(ui, crate::i18n::t("管理歌声"), Some(Icon::Cloud), true).clicked() {
-                app.voice_manager = true;
-                ui.close();
+            if track_actions {
+                if menu_row(ui, crate::i18n::t("管理歌声"), Some(Icon::Cloud), true).clicked() {
+                    choice = Some(Choice::Manage);
+                    ui.close();
+                }
+                separator(ui);
+                if menu_row(ui, crate::i18n::t("取消当前音轨歌声"), None, can_clear).clicked() {
+                    choice = Some(Choice::Clear);
+                    ui.close();
+                }
+                separator(ui);
             }
-            separator(ui);
-            if menu_row(ui, crate::i18n::t("取消当前音轨歌声"), None, app.has_voice()).clicked() {
-                app.unload_voice();
-                ui.close();
-            }
-            separator(ui);
-            if app.synthesis.library.is_scanning() {
+            if scanning {
                 ui.horizontal(|ui| {
                     ui.spinner();
                     weak(ui, crate::i18n::t("正在扫描歌声…"));
                 });
             }
             let needle = query.trim().to_lowercase();
-            let entries: Vec<_> = representative_entries(app).into_iter()
+            let representatives = representative_entries(catalog, selected, !track_actions);
+            let entries: Vec<_> = representatives.iter().copied()
                 .filter(|entry| filter.includes(entry) && entry.localized_display_name().to_lowercase().contains(&needle)).collect();
-            if app.synthesis.library.catalog_error().is_some() {
+            if catalog_error {
                 error_label(
                     ui,
                     if entries.is_empty() {
@@ -143,18 +179,15 @@ pub fn popup(app: &mut App, anchor: &Response) {
                     },
                 );
             }
-            let selected = app.voice_selection();
-            let mut choose = None;
             let mut list=ScrollArea::vertical()
                 .id_salt("voice-picker-list")
-                .max_height(list_height)
+                .max_height(ui.available_height())
                 .auto_shrink([false, false]);
             if opening || search.changed() || filter_changed {list=list.vertical_scroll_offset(0.0);}
             list.show(ui, |ui| {
                     ui.set_width(ui.available_width());
-                    ui.set_min_height(list_height);
-                    if entries.is_empty() && !app.synthesis.library.is_scanning() {
-                        weak(ui, if needle.is_empty() && representative_entries(app).is_empty() {crate::i18n::t("没有可选歌声，请在“管理歌声”中设置 databases 目录。")}
+                    if entries.is_empty() && !scanning {
+                        weak(ui, if track_actions && needle.is_empty() && representatives.is_empty() {crate::i18n::t("没有可选歌声，请在“管理歌声”中设置 databases 目录。")}
                             else {crate::i18n::t("没有匹配的歌声")});
                     }
                     for category in 0..7 {
@@ -171,37 +204,37 @@ pub fn popup(app: &mut App, anchor: &Response) {
                                 database_id: entry.database_id.clone(),
                                 revision: entry.revision,
                             };
-                            if card(ui, entry, selected.as_ref() == Some(&selection)).clicked() {
-                                choose = Some(selection);
+                            if card(ui, entry, selected == Some(&selection)).clicked() {
+                                choice = Some(Choice::Voice(selection));
+                                ui.close();
                             }
                         }
                     }
                 });
-            if let Some(selection) = choose {
-                app.select_voice(selection);
-                ui.close();
-            }
         });
+    choice
 }
 
 pub(super) fn category_of(entry:&VoiceCatalogEntry)->u8 {
     family_filter::category_of(entry)
 }
 
-fn representative_entries(app: &App) -> Vec<&VoiceCatalogEntry> {
+fn representative_entries<'a>(catalog: Option<&'a VoiceCatalog>, selected: Option<&VoiceSelection>,
+    loadable_only: bool) -> Vec<&'a VoiceCatalogEntry>
+{
     let mut banks: BTreeMap<&str, &VoiceCatalogEntry> = BTreeMap::new();
-    let selected = app.voice_selection();
     let rank = |entry: &VoiceCatalogEntry| {
         (
-            selected.as_ref().is_some_and(|s| {
+            selected.is_some_and(|s| {
                 s.database_id == entry.database_id && s.revision == entry.revision
             }),
             entry.availability.is_loadable(),
             entry.revision,
         )
     };
-    if let Some(catalog) = app.synthesis.library.catalog() {
+    if let Some(catalog) = catalog {
         for entry in &catalog.entries {
+            if loadable_only && !entry.availability.is_loadable() { continue; }
             let current = banks.entry(&entry.database_id).or_insert(entry);
             if rank(entry) > rank(current) {
                 *current = entry;
@@ -225,17 +258,17 @@ fn header(ui: &mut Ui) {
         Align2::LEFT_CENTER,
         crate::i18n::t("歌声"),
         section_title_font(),
-        palette().popup_text,
+        TEXT,
     );
     let origin = rect.right_center() - vec2(24.0, 7.0);
     for row in 0..3 {
         let p = origin + vec2(0.0, row as f32 * 5.0);
         ui.painter()
-            .rect_filled(Rect::from_min_size(p, vec2(5.0, 4.0)), 0, icon_tool_color());
+            .rect_filled(Rect::from_min_size(p, vec2(5.0, 4.0)), 0, ICON_TOOL);
         ui.painter().rect_filled(
             Rect::from_min_size(p + vec2(7.0, 0.0), vec2(9.0, 2.0)),
             0,
-            icon_tool_color(),
+            ICON_TOOL,
         );
     }
 }
@@ -250,19 +283,14 @@ fn menu_row(ui: &mut Ui, label: &str, icon: Option<Icon>, enabled: bool) -> Resp
         },
     );
     if enabled && response.hovered() {
-        ui.painter().rect_filled(rect, 3, palette().popup_highlight);
+        ui.painter().rect_filled(rect, 3, BUTTON_HOVER);
     }
-    let color = if enabled {
-        if response.hovered() { palette().popup_highlight_text } else { palette().popup_text }
-    } else {
-        ui.visuals().weak_text_color()
-    };
     let mut x = rect.left() + 8.0;
     if let Some(icon) = icon {
         icon.paint(
             ui,
             Rect::from_center_size(pos2(x + 10.0, rect.center().y), Vec2::splat(20.0)),
-            color,
+            TEXT,
         );
         x += 28.0;
     }
@@ -271,7 +299,7 @@ fn menu_row(ui: &mut Ui, label: &str, icon: Option<Icon>, enabled: bool) -> Resp
         Align2::LEFT_CENTER,
         label,
         FontId::proportional(12.0),
-        color,
+        if enabled { TEXT } else { MUTED },
     );
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
     response.on_hover_cursor(CursorIcon::Default)
@@ -282,7 +310,7 @@ fn separator(ui: &mut Ui) {
     ui.painter().hline(
         rect.x_range(),
         rect.center().y,
-        Stroke::new(1.0, button_active_color()),
+        Stroke::new(1.0, BUTTON_ACTIVE),
     );
 }
 
@@ -298,13 +326,8 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
     );
     if selected || (enabled && response.hovered()) {
         ui.painter()
-            .rect_filled(rect, 5, palette().popup_highlight);
+            .rect_filled(rect, 5, if selected { BUTTON_HOVER } else { BUTTON });
     }
-    let color = if enabled {
-        if selected || response.hovered() { palette().popup_highlight_text } else { palette().popup_text }
-    } else {
-        ui.visuals().weak_text_color()
-    };
     let art = Rect::from_min_size(rect.min + vec2(8.0, 6.0), Vec2::splat(64.0));
     artwork::paint(ui, art, entry.icon.as_ref());
     let content = Rect::from_min_max(
@@ -319,7 +342,7 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
         Align2::LEFT_TOP,
         entry.localized_display_name(),
         section_title_font(),
-        color,
+        if enabled { TEXT } else { MUTED },
     );
     painter.text(
         content.min + vec2(0.0, 23.0),
@@ -329,7 +352,7 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
             VoiceAvailability::Unsupported(reason) => reason.clone(),
         },
         FontId::proportional(12.0),
-        muted_color(),
+        MUTED,
     );
     let mut x = content.left();
     let mut tags = Vec::new();
@@ -338,16 +361,16 @@ fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
     }
     tags.extend(entry.languages.iter().map(|s| language_tag(s)));
     for tag in tags {
-        let galley = painter.layout_no_wrap(tag.to_owned(), FontId::proportional(10.5), palette().popup_text);
+        let galley = painter.layout_no_wrap(tag.to_owned(), FontId::proportional(10.5), TEXT);
         let badge = Rect::from_min_size(
             pos2(x, content.top() + 44.0),
             vec2(galley.size().x + 8.0, 18.0),
         );
-        painter.rect_filled(badge, 2, button_active_color());
+        painter.rect_filled(badge, 2, BUTTON_ACTIVE);
         painter.galley(
             badge.left_center() + vec2(4.0, -galley.size().y / 2.0),
             galley,
-            palette().popup_text,
+            TEXT,
         );
         x = badge.right() + 4.0;
     }

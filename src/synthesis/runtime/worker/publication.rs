@@ -12,6 +12,16 @@ use crate::synthesis::{
 };
 use std::sync::Arc;
 
+pub(super) fn morph_input(plan: &crate::synthesis::plan::RenderPlan, events: &Events, revision: u64,
+    mirrors: &[OwnerId], pcm: Option<Arc<crate::synthesis::audio::RenderedAudio>>, start: Option<i64>)
+{
+    let owners = mirrors.iter().copied().filter(|id| plan.output_controls.get(id)
+        .is_some_and(|out| out.rocoflex && !out.reference_muted)).collect::<Vec<_>>();
+    if !owners.is_empty() {
+        let _ = events.send(Event::MorphInput { revision, owners, pcm, start });
+    }
+}
+
 impl<'network, 'tree> WorkState<'network, 'tree> {
     pub fn publish(&mut self, events: &Events) {
         let publication = self.cache.publication_revision();
@@ -33,12 +43,16 @@ impl<'network, 'tree> WorkState<'network, 'tree> {
                     for &mirror in &mirrors {
                         live.prepared(mirror, session.prepared.model_samples())?;
                     }
+                    morph_input(&self.plan, events, self.revision, &mirrors, None,
+                        Some(session.prepared.model_samples().start));
                     for audio in session
                         .prepared
                         .ready_audio()
                         .map_err(|error| error.to_string())?
                     {
-                        live.publish_for(&mirrors, Arc::new(audio))?;
+                        let audio = Arc::new(audio);
+                        live.publish_for(&mirrors, Arc::clone(&audio))?;
+                        morph_input(&self.plan, events, self.revision, &mirrors, Some(audio), None);
                     }
                 }
                 Ok::<_, String>(live)
@@ -82,11 +96,8 @@ impl<'network, 'tree> WorkState<'network, 'tree> {
             self.published_revision = publication;
             let stats = self.cache.stats();
             let complete = stats.queued == 0 && stats.running == 0 && stats.failed == 0;
-            let owners = if complete {
-                self.cache.snapshot()
-            } else {
-                Vec::new()
-            };
+            let mut owners = snapshot.unwrap_or_else(|| self.cache.snapshot());
+            if !complete { owners.retain(|owner| owner.controls.rocoflex); }
             let audio = if complete {
                 match mixer::mix(&owners, &self.solo_tracks) {
                     Ok(audio) => audio,
@@ -114,6 +125,7 @@ impl<'network, 'tree> WorkState<'network, 'tree> {
     pub fn publish_prepared(&mut self, owner: OwnerId, events: &Events) -> Result<(), String> {
         if let Some(session) = self.sessions.get_mut(&owner) {
             let mirrors = equivalent_owners(&self.plan, owner);
+            morph_input(&self.plan, events, self.revision, &mirrors, None, Some(session.prepared.model_samples().start));
             let phones=session.prepared.phoneme_track();
             for &mirror in &mirrors {
                 let _=events.send(Event::Phonemes {
@@ -136,11 +148,13 @@ impl<'network, 'tree> WorkState<'network, 'tree> {
                 .map_err(|error| error.to_string())?
             {
                 session.visuals.audio(&audio, false);
+                let audio = Arc::new(audio);
                 if !self.rebuild_source
                     && let Some(live) = &mut self.live
                 {
-                    live.publish_for(&mirrors, Arc::new(audio))?;
+                    live.publish_for(&mirrors, Arc::clone(&audio))?;
                 }
+                morph_input(&self.plan, events, self.revision, &mirrors, Some(audio), None);
             }
             visuals::publish(
                 events,
@@ -167,11 +181,13 @@ impl<'network, 'tree> WorkState<'network, 'tree> {
             if let Some(patch) = session.visuals.audio(&audio, true) {
                 patches.push(patch);
             }
+            let audio = Arc::new(audio);
             if !self.rebuild_source
                 && let Some(live) = &mut self.live
             {
-                live.publish_for(&mirrors, Arc::new(audio))?;
+                live.publish_for(&mirrors, Arc::clone(&audio))?;
             }
+            morph_input(&self.plan, events, self.revision, &mirrors, Some(audio), None);
         }
         visuals::publish(events, &self.plan, self.revision, owner, patches);
         Ok(())

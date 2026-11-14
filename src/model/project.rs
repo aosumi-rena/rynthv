@@ -1,7 +1,7 @@
 use super::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -137,6 +137,8 @@ pub struct GroupRef {
     pub mute: bool,
     #[serde(default = "empty_database")]
     pub database: Value,
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "shared_pitch")]
+    pub system_pitch_delta: Option<Arc<Automation>>,
     #[serde(flatten)]
     pub extra: Extra,
 }
@@ -170,6 +172,7 @@ impl GroupRef {
             blick_offset: 0,
             pitch_offset: 0,
             mute: false,
+            system_pitch_delta: None,
             database: json!({"name":"","language":"","phoneset":"","languageOverride":"","phonesetOverride":"","backendType":"","version":"-2"}),
             extra: BTreeMap::from([
                 ("isInstrumental".into(), json!(false)),
@@ -184,6 +187,34 @@ impl GroupRef {
         }
     }
 }
+mod shared_pitch {
+    use super::*;
+
+    pub fn serialize<S: serde::Serializer>(
+        curve: &Option<Arc<Automation>>, serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        curve.as_deref().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Arc<Automation>>, D::Error> {
+        Option::<Automation>::deserialize(deserializer).map(|curve| curve.map(Arc::new))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RocoflexTrack {
+    pub enabled: bool,
+    #[serde(with = "super::shared_json")]
+    pub preset: std::sync::Arc<serde_json::Value>,
+    #[serde(default)]
+    pub pregain_db: f32,
+    #[serde(default)]
+    pub pitch_semitones: f32,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Track {
@@ -196,6 +227,8 @@ pub struct Track {
     pub main_ref: GroupRef,
     pub groups: Vec<GroupRef>,
     pub mixer: Extra,
+    #[serde(default, rename = "rynthvRocoflex", skip_serializing_if = "Option::is_none")]
+    pub rocoflex: Option<RocoflexTrack>,
 
     #[serde(skip)]
     pub instrumental: Option<InstrumentalTrack>,
@@ -222,6 +255,7 @@ impl Track {
             ]),
             extra: BTreeMap::from([("renderEnabled".into(), json!(false))]),
             instrumental: None,
+            rocoflex: None,
         }
     }
     pub fn references(&self) -> impl Iterator<Item = &GroupRef> {
@@ -264,7 +298,7 @@ pub struct Project {
 impl Default for Project {
     fn default() -> Self {
         Self {
-            version: SVP_VERSION,
+            version: RVP_VERSION,
             uuid: uuid::Uuid::new_v4().to_string(),
             time: TimeAxis::default(),
             library: Vec::new(),

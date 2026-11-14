@@ -1,9 +1,11 @@
 use super::decoration::KeyboardDecoration;
 use crate::ui::{
     scale::ScaleGuide,
-    theme::{palette, metrics, accent_color},
+    theme::{BLACK_ROW, GREEN},
 };
 use eframe::egui::*;
+
+const WHITE_KEY: Color32 = Color32::from_rgb(147, 145, 155);
 
 pub(in crate::ui::piano) fn white_index(pitch: i32) -> Option<i32> {
     match pitch.rem_euclid(12) {
@@ -57,7 +59,7 @@ impl KeyboardLayout {
                     pos2(canvas.left(), bottom),
                 )
             } else {
-                Rect::from_min_size(pos2(all.left(), y + 0.5), vec2(metrics().black_key_width(rect.width()), row_height - 1.0))
+                Rect::from_min_size(pos2(all.left(), y + 0.5), vec2(22.0, row_height - 1.0))
             };
             let key = Key {
                 pitch,
@@ -89,39 +91,34 @@ impl KeyboardLayout {
         let painter = ui
             .painter()
             .with_clip_rect(self.rect.intersect(ui.clip_rect()));
-        painter.rect_filled(self.rect, 0, palette().keyboard_background);
+        painter.rect_filled(self.rect, 0, WHITE_KEY);
         let decoration = KeyboardDecoration::new(scale, accent);
         let fill = |key: &Key, normal| {
             if active.is_some_and(|pitch| i32::from(pitch) == key.pitch) {
-                accent_color()
+                GREEN
             } else {
                 normal
             }
         };
         for key in &self.white {
-            let rounding = Self::key_rounding(key, false);
-            painter.rect_filled(key.rect, rounding, fill(key, palette().white_key));
-            decoration.draw(&painter, key, false, rounding);
-            if metrics().keyboard_white_stroke > 0.0 {
-                painter.rect_stroke(
-                    key.rect,
-                    rounding,
-                    Stroke::new(metrics().keyboard_white_stroke, palette().key_separator),
-                    StrokeKind::Inside,
-                );
-            }
+            painter.rect_filled(key.rect, 2, fill(key, WHITE_KEY));
+            decoration.draw(&painter, key, false, CornerRadius::same(2));
+            painter.rect_stroke(
+                key.rect,
+                2,
+                Stroke::new(0.6, Color32::from_rgb(79, 77, 84)),
+                StrokeKind::Inside,
+            );
         }
         for key in &self.black {
-            let rounding = Self::key_rounding(key, true);
-            painter.rect_filled(key.rect, rounding, fill(key, palette().black_key));
+            let rounding = CornerRadius {
+                nw: 0,
+                ne: 2,
+                sw: 0,
+                se: 2,
+            };
+            painter.rect_filled(key.rect, rounding, fill(key, BLACK_ROW));
             decoration.draw(&painter, key, true, rounding);
         }
-    }
-
-    fn key_rounding(key: &Key, black: bool) -> CornerRadius {
-        let layout = metrics();
-        let right = layout.key_radius(key.rect.width(), key.rect.height()).round() as u8;
-        let left = if black || layout.keyboard_square_white_left { 0 } else { right };
-        CornerRadius { nw: left, ne: right, sw: left, se: right }
     }
 }

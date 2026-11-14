@@ -4,6 +4,7 @@ mod waveform;
 mod waveform_flash;
 
 use std::{
+    collections::HashMap,
     ops::Range,
     time::{Duration, Instant},
 };
@@ -12,7 +13,7 @@ use super::scene::SceneGroup;
 use crate::{
     app::App,
     model::{beats, ticks},
-    synthesis::plan::{GlobalBlick, OwnerId, OwnerInput, TempoMapping},
+    synthesis::plan::{GlobalBlick, OwnerId, TempoMapping},
     ui::timeline,
 };
 use eframe::egui::*;
@@ -23,28 +24,31 @@ pub fn waveforms(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
     }
     let now = Instant::now();
     let mut animating = false;
+    let mut notes = HashMap::new();
     for group in groups {
         for visuals in app.synthesis.visuals(OwnerId::new(group.reference.id)) {
-        for piece in visuals.pieces() {
-            let painter = painter(ui, canvas, app, &piece.snapshot.input, &piece.range);
-            if painter.clip_rect().is_positive() {
-                animating |=
-                    waveform::draw(app, &painter, canvas, group, &piece.snapshot, visuals, now);
+            for piece in visuals.pieces() {
+                let painter = painter(ui, canvas, app, &piece.range);
+                if painter.clip_rect().is_positive() {
+                    let input = std::sync::Arc::as_ptr(&piece.snapshot.input);
+                    let notes = notes.entry(input).or_insert_with(|| waveform::active_notes(&piece.snapshot.input));
+                    animating |= waveform::draw(app, &painter, canvas, group, &piece.snapshot, notes, visuals, now);
+                }
             }
-        }
         }
     }
     if animating {
-        ui.ctx().request_repaint_after(Duration::from_millis(16));
+        ui.ctx().request_repaint_after(Duration::from_millis(33));
     }
 }
 
 pub fn pitch(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
-    let visible=if crate::ui::theme::current()==crate::ui::theme::InterfaceTheme::Classic {app.show_output_pitch}else{app.show_pitch};
-    if !visible {return;}
+    if !app.show_pitch {
+        return;
+    }
     for group in groups {
         for piece in app.synthesis.visuals(OwnerId::new(group.reference.id)).flat_map(|v|v.pieces()) {
-            let painter = painter(ui, canvas, app, &piece.snapshot.input, &piece.range);
+            let painter = painter(ui, canvas, app, &piece.range);
             if painter.clip_rect().is_positive() {
                 pitch::draw(app, &painter, canvas, group, &piece.snapshot);
             }
@@ -52,19 +56,14 @@ pub fn pitch(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
     }
 }
 
-fn painter(ui: &Ui, canvas: Rect, app: &App, input: &OwnerInput, range: &Range<i64>) -> Painter {
-
-    let (publication_begin,publication_end) = input.publication_bounds();
+fn painter(ui: &Ui, canvas: Rect, app: &App, range: &Range<i64>) -> Painter {
+    // VisualTimeline clips every installed piece to its publication bounds.
     let left = timeline::x_at(
         canvas,
         &app.view.piano,
-        beats(publication_begin.0.max(range.start)),
+        beats(range.start),
     );
-    let right = publication_end
-        .map_or(canvas.right(), |end| {
-            timeline::x_at(canvas, &app.view.piano, beats(end.0))
-        })
-        .min(timeline::x_at(canvas, &app.view.piano, beats(range.end)));
+    let right = timeline::x_at(canvas, &app.view.piano, beats(range.end)).min(canvas.right());
     let bounds = Rect::from_min_max(pos2(left, canvas.top()), pos2(right, canvas.bottom()));
     ui.painter()
         .with_clip_rect(bounds.intersect(canvas).intersect(ui.clip_rect()))

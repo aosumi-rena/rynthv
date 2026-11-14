@@ -3,7 +3,7 @@ use crate::model::{
     Automation, Extra, Group, GroupRef, Note, Project, QUARTER, Track, pitch::PitchControl,
 };
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NoteInput {
@@ -144,6 +144,7 @@ pub struct OwnerInput {
     pub notes: Vec<NoteInput>,
     pub automation: BTreeMap<String, Automation>,
     pub pitch_controls: Vec<PitchControl>,
+    pub system_pitch_delta: Option<Arc<Automation>>,
     pub group_options: Extra,
     pub voice: VoiceInput,
     pub tempo: TempoMapping,
@@ -215,6 +216,7 @@ impl OwnerInput {
                 .chain(group.vocal_modes.iter().map(|(k,v)|(format!("vocalMode_{k}"),v.clone())))
                 .collect(),
             pitch_controls: group.pitch_controls.clone(),
+            system_pitch_delta: reference.system_pitch_delta.as_ref().filter(|curve| !curve.points.is_empty()).cloned(),
             group_options: group_extensions(&group.extra),
             voice: VoiceInput {
                 track_default_is_self: reference.id == track.main_ref.id,

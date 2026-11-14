@@ -1,4 +1,4 @@
-use super::super::{super::paths, manager_card_color, manager_surface_color, State, catalog};
+use super::super::{super::paths, ACCENT, CARD, SURFACE, State, catalog};
 use crate::{
     app::App,
     synthesis::{
@@ -53,15 +53,15 @@ pub(super) fn primary(
         && app.synthesis.library.settings_error().is_none();
     let outline = loaded || problem || missing_dictionary;
     let button = Button::new(RichText::new(label).size(13.0).color(if !enabled {
-        muted_color()
+        MUTED
     } else if outline {
-        palette().manager_accent
+        ACCENT
     } else {
-        manager_surface_color()
+        SURFACE
     }))
     .corner_radius(13)
-    .fill(if !enabled || outline { manager_card_color() } else { palette().manager_accent })
-    .stroke(Stroke::new(0.8, if enabled { palette().manager_accent } else { border_color() }));
+    .fill(if !enabled || outline { CARD } else { ACCENT })
+    .stroke(Stroke::new(0.8, if enabled { ACCENT } else { BORDER }));
     if ui
         .add_enabled(enabled, button.min_size(vec2(ui.available_width(), 36.0)))
         .clicked()
@@ -73,7 +73,7 @@ pub(super) fn primary(
         } else if current && loaded {
             app.unload_voice();
         } else if missing_dictionary {
-            if let Some(version)=app.synthesis.library.settings.phoneme_version(entry){paths::choose_phoneme_data(app,version);}
+            if let Some(version)=crate::synthesis::settings::PhonemeVersion::entry(entry){paths::choose_phoneme_data(app,version);}
         } else if current {
             app.reload_voice();
         } else {
@@ -91,14 +91,14 @@ pub(super) fn menu(
 ) {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(26.0), Sense::click());
     if response.hovered() {
-        ui.painter().rect_filled(rect, 13, border_color());
+        ui.painter().rect_filled(rect, 13, BORDER);
     }
     for offset in [-5.0, 0.0, 5.0] {
         ui.painter()
-            .circle_filled(rect.center() + vec2(0.0, offset), 1.5, muted_color());
+            .circle_filled(rect.center() + vec2(0.0, offset), 1.5, MUTED);
     }
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, crate::i18n::t("更多声库操作")));
-    crate::ui::theme::menu::popup(&response).show(|ui| {
+    Popup::menu(&response).show(|ui| {
         if ui
             .button(if state.expanded.as_ref() == Some(&entry.database_id) {
                 crate::i18n::t("收起详情")

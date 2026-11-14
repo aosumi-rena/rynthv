@@ -17,6 +17,12 @@ mod phoneme_alphabet;
 pub mod prompt;
 pub mod rename;
 mod rendering_hint;
+pub mod rocoflex;
+mod rocoflex_gpu;
+mod rocoflex_input;
+mod rocoflex_presentation;
+mod rocoflex_surface;
+mod rocoflex_viewport;
 pub mod retakes;
 pub mod scale;
 pub mod scrollbars;
@@ -33,6 +39,7 @@ mod track_color;
 pub mod track_header;
 pub mod transport;
 pub mod view_pan;
+pub mod voice_finetuning;
 pub mod voice_library;
 pub mod workspace;
 
@@ -71,7 +78,7 @@ pub fn section_title(ui: &mut Ui, text: &str, payload: state::DragPayload) -> Re
         Label::new(
             RichText::new(text)
                 .font(theme::section_title_font())
-                .color(theme::text_color()),
+                .color(theme::TEXT),
         )
         .selectable(false)
         .sense(Sense::drag()),

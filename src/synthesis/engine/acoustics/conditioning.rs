@@ -25,7 +25,7 @@ impl PreparedRenderAcoustics {
     }
     pub fn modulation(&self) -> Vec<AcousticNote> {
         let mut note_frames = vec![0_usize; self.prepared.phrase.notes.len()];
-        if self.family == crate::synthesis::voice::VoiceFamily::Sv2Compatible {
+        if matches!(self.family, crate::synthesis::voice::VoiceFamily::Sv1 | crate::synthesis::voice::VoiceFamily::Sv2Compatible) {
 
             for phone in &self.prepared.phones {
                 note_frames[phone.note_index] += phone.frames;

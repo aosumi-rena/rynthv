@@ -1,6 +1,6 @@
 use crate::app::App;
 use eframe::egui::Ui;
-use super::widgets::{toggle,section};
+use super::widgets::{row, toggle, section};
 
 pub(super) fn show(app:&mut App,ui:&mut Ui) {
     let mut settings=app.synthesis.library.settings.experiments;
@@ -22,20 +22,21 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         section(ui,crate::i18n::t("PHONE_CONVERSION"));
         toggle(ui,crate::i18n::t("PHONE_CONVERSION_ENABLE"),&mut settings.phone_conversion);
         if settings.phone_conversion {
-            let path=app.synthesis.library.settings.phone_conversion.as_deref();
-            if let Some(path)=path {
-                ui.label(path.file_name().unwrap_or(path.as_os_str()).to_string_lossy()).on_hover_text(path.display().to_string());
-            } else {ui.label(crate::i18n::t("尚未指定"));}
-            let mut replacement=None;
-            ui.horizontal(|ui|{
-                if ui.button(crate::i18n::t("VOICE_SOURCE_CHANGE")).clicked() {
-                    let mut dialog=rfd::FileDialog::new().add_filter("BIN",&["bin"]);
-                    if let Some(parent)=path.and_then(std::path::Path::parent) {dialog=dialog.set_directory(parent);}
-                    replacement=dialog.pick_file().map(Some);
+            let path = app.synthesis.library.settings.phone_conversion.clone();
+            row(ui, "BIN", |ui| {
+                if ui.button(crate::i18n::t("ROCOFLEX_BROWSE")).clicked() {
+                    let mut dialog = rfd::FileDialog::new().add_filter("BIN", &["bin"]);
+                    if let Some(parent) = path.as_deref().and_then(std::path::Path::parent) { dialog = dialog.set_directory(parent); }
+                    if let Some(replacement) = dialog.pick_file() { app.synthesis.set_phone_conversion(Some(replacement)); }
                 }
-                if path.is_some() && crate::ui::icons::close_button(ui).clicked() {replacement=Some(None);}
+                if let Some(file) = &path {
+                    if ui.add(crate::ui::icons::IconButton::new(crate::ui::icons::Icon::Close, crate::i18n::t("VOICE_LAB_CLEAR_DONOR"))).clicked() {
+                        app.synthesis.set_phone_conversion(None);
+                    }
+                    ui.add(eframe::egui::Label::new(file.file_name().unwrap_or(file.as_os_str()).to_string_lossy()).truncate())
+                        .on_hover_text(file.display().to_string());
+                } else { ui.label(crate::i18n::t("尚未指定")); }
             });
-            if let Some(path)=replacement {app.synthesis.set_phone_conversion(path);}
         }
     }
     if settings!=before {app.synthesis.set_experiments(settings);}

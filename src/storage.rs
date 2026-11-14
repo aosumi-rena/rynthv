@@ -4,6 +4,18 @@ use std::{collections::HashSet, fs, io::Write, path::Path};
 mod identity;
 mod audio;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ProjectFormat { Rvp, Svp }
+
+impl ProjectFormat {
+    pub fn from_path(path: &Path) -> Option<Self> {
+        let extension = path.extension()?;
+        if extension.eq_ignore_ascii_case("rvp") { Some(Self::Rvp) }
+        else if extension.eq_ignore_ascii_case("svp") { Some(Self::Svp) }
+        else { None }
+    }
+}
+
 /// Update native audio-reference metadata in memory; never writes a file.
 pub fn synchronize_audio_references(project: &mut Project) { audio::save(project); }
 
@@ -12,15 +24,30 @@ pub fn load(path: &Path) -> Result<Project, String> {
         return Err("工程超过 64 MiB 读取上限".into());
     }
     let bytes = fs::read(path).map_err(|e| e.to_string())?;
-    load_bytes(&bytes,path)
+    let format = ProjectFormat::from_path(path).ok_or("PROJECT_UNSUPPORTED_FORMAT")?;
+    decode_project(&bytes, path, format)
 }
 
-pub fn load_bytes(bytes:&[u8],path:&Path)->Result<Project,String> {
+pub fn load_svp_bytes(bytes: &[u8], path: &Path) -> Result<Project, String> {
+    decode_project(bytes, path, ProjectFormat::Svp)
+}
 
+fn decode_project(bytes: &[u8], path: &Path, format: ProjectFormat) -> Result<Project, String> {
     let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
     let bytes = bytes.trim_ascii_end().strip_suffix(&[0]).unwrap_or(bytes).trim_ascii_end();
     let mut project: Project =
-        serde_json::from_slice(bytes).map_err(|e| format!("SVP 解析失败：{e}"))?;
+        serde_json::from_slice(bytes).map_err(|e| format!("工程解析失败：{e}"))?;
+    match format {
+        ProjectFormat::Rvp if project.version != RVP_VERSION => return Err("RVP_UNSUPPORTED_VERSION".into()),
+        ProjectFormat::Svp if !(113..=SVP_VERSION).contains(&project.version) => {
+            return Err(crate::lformat!("支持的 SVP 版本为 113 至 {}；文件版本为 {}。", SVP_VERSION, project.version));
+        }
+        ProjectFormat::Svp => {
+            for track in &mut project.tracks { track.rocoflex = None; }
+        }
+        ProjectFormat::Rvp => {}
+    }
+    project.version = RVP_VERSION;
     audio::load(&mut project)?;
     validate(&project)?;
     let base = std::path::absolute(path).map_err(|e| e.to_string())?;
@@ -43,18 +70,21 @@ pub fn load_bytes(bytes:&[u8],path:&Path)->Result<Project,String> {
 }
 
 pub fn save(path: &Path, project: &Project) -> Result<(), String> {
-    validate(project)?;
+    let format = ProjectFormat::from_path(path).ok_or("PROJECT_UNSUPPORTED_FORMAT")?;
     let mut ordered = project.clone();
-
-    ordered.version = SVP_VERSION;
     let base = std::path::absolute(path).map_err(|e| e.to_string())?;
     for track in &mut ordered.tracks {
+        if format == ProjectFormat::Svp {
+            track.rocoflex = None;
+        }
         if let Some(clip) = track.instrumental.as_mut().and_then(|t| t.clip.as_mut())
             && let Ok(relative) = clip.path.strip_prefix(base.parent().unwrap())
         {
             clip.path = relative.to_owned();
         }
     }
+    validate(&ordered)?;
+    ordered.version = match format { ProjectFormat::Rvp => RVP_VERSION, ProjectFormat::Svp => SVP_VERSION };
     audio::save(&mut ordered);
     for group in ordered
         .library
@@ -64,6 +94,9 @@ pub fn save(path: &Path, project: &Project) -> Result<(), String> {
         group.notes.sort_by_key(|n| n.onset);
     }
     let bytes = serde_json::to_vec_pretty(&ordered).map_err(|e| e.to_string())?;
+    if bytes.len() > 64 * 1024 * 1024 {
+        return Err("工程超过 64 MiB 读取上限".into());
+    }
     atomic_write(path, &bytes)
 }
 
@@ -87,12 +120,6 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
 
 pub(crate) fn validate(p: &Project) -> Result<(), String> {
     let bad = |s: &str| Err(format!("工程校验失败：{s}"));
-    if !(113..=SVP_VERSION).contains(&p.version) {
-        return bad(&format!(
-            "支持 SVP version 113 至 {SVP_VERSION}，文件版本为 {}",
-            p.version
-        ));
-    }
     identity::validate(p)?;
     if p.tracks.is_empty() {
         return bad("至少需要一条音轨");
@@ -178,6 +205,12 @@ pub(crate) fn validate(p: &Project) -> Result<(), String> {
         }
     }
     for track in &p.tracks {
+        if let Some(rfx) = &track.rocoflex
+            && (track.is_instrumental() || !rfx.preset.is_object()
+                || !rfx.pregain_db.is_finite() || !rfx.pitch_semitones.is_finite())
+        {
+            return bad("Invalid Rocoflex preset");
+        }
         if track.audio_clip().is_some_and(|c| !c.valid()) {
             return bad("伴奏文件路径或时间范围无效");
         }
@@ -206,6 +239,9 @@ pub(crate) fn validate(p: &Project) -> Result<(), String> {
                     || (n.onset + n.duration).checked_add(r.blick_offset).is_none()
             }) {
                 return bad("实例时间溢出");
+            }
+            if let Some(curve) = &r.system_pitch_delta {
+                curve.validate()?;
             }
             if group.pitch_controls.iter().any(|control| match control {
                 PitchControl::Point(point) => point.pos.checked_add(r.blick_offset).is_none(),

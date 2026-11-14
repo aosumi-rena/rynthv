@@ -15,6 +15,7 @@ pub(super) struct SessionVisuals {
     pitch: PitchTrack,
     phonemes:crate::synthesis::rendered::PhonemeTrack,
     patches: Vec<VisualPatch>,
+    bounds: Range<i64>,
 }
 
 impl SessionVisuals {
@@ -22,6 +23,7 @@ impl SessionVisuals {
         let mut visuals = Self {
             pitch: prepared.pitch_track()?,
             phonemes:prepared.phoneme_track(),
+            bounds: input.publication_range(),
             input,
             patches: Vec::new(),
         };
@@ -30,7 +32,7 @@ impl SessionVisuals {
         let rate = f64::from(SAMPLE_RATE);
         let start = visuals.input.tempo.position_at(model.start as f64 / rate).0;
         let end = visuals.input.tempo.position_at(model.end as f64 / rate).0;
-        let visible = visuals.visible_range();
+        let visible = visuals.bounds.clone();
         for range in [visible.start..start, end..visible.end] {
             if let Some(range) = visuals.clip(range) {
                 visuals.patches.push(VisualPatch {
@@ -73,37 +75,29 @@ impl SessionVisuals {
             .collect()
     }
 
-    fn visible_range(&self) -> Range<i64> {
-        self.input.publication_range()
-    }
-
     fn clip(&self, range: Range<i64>) -> Option<Range<i64>> {
-        let visible = self.visible_range();
+        let visible = &self.bounds;
         let clipped = range.start.max(visible.start)..range.end.min(visible.end);
         (!clipped.is_empty()).then_some(clipped)
     }
 
     fn store(&mut self, patch: VisualPatch) {
-        let mut retained = Vec::with_capacity(self.patches.len() + 2);
-        for previous in self.patches.drain(..) {
-            if previous.range.end <= patch.range.start || previous.range.start >= patch.range.end {
-                retained.push(previous);
-                continue;
-            }
-            if previous.range.start < patch.range.start {
-                let mut left = previous.clone();
-                left.range.end = patch.range.start;
-                retained.push(left);
-            }
-            if previous.range.end > patch.range.end {
-                let mut right = previous;
-                right.range.start = patch.range.end;
-                retained.push(right);
-            }
-        }
-        retained.push(patch);
-        retained.sort_unstable_by_key(|patch| patch.range.start);
-        self.patches = retained;
+        let start = patch.range.start;
+        let end = patch.range.end;
+        let first = self.patches.partition_point(|previous| previous.range.end <= start);
+        let last = self.patches.partition_point(|previous| previous.range.start < end);
+        let covered = &self.patches[first..last];
+        let left = covered.first().filter(|previous| previous.range.start < start).map(|previous| {
+            let mut previous = previous.clone();
+            previous.range.end = start;
+            previous
+        });
+        let right = covered.last().filter(|previous| previous.range.end > end).map(|previous| {
+            let mut previous = previous.clone();
+            previous.range.start = end;
+            previous
+        });
+        self.patches.splice(first..last, [left, Some(patch), right].into_iter().flatten());
     }
 }
 

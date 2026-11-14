@@ -149,6 +149,7 @@ impl Runtime {
         self.last_revision == Some(revision)
             && self.export.is_none()
             && self.recording_error.is_none()
+            && self.morph_ready()
             && self.recordings.pending.is_empty()
             && self.pending_voices.is_empty()
             && (self
@@ -167,7 +168,8 @@ impl Runtime {
             return;
         }
         let owners = self.export_owners.clone();
-        let recordings = self.recordings.layers.clone();
+        let mut recordings = self.recordings.layers.clone();
+        recordings.extend(self.morph_layers());
         let solo = self.solo_tracks.clone();
         let repaint = self.repaint.clone();
         let (tx, rx) = mpsc::sync_channel(1);

@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::model::{Project,Track,InstrumentalTrack,AudioClip};
 mod data;
 
-pub const EXTENSIONS:&[&str]=&["svp","vsqx","vpr","vsq","mid","midi","ust","ustx","ccs","xml","musicxml","s5p","dv","ppsf","tssln","ufdata","zip"];
+pub const EXTENSIONS:&[&str]=&["rvp","svp","vsqx","vpr","vsq","mid","midi","ust","ustx","ccs","xml","musicxml","s5p","dv","ppsf","tssln","ufdata","zip"];
 #[derive(Deserialize)]
 pub struct Asset {
     pub track_name:String,
@@ -33,13 +33,13 @@ fn helper(action:&str,path:&Path,destination:Option<&Path>)->Result<serde_json::
     serde_json::from_slice(&output.stdout).map_err(|e|format!("转换器返回无效结果：{e}"))
 }
 pub fn convert(path:&Path)->Result<Imported,String> {
-    if path.extension().is_some_and(|e|e.eq_ignore_ascii_case("svp")) {
+    if crate::storage::ProjectFormat::from_path(path).is_some() {
         return Ok(Imported{project:crate::storage::load(path)?,assets:Vec::new(),source:path.into()});
     }
     let result=helper("convert",path,None)?;
     let project=if result["svp"].is_null() {data::project(result["data"].clone())?}else{
         let bytes=serde_json::to_vec(&result["svp"]).map_err(|e|e.to_string())?;
-        crate::storage::load_bytes(&bytes,path)?
+        crate::storage::load_svp_bytes(&bytes,path)?
     };
     let assets=serde_json::from_value(result["assets"].clone()).map_err(|e|format!("归档音频信息无效：{e}"))?;
     Ok(Imported{project,assets,source:path.into()})

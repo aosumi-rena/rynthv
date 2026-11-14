@@ -43,13 +43,14 @@ pub struct App {
     pub error: Option<String>,
     pub settings: bool,
     pub voice_manager: bool,
+    pub rocoflex: ui::rocoflex::Integration,
+    pub voice_finetuning: ui::voice_finetuning::VoiceFinetuningState,
     pub about: bool,
     pub piano_tool: ui::piano::Tool,
     pub piano_anchor: ui::piano::AnchorSelection,
     pub parameter_lane: ui::lanes::ParameterSelection,
     pub phoneme_focus: Option<(EntityId, Option<EntityId>)>,
     pub show_pitch: bool,
-    pub show_output_pitch: bool,
     pub show_waveform: bool,
     pub show_retakes: bool,
     pub show_time_tracks: bool,
@@ -75,12 +76,13 @@ pub struct App {
     last_layout: String,
     last_preferences: String,
     last_persist: Instant,
+    window_title: String,
 }
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, path: Option<PathBuf>) -> Self {
         egui_extras::install_image_loaders(&cc.egui_ctx);
-        let mut error = ui::theme::fonts(&cc.egui_ctx).err();
         ui::theme::install(&cc.egui_ctx);
+        let mut error = ui::theme::fonts(&cc.egui_ctx).err();
         let settings_path = match rynthv::platform::config_directory() {
             Ok(directory) => Some(directory.join("workspace.json")),
             Err(message) => {
@@ -130,13 +132,14 @@ impl App {
             error,
             settings: false,
             voice_manager: false,
+            rocoflex: ui::rocoflex::Integration::new(cc.wgpu_render_state.clone()),
+            voice_finetuning: Default::default(),
             about: false,
             piano_tool: ui::piano::Tool::NoteSelect,
             piano_anchor: ui::piano::AnchorSelection::default(),
             parameter_lane: Default::default(),
             phoneme_focus: None,
             show_pitch: true,
-            show_output_pitch: true,
             show_waveform: true,
             show_retakes: true,
             show_time_tracks: true,
@@ -162,6 +165,7 @@ impl App {
             last_layout: String::new(),
             last_preferences,
             last_persist: Instant::now(),
+            window_title: String::new(),
         };
         app.restore_transport_choices();
         app.synthesis.set_metronome(app.preferences.metronome);
@@ -172,7 +176,7 @@ impl App {
     }
     pub fn open_path(&mut self, path: PathBuf) {
         self.project_import=None;
-        if !path.extension().is_some_and(|e|e.eq_ignore_ascii_case("svp")) {
+        if storage::ProjectFormat::from_path(&path).is_none() {
             self.begin_project_import(path,MidiImportMode::NewProject,&self.context.clone());
             return;
         }
@@ -183,6 +187,7 @@ impl App {
                 self.editor = Editor::new(project);
                 self.restore_transport_choices();
                 self.synthesis.reset_project();
+                self.rocoflex.clear();
                 self.path = Some(path);
                 self.gesture = None;
                 self.piano_anchor = ui::piano::AnchorSelection::default();
@@ -218,34 +223,38 @@ impl App {
         }
     }
     pub fn save_project(&mut self, save_as: bool) -> bool {
+        use storage::ProjectFormat;
         ui::piano::cancel_audition(self);
         ui::tempo_input::finish(self);
         self.commit_lyric();
         self.editor.finish();
-        let path = if save_as || self.path.is_none() {
-            let name = self
-                .path
-                .as_ref()
-                .and_then(|p| p.file_name())
-                .and_then(|n| n.to_str())
-                .unwrap_or(crate::i18n::t("未命名.svp"));
-            rfd::FileDialog::new()
-                .add_filter(crate::i18n::t("Synthesizer V 工程"), &["svp"])
-                .set_file_name(name)
-                .save_file()
+        let native = self.path.as_ref().filter(|path| ProjectFormat::from_path(path) == Some(ProjectFormat::Rvp));
+        let path = if save_as || native.is_none() {
+            let name = self.path.as_ref().and_then(|p| p.file_stem()).and_then(|n| n.to_str())
+                .unwrap_or(crate::i18n::t("未命名"));
+            let mut dialog = rfd::FileDialog::new().add_filter("RynthV (*.rvp)", &["rvp"]);
+            if save_as {
+                dialog = dialog.add_filter("Synthesizer V (*.svp)", &["svp"]);
+            }
+            if let Some(parent) = self.path.as_deref().and_then(std::path::Path::parent) {
+                dialog = dialog.set_directory(parent);
+            }
+            dialog.set_file_name(name).save_file()
         } else {
-            self.path.clone()
+            native.cloned()
         };
-        let Some(mut path) = path else {
+        let Some(mut path) = path else { return false; };
+        if path.extension().is_none() { path.set_extension("rvp"); }
+        if !save_as && ProjectFormat::from_path(&path) != Some(ProjectFormat::Rvp) {
+            self.error = Some(crate::i18n::t("RVP_SAVE_REQUIRED").into());
             return false;
-        };
-        if path.extension().is_none() {
-            path.set_extension("svp");
         }
         match storage::save(&path, &self.project_for_save()) {
             Ok(()) => {
-                self.editor.mark_saved();
-                self.path = Some(path);
+                if ProjectFormat::from_path(&path) == Some(ProjectFormat::Rvp) {
+                    self.editor.mark_saved();
+                    self.path = Some(path);
+                }
                 self.status = crate::i18n::t("工程已保存").into();
                 true
             }
@@ -290,6 +299,7 @@ impl App {
                 self.editor = Editor::new(blank_project());
                 self.restore_transport_choices();
                 self.synthesis.reset_project();
+                self.rocoflex.clear();
                 self.path = None;
             }
             FileAction::Open => {
@@ -396,13 +406,16 @@ impl App {
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        if let Some(provider) = self.rocoflex.poll(&self.preferences.rocoflex, &ctx) {
+            self.synthesis.set_rocoflex_provider(provider);
+        }
         ui::piano::begin_keyboard_frame(self, &ctx);
         self.synthesis.poll();
         self.poll_audio_import();
         self.poll_midi_import();
         self.poll_project_import(&ctx);
         let dropped=ctx.input(|i|i.raw.dropped_files.iter().map(|f|f.path().to_path_buf()).collect::<Vec<_>>());
-        if let Some(path)=dropped.first() {
+        if !self.rocoflex.owns_drop(&ctx) && let Some(path)=dropped.first() {
             if dropped.len()!=1 {self.error=Some(crate::i18n::t("请一次拖入一个工程文件。").into());}
             else if path.extension().and_then(|e|e.to_str()).is_some_and(|e|rynthv::project_import::EXTENSIONS.iter().any(|ext|e.eq_ignore_ascii_case(ext))) {
                 self.request_file(FileAction::OpenPath(path.clone()),&ctx);
@@ -423,6 +436,7 @@ impl eframe::App for App {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
         if self.pending.is_none()
+            && !self.rocoflex.owns_keyboard(&ctx)
             && self.error.is_none()
             && !self.settings
             && !self.voice_manager
@@ -447,18 +461,19 @@ impl eframe::App for App {
                 .unwrap_or(crate::i18n::t("未命名")),
             if self.editor.dirty() { " *" } else { "" }
         );
-        ctx.send_viewport_cmd(ViewportCommand::Title(title));
+        if self.window_title != title {
+            self.window_title.clone_from(&title);
+            ctx.send_viewport_cmd(ViewportCommand::Title(title));
+        }
         let rect = ui.max_rect();
-        ui.painter().rect_filled(rect, 0, ui::theme::background_color());
-        let menu = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + ui::theme::metrics().menu_height));
+        ui.painter().rect_filled(rect, 0, ui::theme::BACKGROUND);
+        let menu = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + 27.0));
         ui::chrome::menus(self, &mut ui::child(ui, menu, "menu"));
         let transport = Rect::from_min_max(
             pos2(rect.left(), menu.bottom()),
-            pos2(rect.right(), menu.bottom() + ui::theme::metrics().transport_height),
+            pos2(rect.right(), menu.bottom() + 44.0),
         );
-        if ui::theme::metrics().transport_height > 0.0 {
-            ui::transport::show(self, &mut ui::child(ui, transport, "transport"));
-        }
+        ui::transport::show(self, &mut ui::child(ui, transport, "transport"));
         let status_height = if self.preferences.show_status_bar {
             23.0
         } else {
@@ -466,8 +481,8 @@ impl eframe::App for App {
         };
         let status = Rect::from_min_max(pos2(rect.left(), rect.bottom() - status_height), rect.max);
         let work = Rect::from_min_max(
-            pos2(rect.left() + ui::theme::metrics().workspace_inset, transport.bottom()),
-            pos2(rect.right() - ui::theme::metrics().workspace_inset, status.top()),
+            pos2(rect.left() + 5.0, transport.bottom()),
+            pos2(rect.right() - 5.0, status.top() - 4.0),
         );
         let seeked=transport_position!=self.editor.transport.position;
         ui::workspace::show(self, &mut ui::child(ui, work, "workspace"),seeked);
@@ -489,12 +504,12 @@ impl eframe::App for App {
                 } else {
                     &self.status
                 };
-                ui.label(RichText::new(crate::i18n::message(hint)).size(11.0).color(ui::theme::muted_color()));
+                ui.label(RichText::new(crate::i18n::message(hint)).size(11.0).color(ui::theme::MUTED));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
                         RichText::new(crate::i18n::message(self.synthesis.status()))
                             .size(11.0)
-                            .color(ui::theme::muted_color()),
+                            .color(ui::theme::MUTED),
                     );
                 });
             });
@@ -513,6 +528,7 @@ impl eframe::App for App {
         ui::lanes::end_frame(self,&ctx);
         ui::phonemes::end_frame(self,&ctx);
         ui::panels::end_performance_frame(self, &ctx);
+        ui::rocoflex::show(self, &ctx);
         if !self.editor.is_editing() {
             self.synthesis
                 .sync_project(&self.editor.project, self.editor.revision);

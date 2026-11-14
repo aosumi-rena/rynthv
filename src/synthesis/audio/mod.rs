@@ -13,6 +13,7 @@ pub use piano::PianoControl;
 pub(crate) use playback::LoopControl;
 pub use playback::{OutputFormat, PlaybackControl, Player};
 pub use source::{AudioLayer, PlaybackSource};
+pub(crate) use source::MorphLayer;
 pub use wav::{WaveFormat, save_wav, save_wav_as};
 
 use std::{fmt, sync::Arc};

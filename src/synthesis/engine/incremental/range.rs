@@ -29,6 +29,9 @@ impl IncrementalEdit {
         previous: &PreparedPhrase,
         phrase: &PreparedPhrase,
     ) -> Result<Option<Self>> {
+        if new.system_pitch_delta.is_some() {
+            return Ok(None);
+        }
         let Some(changed) = input::changed_notes(old, new) else {
             return Ok(None);
         };

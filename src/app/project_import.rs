@@ -42,7 +42,7 @@ impl App {
                 let result=(||{
                     let folder=converted.extract(&destination)?;
                     let stem=converted.source.file_stem().unwrap_or_default();
-                    let path=folder.join(format!("{}.svp",stem.to_string_lossy()));
+                    let path=folder.join(format!("{}.rvp",stem.to_string_lossy()));
                     crate::storage::save(&path,&converted.project)?;
                     Ok((converted,Some(path)))
                 })();

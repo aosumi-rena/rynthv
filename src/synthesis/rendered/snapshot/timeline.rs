@@ -5,6 +5,7 @@ use std::{ops::Range, sync::Arc, time::Instant};
 #[derive(Clone, Debug, Default)]
 pub struct VisualTimeline {
     input: Option<Arc<OwnerInput>>,
+    bounds: Range<i64>,
     pieces: Vec<VisualPiece>,
     flashes: Vec<VisualFlash>,
     completed: Option<Arc<RenderVisuals>>,
@@ -19,7 +20,7 @@ impl VisualTimeline {
         {
             return;
         }
-        let bounds = visible_range(&input);
+        let bounds = input.publication_range();
         self.pieces.retain_mut(|piece| {
             if let Some(range) = intersection(&piece.range, &bounds) {
                 piece.range = range;
@@ -30,6 +31,7 @@ impl VisualTimeline {
         });
         self.flashes.clear();
         self.completed = None;
+        self.bounds = bounds;
         self.input = Some(input);
     }
 
@@ -37,41 +39,46 @@ impl VisualTimeline {
         if !self.accepts(&patch.input) {
             return;
         }
-        let Some(range) = intersection(&patch.range, &visible_range(&patch.input)) else {
+        let Some(range) = intersection(&patch.range, &self.bounds) else {
             return;
         };
         self.completed = None;
-        let mut pieces = Vec::with_capacity(self.pieces.len() + 2);
-        for piece in self.pieces.drain(..) {
-            if intersection(&piece.range, &range).is_none() {
-                pieces.push(piece);
-                continue;
-            }
-            if piece.range.start < range.start {
-                pieces.push(VisualPiece {
-                    range: piece.range.start..range.start,
-                    snapshot: piece.snapshot.clone(),
-                });
-            }
-            if range.end < piece.range.end {
-                pieces.push(VisualPiece {
-                    range: range.end..piece.range.end,
-                    snapshot: piece.snapshot,
-                });
-            }
-        }
+        let first = self.pieces.partition_point(|piece| piece.range.end <= range.start);
+        let end = self.pieces.partition_point(|piece| piece.range.start < range.end);
+        let covered = &self.pieces[first..end];
+        let left = covered.first().filter(|piece| piece.range.start < range.start).map(|piece| VisualPiece {
+            range: piece.range.start..range.start,
+            snapshot: piece.snapshot.clone(),
+        });
+        let right = covered.last().filter(|piece| range.end < piece.range.end).map(|piece| VisualPiece {
+            range: range.end..piece.range.end,
+            snapshot: piece.snapshot.clone(),
+        });
         let has_data = patch.data.is_some();
-        if let Some(data) = patch.data {
-            pieces.push(VisualPiece {
-                range: range.clone(),
-                snapshot: VisualSnapshot {
-                    data,
-                    input: patch.input,
-                },
-            });
+        let middle = patch.data.map(|data| VisualPiece {
+            range: range.clone(),
+            snapshot: VisualSnapshot { data, input: patch.input },
+        });
+        let replacement = [left, middle, right];
+        let neighbors = first + replacement.iter().flatten().count();
+        self.pieces.splice(first..end, replacement.into_iter().flatten());
+        let mut index = first.saturating_sub(1);
+        let mut limit = neighbors.min(self.pieces.len().saturating_sub(1));
+        while index < limit {
+            let previous = &self.pieces[index];
+            let next = &self.pieces[index + 1];
+            if previous.range.end == next.range.start
+                && Arc::ptr_eq(&previous.snapshot.data, &next.snapshot.data)
+                && matching_input(&previous.snapshot.input, &next.snapshot.input)
+            {
+                let end = next.range.end;
+                self.pieces[index].range.end = end;
+                self.pieces.remove(index + 1);
+                limit -= 1;
+            } else {
+                index += 1;
+            }
         }
-        pieces.sort_unstable_by_key(|piece| piece.range.start);
-        self.pieces = coalesce(pieces);
         if patch.highlight || !has_data {
             self.replace_flashes(&range, now);
         } else {
@@ -97,7 +104,7 @@ impl VisualTimeline {
         }
         self.completed = Some(snapshot.data.clone());
         self.pieces.clear();
-        let range = visible_range(&snapshot.input);
+        let range = self.bounds.clone();
         if range.start < range.end {
             self.pieces.push(VisualPiece { range, snapshot });
         }
@@ -159,24 +166,4 @@ impl VisualTimeline {
         }
         self.flashes = flashes;
     }
-}
-
-fn visible_range(input: &OwnerInput) -> Range<i64> {
-    input.publication_range()
-}
-
-fn coalesce(pieces: Vec<VisualPiece>) -> Vec<VisualPiece> {
-    let mut result: Vec<VisualPiece> = Vec::with_capacity(pieces.len());
-    for piece in pieces {
-        if let Some(previous) = result.last_mut()
-            && previous.range.end == piece.range.start
-            && Arc::ptr_eq(&previous.snapshot.data, &piece.snapshot.data)
-            && matching_input(&previous.snapshot.input, &piece.snapshot.input)
-        {
-            previous.range.end = piece.range.end;
-        } else {
-            result.push(piece);
-        }
-    }
-    result
 }

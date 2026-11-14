@@ -87,7 +87,7 @@ pub fn draw_notes(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
             let selected = active && !drawing_pitch && app.editor.selected.contains(&note.id);
             let invalid=issues.contains_key(&note.id)||super::phonemes::error(app,&g.reference,note).is_some();
             let color = if note.muted() || invalid {
-                muted_color().gamma_multiply(0.4)
+                MUTED.gamma_multiply(0.4)
             } else if selected {
                 colors.accent
             } else if active {
@@ -131,11 +131,11 @@ pub fn draw_notes(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
                     &note.lyrics,
                     FontId::proportional(12.0),
                     if drawing_pitch || (note.muted() && active) {
-                        text_color()
+                        TEXT
                     } else if active {
                         foreground(color)
                     } else {
-                        muted_color()
+                        MUTED
                     },
                 );
         }
@@ -212,7 +212,7 @@ pub fn headers(app: &mut App, ui: &mut Ui, canvas: Rect, groups: &[SceneGroup]) 
                     false,
                 );
             }
-            crate::ui::theme::menu::context_menu(&response,|ui| group_edit::context_menu(app, ui, &g.reference));
+            response.context_menu(|ui| group_edit::context_menu(app, ui, &g.reference));
         }
         if !drawing_pitch && g.reference.blick_absolute_end >= 0 {
             for (side, x, kind) in [

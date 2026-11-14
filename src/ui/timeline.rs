@@ -6,7 +6,7 @@ mod drawing;
 pub mod loop_region;
 pub use drawing::{draw_ruler, grid, playhead, playhead_line, hover_playhead};
 
-pub fn gutter() -> f32 { super::theme::metrics().piano_gutter_width }
+pub const GUTTER: f32 = 48.0;
 pub const ARRANGEMENT_GRID: f64 = 1.0;
 
 fn grid_step(view: &Viewport, step: f64) -> f64 {

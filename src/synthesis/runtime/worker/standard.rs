@@ -29,6 +29,7 @@ pub(super) fn run(inventory:VoiceInventory,commands:Receiver<Command>,events:Eve
                 match event {
                     E::Stage(stage)=>{let _=events.send(Event::Progress {revision:state.revision,owner,stage:stage.label().into()});},
                     E::Prepared {phones,model}=>{
+                        super::publication::morph_input(&state.plan,&events,state.revision,&mirrors,None,Some(model.start));
                         if let Some(live)=&mut state.live {for &mirror in &mirrors {
                             live.prepared(mirror,model.clone()).map_err(crate::synthesis::voice::VoiceError::new)?;
                         }}
@@ -36,6 +37,7 @@ pub(super) fn run(inventory:VoiceInventory,commands:Receiver<Command>,events:Eve
                             snapshot:PhonemeSnapshot {input:Arc::clone(&job.request.input),phones:phones.clone()}});}
                     },
                     E::Audio {audio,visuals}=>{
+                        super::publication::morph_input(&state.plan,&events,state.revision,&mirrors,Some(Arc::clone(&audio)),None);
                         if let Some(live)=&mut state.live {live.publish_for(&mirrors,Arc::clone(&audio)).map_err(crate::synthesis::voice::VoiceError::new)?;}
                         let input=&job.request.input;
                         let range=input.tempo.position_at(audio.start_seconds()).0..input.tempo.position_at(audio.end_seconds()).0;

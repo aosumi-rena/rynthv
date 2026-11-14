@@ -11,33 +11,30 @@ use eframe::egui::*;
 
 pub fn show(app: &mut App, ui: &mut Ui) {
     let rect = ui.max_rect();
-    ui.painter().rect_filled(rect.shrink(metrics().surface_inset), metrics().surface_radius, canvas_color());
-    let gutter = metrics().arrangement_gutter(rect.width());
-    let header = Rect::from_min_size(rect.min, vec2(rect.width(), metrics().arrangement_header_height));
+    ui.painter().rect_filled(rect, 4, CANVAS);
+    let gutter = 250.0_f32.min(rect.width() * 0.36);
+    let header = Rect::from_min_size(rect.min, vec2(rect.width(), 42.0));
     ui.painter().rect_filled(
         header,
         if app.view.arrangement_collapsed {
-            CornerRadius::same(metrics().surface_radius)
+            CornerRadius::same(4)
         } else {
             CornerRadius {
-                nw: metrics().surface_radius,
-                ne: metrics().surface_radius,
+                nw: 4,
+                ne: 4,
                 sw: 0,
                 se: 0,
             }
         },
-        panel_color(),
+        PANEL,
     );
     ui.painter()
-        .rect_stroke(rect.shrink(metrics().surface_inset), metrics().surface_radius, Stroke::new(1.0, border_color()), StrokeKind::Inside);
+        .rect_stroke(rect, 4, Stroke::new(1.0, BORDER), StrokeKind::Inside);
     let mut bar = child(
         ui,
         Rect::from_min_max(
-            header.min + vec2(6.0, metrics().arrangement_header_padding),
-            pos2(
-                rect.left() + if current() == InterfaceTheme::Classic { 143.0 } else { gutter - 6.0 },
-                header.top() + metrics().arrangement_title_height - metrics().arrangement_header_padding,
-            ),
+            header.min + vec2(6.0, 8.0),
+            pos2(rect.left() + gutter - 6.0, header.bottom() - 8.0),
         ),
         "arrangement-header",
     );
@@ -61,49 +58,38 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             app.view.arrangement_collapsed = !app.view.arrangement_collapsed;
         }
         super::section_title(ui, crate::i18n::t("编排"), DragPayload::Arrangement);
-        if current() == InterfaceTheme::Modern { ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let create = ui.add(
                 IconButton::new(Icon::Plus, crate::i18n::t("创建音轨"))
-                    .native().size(vec2(24.0, 24.0))
+                    .size(vec2(23.0, 24.0))
                     .icon_size(17.0),
             );
-            crate::ui::theme::menu::popup(&create).show(|ui| super::instrumental::create_menu(app, ui));
+            Popup::menu(&create).show(|ui| super::instrumental::create_menu(app, ui));
             if ui
                 .add(
                     IconButton::new(Icon::TempoTracks, crate::i18n::t("显示 / 隐藏曲速和拍号轨"))
-                        .native().size(vec2(24.0, 24.0))
+                        .size(vec2(24.0, 24.0))
                         .icon_size(17.0)
                         .selected(app.show_time_tracks)
-                        .background(panel_color()),
+                        .background(PANEL),
                 )
                 .clicked()
             {
                 app.show_time_tracks = !app.show_time_tracks;
             }
-        }); }
-    });
-    if current() == InterfaceTheme::Classic {
-        let native = Rect::from_min_size(rect.min + vec2(149.0, 0.0), vec2((rect.width() - 149.0).max(0.0), 26.0));
-        super::transport::classic(app, &mut child(ui, native, "classic-transport"));
-        let menu_rect = Rect::from_min_size(rect.min + vec2((gutter - 29.0).max(0.0), 26.0), vec2(24.0, 24.0));
-        let mut menu_ui = child(ui, menu_rect, "classic-track-menu");
-        let response = menu_ui.add(IconButton::new(Icon::Menu, crate::i18n::t("创建音轨")).native().size(vec2(24.0, 24.0)));
-        crate::ui::theme::menu::popup(&response).show(|ui| {
-            super::instrumental::create_menu(app, ui);
-            crate::ui::theme::native::checkbox(ui,&mut app.show_time_tracks, crate::i18n::t("显示 / 隐藏曲速和拍号轨"));
         });
-    }
+    });
     if app.view.arrangement_collapsed {
         return;
     }
     let ruler = Rect::from_min_max(
-        pos2(rect.left() + gutter, rect.top() + if current() == InterfaceTheme::Classic { metrics().arrangement_title_height } else { 0.0 }),
+        pos2(rect.left() + gutter, rect.top()),
         pos2(rect.right(), header.bottom()),
     );
     ui.painter().hline(
         header.left()..=ruler.left(),
         header.bottom(),
-        Stroke::new(1.0, edge_color()),
+        Stroke::new(1.0, EDGE),
     );
     let time_height = if app.show_time_tracks {
         super::time_tracks::ROW_HEIGHT * 2.0
@@ -138,7 +124,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     };
     let scroll_id = Id::new("track-scroll");
     let max_scroll =
-        (app.editor.project.tracks.len() as f32 * metrics().track_height - (body.height() - time_height)).max(0.0);
+        (app.editor.project.tracks.len() as f32 * 56.0 - (body.height() - time_height)).max(0.0);
     let scroll = ui.ctx().data_mut(|d| {
         let value = d.get_temp::<f32>(scroll_id).unwrap_or(0.0);
         let value = (value - vertical).clamp(0.0, max_scroll);
@@ -184,7 +170,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             body.min,
             pos2(
                 body.right(),
-                (body.top() + time_height + app.editor.project.tracks.len() as f32 * metrics().track_height)
+                (body.top() + time_height + app.editor.project.tracks.len() as f32 * 56.0)
                     .min(body.bottom()),
             ),
         ),
@@ -198,11 +184,11 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             ui.painter().rect_filled(
                 Rect::from_min_size(pos2(rect.left(), y), vec2(gutter, 28.0)),
                 0,
-                panel_color(),
+                PANEL,
             );
-            label(ui, pos2(rect.left() + 14.0, y + 14.0), text, muted_color());
+            label(ui, pos2(rect.left() + 14.0, y + 14.0), text, MUTED);
             ui.painter()
-                .hline(rect.x_range(), y + 28.0, Stroke::new(1.0, edge_color()));
+                .hline(rect.x_range(), y + 28.0, Stroke::new(1.0, EDGE));
         }
         super::time_tracks::show(
             app,
@@ -221,7 +207,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         scroll,
     );
     ui.painter()
-        .vline(ruler.left(), rect.y_range(), Stroke::new(1.0, edge_color()));
+        .vline(ruler.left(), rect.y_range(), Stroke::new(1.0, EDGE));
     super::scrollbars::horizontal(
         ui,
         "arrangement-scrollbar",

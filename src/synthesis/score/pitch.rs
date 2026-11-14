@@ -9,6 +9,8 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct PreparedPitchControls {
     controls: Vec<PitchControl>,
+    saved: Option<super::saved_pitch::SavedPitch>,
+    transpose: f64,
     tempo: TempoMapping,
     content_offset: GlobalBlick,
     pitch_offset: f32,
@@ -17,8 +19,11 @@ pub struct PreparedPitchControls {
 impl PreparedPitchControls {
     pub(crate) fn new(input: &OwnerInput) -> Result<Option<Self>> {
         let transpose=crate::synthesis::parameters::transpose(&input.voice)?;
-        Ok((!input.pitch_controls.is_empty()).then(|| Self {
+        let saved = super::saved_pitch::SavedPitch::new(input)?;
+        Ok((saved.is_some() || !input.pitch_controls.is_empty()).then(|| Self {
             controls: input.pitch_controls.clone(),
+            saved,
+            transpose: f64::from(input.pitch_offset) + f64::from(transpose),
             tempo: input.tempo.clone(),
             content_offset: input.content_offset,
             pitch_offset: input.pitch_offset as f32+transpose,
@@ -30,7 +35,6 @@ impl PreparedPitchControls {
             return Err(VoiceError::new("Invalid pitch control frame clock"));
         }
         let mut result = vec![f32::NAN; count];
-
         for control in &self.controls {
             let PitchControl::Curve(curve) = control else {
                 continue;
@@ -71,6 +75,22 @@ impl PreparedPitchControls {
                     return Err(VoiceError::new(
                         "Unsupported pitch control reached synthesis",
                     ));
+                }
+            }
+        }
+        if let Some(saved) = &self.saved {
+            for (frame, value) in result.iter_mut().enumerate() {
+                if !value.is_nan() {
+                    continue;
+                }
+                let global = self.tempo.position_at(origin + frame as f64 * step).0;
+                let Some(local) = global.checked_sub(self.content_offset.0) else { continue; };
+                if let Some(pitch) = saved.sample(local) {
+                    let pitch = pitch + self.transpose;
+                    if !pitch.is_finite() {
+                        return Err(VoiceError::new("Invalid saved pitch value"));
+                    }
+                    *value = pitch.clamp(0.0, 127.0) as f32;
                 }
             }
         }

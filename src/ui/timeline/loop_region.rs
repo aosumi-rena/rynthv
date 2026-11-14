@@ -130,7 +130,7 @@ pub fn show(
             );
             ui.ctx().data_mut(|data| data.insert_temp(menu_id, at));
         }
-        crate::ui::theme::menu::context_menu(&response,|ui| {
+        response.context_menu(|ui| {
             let Some(at) = ui.ctx().data(|data| data.get_temp::<i64>(menu_id)) else {
                 return;
             };

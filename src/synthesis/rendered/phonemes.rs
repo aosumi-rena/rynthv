@@ -2,7 +2,7 @@ use super::super::{
     score::{PhoneSource, PreparedPhrase},
     stages::duration::DurationResult,
 };
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Clone, Debug)]
 pub struct RenderedPhone {
@@ -21,17 +21,31 @@ pub struct RenderedPhone {
     pub predicted_position: f64,
 }
 #[derive(Clone, Debug)]
-pub struct PhonemeTrack(pub Arc<[RenderedPhone]>);
+pub struct PhonemeTrack(pub Arc<[RenderedPhone]>, Arc<BTreeMap<u64, Vec<usize>>>);
 #[derive(Clone, Debug)]
 pub struct PhonemeSnapshot {
     pub input: Arc<crate::synthesis::plan::OwnerInput>,
     pub phones: PhonemeTrack,
 }
 impl PhonemeTrack {
+    pub(crate) fn from_phones(phones: Arc<[RenderedPhone]>) -> Self {
+        let mut by_note = BTreeMap::<u64, Vec<usize>>::new();
+        for (index, phone) in phones.iter().enumerate() {
+            if let Some(source) = phone.source {
+                by_note.entry(source.note_id).or_default().push(index);
+            }
+        }
+        Self(phones, Arc::new(by_note))
+    }
+
+    pub fn for_note(&self, id: u64) -> impl Iterator<Item = &RenderedPhone> {
+        self.1.get(&id).into_iter().flatten().map(|&index| &self.0[index])
+    }
+
     pub fn new(phrase: &PreparedPhrase, duration: &DurationResult) -> Self {
         let mut seconds = phrase.start_seconds;
         let mut natural_seconds=phrase.start_seconds;
-        Self(
+        Self::from_phones(
             duration
                 .durations
                 .iter()
@@ -76,5 +90,7 @@ impl PhonemeTrack {
     pub fn memory_bytes(&self) -> usize {
         std::mem::size_of_val(self.0.as_ref())
             + self.0.iter().map(|p| p.token.capacity()).sum::<usize>()
+            + self.1.values().map(|indices| std::mem::size_of::<(u64, Vec<usize>)>()
+                + indices.capacity() * std::mem::size_of::<usize>()).sum::<usize>()
     }
 }

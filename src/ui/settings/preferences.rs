@@ -3,10 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-#[serde(default, deny_unknown_fields)]
+#[serde(default)]
 pub struct Preferences {
     pub language: crate::i18n::Language,
-    pub theme: crate::ui::theme::InterfaceTheme,
     pub zoom: f32,
     pub show_status_bar: bool,
     pub control_hints: bool,
@@ -16,13 +15,13 @@ pub struct Preferences {
     pub return_on_pause: bool,
     pub looping: bool,
     pub sync_note_parameters: bool,
+    pub rocoflex: crate::synthesis::rocoflex::Settings,
 }
 
 impl Default for Preferences {
     fn default() -> Self {
         Self {
             language: Default::default(),
-            theme: Default::default(),
             zoom: 1.0,
             show_status_bar: true,
             control_hints: false,
@@ -32,6 +31,7 @@ impl Default for Preferences {
             return_on_pause: true,
             looping: false,
             sync_note_parameters: false,
+            rocoflex: Default::default(),
         }
     }
 }
@@ -58,7 +58,6 @@ impl Preferences {
 
     pub fn apply(&self, ctx: &Context) {
         crate::i18n::set_language(self.language);
-        crate::ui::theme::apply(ctx, self.theme);
         ctx.set_zoom_factor(self.zoom);
         ctx.style_mut_of(eframe::egui::Theme::Dark, |style| {
             style.explanation_tooltips = self.control_hints

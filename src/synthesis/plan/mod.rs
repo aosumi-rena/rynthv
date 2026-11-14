@@ -40,6 +40,8 @@ pub struct OwnerOutputControls {
     pub track_id: u64,
     pub reference_muted: bool,
     pub mixer: Extra,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub rocoflex: bool,
 }
 
 #[derive(Clone, Default)]
@@ -81,6 +83,7 @@ pub struct PlanSummary {
 
 pub struct Planner {
     pub experiments: crate::synthesis::experiments::ExperimentalContext,
+    pub(crate) rocoflex_available: bool,
     plan: RenderPlan,
     next_epoch: u64,
     revision: ProjectRevision,
@@ -92,6 +95,7 @@ impl Default for Planner {
         Self {
             plan: RenderPlan::default(),
             experiments: Default::default(),
+            rocoflex_available: false,
             next_epoch: 0,
             revision: ProjectRevision(0),
             output_changed_owners: 0,
@@ -140,6 +144,7 @@ impl Planner {
                         track_id: track.id,
                         reference_muted: reference.mute,
                         mixer: track.mixer.clone(),
+                        rocoflex: self.rocoflex_available && track.rocoflex.as_ref().is_some_and(|rfx| rfx.enabled),
                     },
                 );
                 let old = previous.remove(&owner);

@@ -10,6 +10,7 @@ mod tuning;
 mod paths;
 mod duration_key;
 mod selector;
+pub(crate) use selector::donor_picker;
 mod family_filter;
 mod widgets;
 mod vocal_modes;
@@ -51,7 +52,7 @@ fn text(ui: &mut Ui, value: impl Into<WidgetText>) {
 }
 
 fn weak(ui: &mut Ui, value: impl Into<String>) {
-    text(ui, RichText::new(value).color(muted_color()));
+    text(ui, RichText::new(value).color(MUTED));
 }
 
 fn error_label(ui: &mut Ui, value: impl Into<String>) {
