@@ -1,5 +1,5 @@
 use super::{
-    super::{context, family_name, language_name, text, weak},
+    super::{family_name, language_name, text, weak},
     feedback,
 };
 use crate::{
@@ -36,7 +36,10 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &VoiceCatalogEntry) {
             text(ui, crate::lformat!("唱法：{}", config.styles.join(" · ")));
         }
         if !config.speakers.is_empty() {
-            text(ui, crate::lformat!("合唱：{} 位成员", config.speakers.len()));
+            text(
+                ui,
+                crate::lformat!("合唱：{} 位成员", config.speakers.len()),
+            );
         }
     } else if !entry.languages.is_empty() {
         text(
@@ -59,12 +62,12 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &VoiceCatalogEntry) {
         || app.synthesis.voice_error(&selection).is_some()
     {
         feedback::status(app, ui, &selection);
-        if app.synthesis.voice_error(&selection).is_none() {
-            context::controls(app, ui, &selection);
-        }
     }
     feedback::diagnostics(app, ui, entry);
-    if entry.family.is_some_and(|family| family.requires_identity()) {
+    if entry
+        .family
+        .is_some_and(|family| family.requires_identity())
+    {
         super::super::duration_key::voice_settings(app, ui, entry);
     }
 }

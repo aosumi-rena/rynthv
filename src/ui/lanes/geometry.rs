@@ -1,7 +1,7 @@
 use crate::{app::App,model::Parameter, ui::state::Lane};
 
 pub(super) fn range(app:&App,parameter: &Parameter, zoom: f32) -> (f64, f64) {
-    let (low, high) = match parameter {
+    let (low, high) = if app.editor.current_track().is_instrument() {parameter.range()} else {match parameter {
         Parameter::Pitch => (-300.0, 300.0),
         Parameter::Loudness => (-12.0, 12.0),
         Parameter::ToneShift => (-400.0, 400.0),
@@ -10,8 +10,8 @@ pub(super) fn range(app:&App,parameter: &Parameter, zoom: f32) -> (f64, f64) {
         Parameter::VocalMode(_) => crate::synthesis::experiments::ExperimentalSettings::ui().style_range(),
         Parameter::Experimental {..} => parameter.range(),
         _ => (-1.0, 1.0),
-    };
-    let factor=if matches!(parameter,Parameter::Loudness|Parameter::Tension|Parameter::Breathiness|Parameter::Voicing|Parameter::Gender|Parameter::ToneShift|Parameter::Mouth) {
+    }};
+    let factor=if !app.editor.current_track().is_instrument() && matches!(parameter,Parameter::Loudness|Parameter::Tension|Parameter::Breathiness|Parameter::Voicing|Parameter::Gender|Parameter::ToneShift|Parameter::Mouth) {
         f64::from(crate::synthesis::experiments::ExperimentalSettings::ui().expression_factor())
     }else{1.0};
     let (low,high)=(low*factor,high*factor);
@@ -26,7 +26,10 @@ pub(super) fn range(app:&App,parameter: &Parameter, zoom: f32) -> (f64, f64) {
 pub(super) fn lane_range(app:&App,lane: &Lane) -> (f64, f64) {
     range(app,&lane.foreground, lane.zoom)
 }
-pub(super) fn labels(parameter: &Parameter, low: f64, high: f64) -> (String, String) {
+pub(super) fn labels(app: &App, parameter: &Parameter, low: f64, high: f64) -> (String, String) {
+    if app.editor.current_track().is_instrument() && matches!(parameter, Parameter::Breathiness) {
+        return (crate::i18n::t("InstrumentNoise_Clean").into(), crate::i18n::t("InstrumentNoise_Noisy").into());
+    }
     match parameter {
         Parameter::Pitch | Parameter::ToneShift => {
             (format!("{low:+.0} ′"), format!("{high:+.0} ′"))

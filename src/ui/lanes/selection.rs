@@ -26,6 +26,7 @@ pub(super) fn active_lane(app: &App) -> Option<&Lane> {
     app.view
         .lanes
         .iter()
+        .chain(std::iter::once(&app.view.instrument_lanes.curve))
         .find(|lane| lane.id == owner.lane && lane.visible && lane.foreground == owner.target)
 }
 pub(super) fn editable(app: &App, target: &Parameter) -> bool {

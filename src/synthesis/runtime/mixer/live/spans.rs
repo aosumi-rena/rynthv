@@ -8,13 +8,13 @@ struct Span {
     source_start: usize,
 }
 
-#[derive(Default)]
-pub(super) struct ReadySpans {
+#[derive(Clone, Default)]
+pub(in crate::synthesis::runtime) struct ReadySpans {
     spans: BTreeMap<usize, Span>,
 }
 
 impl ReadySpans {
-    pub(super) fn insert_audio(
+    pub(in crate::synthesis::runtime) fn insert_audio(
         &mut self,
         audio: Arc<RenderedAudio>,
         coverage: &Range<usize>,
@@ -47,7 +47,7 @@ impl ReadySpans {
         Ok(range)
     }
 
-    pub(super) fn insert_silence(&mut self, range: Range<usize>) {
+    pub(in crate::synthesis::runtime) fn insert_silence(&mut self, range: Range<usize>) {
         if !range.is_empty() {
             self.replace(
                 range.clone(),
@@ -112,7 +112,7 @@ impl ReadySpans {
             .map(|(start, span)| (*start, span))
     }
 
-    pub(super) fn first_missing(&self, range: Range<usize>) -> Option<usize> {
+    pub(in crate::synthesis::runtime) fn first_missing(&self, range: Range<usize>) -> Option<usize> {
         let mut cursor = range.start;
         for (start, span) in self.intersecting(range.clone()) {
             if cursor < start {
@@ -152,6 +152,21 @@ impl ReadySpans {
             {
                 output[0] = (f64::from(output[0]) + f64::from(input[0]) * left) as f32;
                 output[1] = (f64::from(output[1]) + f64::from(input[channels - 1]) * right) as f32;
+            }
+        }
+    }
+
+    pub(in crate::synthesis::runtime) fn mix_stems(&self, range: &Range<usize>, primary:&mut [[f32;4]], aspiration:&mut [[f32;4]]) {
+        for (start,span) in self.intersecting(range.clone()) {
+            let Some(audio)=&span.audio else{continue};
+            let overlap=intersection(&(start..span.end),range);
+            let source=span.source_start+overlap.start-start;
+            let target=overlap.start-range.start;
+            for i in 0..overlap.end-overlap.start {
+                let [p,a]=audio.voice_sample(source+i);
+                let p=crate::synthesis::effects::voice::encode_center(p);
+                let a=crate::synthesis::effects::voice::encode_center(a);
+                for c in 0..4 {primary[target+i][c]+=p[c];aspiration[target+i][c]+=a[c];}
             }
         }
     }

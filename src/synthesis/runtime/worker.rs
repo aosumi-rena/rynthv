@@ -79,6 +79,7 @@ pub(super) enum Event {
         owners: Vec<OwnerId>,
         pcm: Option<Arc<RenderedAudio>>,
         start: Option<i64>,
+        complete: bool,
     },
     VisualPatches {
         revision: u64,

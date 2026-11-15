@@ -1,5 +1,5 @@
 mod diagram;
-mod slider;
+pub(super) mod slider;
 
 use crate::{app::App,synthesis::voice::VoiceFamily};
 use eframe::egui::*;

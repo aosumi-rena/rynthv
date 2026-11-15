@@ -91,7 +91,7 @@ pub fn synthesize(voice:&PreparedVoice,identity:Option<u64>,input:&OwnerInput,
             if speaker_vectors {continue;}
             let target_voice=member.as_ref().unwrap_or(&source.prepared);
             let identity=if target_voice.family.requires_identity() {Some(match source.identity_override {
-                Some(v)=>v,None=>crate::synthesis::voice::session_identity::saved_identity(&source.name,target_voice.family.model_version())?,
+                Some(v)=>v,None=>0,
             })}else{None};
             let mut other=input.clone();
             other.experiments.sources.clear();

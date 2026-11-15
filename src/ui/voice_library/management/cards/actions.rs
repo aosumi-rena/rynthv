@@ -1,11 +1,7 @@
-use super::super::{super::paths, ACCENT, CARD, SURFACE, State, catalog};
+use super::super::{super::paths, State, catalog};
 use crate::{
     app::App,
-    synthesis::{
-        runtime::VoiceState,
-        voice::{VoiceCatalogEntry, VoiceFamily},
-    },
-    ui::theme::*,
+    synthesis::{runtime::VoiceState, voice::VoiceCatalogEntry},
 };
 use eframe::egui::*;
 
@@ -20,18 +16,19 @@ pub(super) fn primary(
     let key = entry.selection();
     let voice = app.synthesis.voice_state(&key);
     let loading = matches!(voice, VoiceState::Loading);
-    let needs_context =
-        entry.family != Some(VoiceFamily::Sv1) && app.synthesis.needs_context_import(&key);
     let problem =
         matches!(voice, VoiceState::Loaded(_)) && app.synthesis.voice_error(&key).is_some();
     let loaded = matches!(voice, VoiceState::Loaded(_)) && !problem;
-    let missing_dictionary = app.synthesis.library.settings.phoneme_directory(entry).is_none();
+    let missing_dictionary = app
+        .synthesis
+        .library
+        .settings
+        .phoneme_directory(entry)
+        .is_none();
     let label = if !entry.availability.is_loadable() {
         crate::i18n::t("不可用")
     } else if current && loading {
         crate::i18n::t("正在加载…")
-    } else if needs_context {
-        crate::i18n::t("导入模型上下文…")
     } else if problem {
         crate::i18n::t("处理问题")
     } else if current && loaded {
@@ -49,31 +46,23 @@ pub(super) fn primary(
         && entry.availability.is_loadable()
         && !(current && loading)
         && !app.editor.current_track().is_instrumental()
+        && !app.editor.current_track().is_instrument()
         && !app.synthesis.library.is_scanning()
         && app.synthesis.library.settings_error().is_none();
     let outline = loaded || problem || missing_dictionary;
-    let button = Button::new(RichText::new(label).size(13.0).color(if !enabled {
-        MUTED
-    } else if outline {
-        ACCENT
-    } else {
-        SURFACE
-    }))
-    .corner_radius(13)
-    .fill(if !enabled || outline { CARD } else { ACCENT })
-    .stroke(Stroke::new(0.8, if enabled { ACCENT } else { BORDER }));
+    let button = crate::ui::resource_manager::action_button(label, enabled, outline);
     if ui
         .add_enabled(enabled, button.min_size(vec2(ui.available_width(), 36.0)))
         .clicked()
     {
-        if needs_context {
-            app.synthesis.open_context_import(key);
-        } else if problem {
+        if problem {
             state.expanded = Some(entry.database_id.clone());
         } else if current && loaded {
             app.unload_voice();
         } else if missing_dictionary {
-            if let Some(version)=crate::synthesis::settings::PhonemeVersion::entry(entry){paths::choose_phoneme_data(app,version);}
+            if let Some(version) = crate::synthesis::settings::PhonemeVersion::entry(entry) {
+                paths::choose_phoneme_data(app, version);
+            }
         } else if current {
             app.reload_voice();
         } else {
@@ -89,16 +78,7 @@ pub(super) fn menu(
     state: &mut State,
     current: bool,
 ) {
-    let (rect, response) = ui.allocate_exact_size(Vec2::splat(26.0), Sense::click());
-    if response.hovered() {
-        ui.painter().rect_filled(rect, 13, BORDER);
-    }
-    for offset in [-5.0, 0.0, 5.0] {
-        ui.painter()
-            .circle_filled(rect.center() + vec2(0.0, offset), 1.5, MUTED);
-    }
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, crate::i18n::t("更多声库操作")));
-    Popup::menu(&response).show(|ui| {
+    crate::ui::resource_manager::more(ui, crate::i18n::t("更多声库操作"), |ui| {
         if ui
             .button(if state.expanded.as_ref() == Some(&entry.database_id) {
                 crate::i18n::t("收起详情")
@@ -112,19 +92,6 @@ pub(super) fn menu(
             } else {
                 state.expanded = Some(entry.database_id.clone());
             }
-            ui.close();
-        }
-        if entry.family.is_some_and(VoiceFamily::requires_identity)
-            && ui
-                .add_enabled(
-                    app.synthesis.can_import_context(&entry.selection()),
-                    Button::new(crate::i18n::t("重新导入上下文…")),
-                )
-                .on_hover_text(crate::i18n::t("重新选择上下文来源，导入成功后重新加载使用此上下文的歌声"))
-                .on_disabled_hover_text(crate::i18n::t("当前声库不可用，或正在扫描声库、导入上下文"))
-                .clicked()
-        {
-            app.synthesis.open_context_import(entry.selection());
             ui.close();
         }
         if !matches!(

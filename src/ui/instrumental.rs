@@ -11,12 +11,15 @@ pub struct AudioDrag {
 }
 
 pub fn create_menu(app: &mut App, ui: &mut Ui) {
-    if ui.button(crate::i18n::t("创建新的音轨")).clicked() {
+    if ui.button(crate::i18n::t("添加歌声音轨…")).clicked() {
         app.commit_lyric();
         app.editor.add_track();
         ui.close();
     }
-    if ui.button(crate::i18n::t("创建新的伴奏轨")).clicked() {
+    if ui.button(crate::i18n::t("Add Instrument Track...")).clicked() {
+        app.commit_lyric();app.editor.add_instrument_track();ui.close();
+    }
+    if ui.button(crate::i18n::t("添加音频音轨…")).clicked() {
         app.commit_lyric();
         let id = app.editor.add_instrumental_track();
         ui.close();

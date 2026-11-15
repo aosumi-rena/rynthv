@@ -100,6 +100,7 @@ impl App {
         self.editor.finish();
         let summary: crate::editor::ImportSummary = match import.mode {
             MidiImportMode::NewProject => {
+                self.scripts.stop();
 
                 let (editor, summary) = Editor::from_midi(file, &indices)?;
                 self.synthesis.reset_project();

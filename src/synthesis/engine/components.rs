@@ -62,6 +62,7 @@ impl PcmComponents {
             ChannelLayout::Mono,
             samples,
         )
+        .and_then(|audio|audio.with_components(Arc::clone(&self.primary),Arc::clone(&self.secondary),first))
         .map_err(|error| VoiceError::new(error.to_string()))
     }
 

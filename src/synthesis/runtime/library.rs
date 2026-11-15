@@ -187,6 +187,12 @@ impl VoiceLibrary {
 }
 
 impl Runtime {
+    pub fn set_instrument_settings(&mut self, instruments:crate::synthesis::instruments::InstrumentSettings) {
+        let mut settings=self.library.settings.clone();settings.instruments=instruments;
+        if self.library.update(settings){self.instruments.configure(self.library.settings.instruments.clone(),&self.repaint);self.last_revision=None;}
+    }
+    pub fn rescan_instruments(&mut self){self.instruments.rescan(&self.repaint);self.last_revision=None;}
+    pub fn retry_instruments(&mut self){self.instruments.retry_errors();self.last_revision=None;}
     pub fn set_voice_sources(&mut self,paths:Vec<PathBuf>) {
         let mut settings=self.library.settings.clone();
         settings.databases=None;

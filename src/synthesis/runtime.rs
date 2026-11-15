@@ -1,4 +1,5 @@
 mod context;
+mod effects;
 mod control;
 mod events;
 mod export;
@@ -41,7 +42,9 @@ pub enum VoiceState {
 }
 
 pub struct Runtime {
+    pub instruments: super::instruments::Instruments,
     morphs: rocoflex::Morphs,
+    effects: effects::Effects,
     pub library: VoiceLibrary,
     pub context_import: ContextImport,
     pub planner: Planner,
@@ -75,13 +78,18 @@ pub struct Runtime {
     repaint: eframe::egui::Context,
     render_wake: events::RenderWake,
     last_voice_polled: Option<VoiceSelection>,
+    instruments_changed: bool,
 }
 
 impl Runtime {
     pub fn new(repaint: eframe::egui::Context) -> Self {
+        let library=VoiceLibrary::new(repaint.clone());
+        let instruments=super::instruments::Instruments::deferred(library.settings.instruments.clone());
         Self {
+            instruments,
             morphs: Default::default(),
-            library: VoiceLibrary::new(repaint.clone()),
+            effects: Default::default(),
+            library,
             context_import: ContextImport::default(),
             planner: Planner::default(),
             stats: CacheStats::default(),
@@ -113,17 +121,20 @@ impl Runtime {
             solo_tracks: BTreeSet::new(),
             render_wake: events::RenderWake::new(repaint.clone()),
             last_voice_polled: None,
+            instruments_changed: false,
             repaint,
         }
     }
 
     pub fn poll(&mut self) {
+        if self.instruments.poll(&self.repaint){self.instruments_changed=true;}
         self.render_wake.begin_poll();
         self.instrumentals.poll();
         self.poll_library();
         self.poll_context_import();
         self.poll_voices();
         self.update_morphs();
+        self.update_effects();
         if let Some(rx) = &self.export {
             match rx.try_recv() {
                 Ok(result) => {
@@ -162,6 +173,7 @@ impl Runtime {
     pub fn reload_voice(&mut self, key: &VoiceSelection) {
         if let Some(voice) = self.voices.remove(key) {
             self.morphs.forget_voice(voice.plan.requests.keys().copied());
+            self.effects.forget_sources(voice.plan.requests.keys().copied());
         }
         self.last_revision = None;
         self.export_owners
@@ -171,7 +183,9 @@ impl Runtime {
         self.refresh_playback();
     }
     pub fn reset_project(&mut self) {
+        self.instruments.reset();
         self.morphs.reset();
+        self.effects=Default::default();
         self.audition_key(None);
         self.clear_voices();
         self.instrumentals = super::instrumental::AudioLibrary::default();
@@ -193,6 +207,7 @@ impl Runtime {
     }
     pub fn retry(&mut self) {
         self.morphs.retry();
+        self.effects.retry();
         let mut reload = Vec::new();
         for (key, voice) in &mut self.voices {
             if let Some(worker) = voice.worker.as_ref().filter(|_| voice.ready) {
@@ -222,7 +237,7 @@ impl Runtime {
             .any(|v| matches!(v.state, VoiceState::Loading))
     }
     pub fn is_busy(&self) -> bool {
-        self.library.is_scanning()
+        self.effects.busy() || self.instruments.busy() || self.library.is_scanning()
             || self.export.is_some()
             || self.morphs.busy()
             || self.voices.values().any(|v| {
@@ -236,7 +251,7 @@ impl Runtime {
         self.voices.values().any(|v| v.audio.is_some()) || !self.recordings.layers.is_empty()
     }
     pub fn is_synthesizing(&self) -> bool {
-        self.voices.values().any(|voice|voice.ready && (voice.waiting || voice.stats.running>0 || voice.stats.queued>0))
+        self.effects.busy() || self.instruments.busy() || self.voices.values().any(|voice|voice.ready && (voice.waiting || voice.stats.running>0 || voice.stats.queued>0))
     }
     pub fn visuals(&self, owner: OwnerId) -> impl Iterator<Item = &VisualTimeline> {
         self.visuals.range(owner.reference()..=owner.reference().section(u64::MAX)).map(|(_, visuals)| visuals)
@@ -257,7 +272,11 @@ impl Runtime {
         (seconds > 0.0).then_some(seconds)
     }
     pub fn status(&self) -> &'static str {
-        if self.recording_error.is_some() {
+        if self.instruments.busy(){
+            "Rendering Instrument"
+        }else if !self.instruments.errors.is_empty(){
+            "Instrument rendering failed"
+        }else if self.recording_error.is_some() {
             "伴奏混音失败 · 查看渲染面板"
         } else if !self.recordings.pending.is_empty() {
             "伴奏未就绪 · 查看伴奏轨"

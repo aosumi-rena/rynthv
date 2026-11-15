@@ -3,6 +3,22 @@ use crate::model::{EntityId, Group, Track, new_id};
 use std::collections::{BTreeMap, BTreeSet};
 
 impl Editor {
+    pub fn add_instrument_track(&mut self){
+        self.begin("添加乐器音轨");let mut track=Track::new(self.project.tracks.len());
+        track.name=format!("{} {}",crate::i18n::t("乐器音轨"),self.project.tracks.len()+1);
+        track.disp_color=crate::model::TrackColor::from_rgb(72,156,229);track.instrument=Some(Default::default());
+        self.track=track.id;self.reference=None;self.selected.clear();self.selected_tracks=BTreeSet::from([track.id]);self.track_anchor=track.id;self.track_focus=false;
+        self.project.tracks.push(track);self.finish();
+    }
+    pub fn select_instrument(&mut self,entry:&crate::synthesis::instruments::Entry){
+        let id=self.track;
+        if !self.current_track().is_instrument(){return}
+        self.begin("选择乐器");
+        if let Some(track)=self.project.tracks.iter_mut().find(|t|t.id==id){
+            let config=track.instrument.as_mut().unwrap();config.selection=Some(entry.selection.clone());
+            track.main_ref.database=serde_json::json!({"id":entry.selection.database_id,"version":entry.selection.revision,"name":entry.name,"backendType":"W"});
+        }self.finish();
+    }
     pub fn select_track_header(&mut self, id: EntityId, toggle: bool, range: bool) {
         self.group_focus=false;
         let Some(index) = self.project.tracks.iter().position(|t| t.id == id) else {

@@ -25,6 +25,7 @@ pub fn note_rect(note: &Note, offset: i64, pitch_offset: i32, rect: Rect, app: &
     )
 }
 pub fn show(app: &mut App, ui: &mut Ui) {
+    if app.editor.current_track().is_instrument()&&app.piano_tool.is_pitch(){app.piano_tool=super::Tool::NoteSelect;}
     let all = ui.max_rect();
     if ui.input(|i|i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|p|all.contains(p))) {
         app.editor.group_focus=false;
@@ -125,19 +126,20 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     super::background_notes::draw(app, ui, canvas);
     super::rendered::waveforms(app, ui, canvas, &groups);
     scene::draw_notes(app, ui, canvas, &groups);
-    super::phonemes::draw(app,ui,canvas,&groups);
+    if !app.editor.current_track().is_instrument(){super::phonemes::draw(app,ui,canvas,&groups);}
     super::rendered::pitch(app, ui, canvas, &groups);
     super::pitch_edit::draw(app, ui, canvas, &groups);
     super::pitch_anchor::draw(app, ui, canvas);
     super::retakes::show(app, ui, canvas, &groups);
     scene::headers(app, ui, canvas, &groups);
+    if app.editor.current_track().is_instrument(){crate::ui::instruments::articulation_toolbar(app,ui,canvas);}
     if let Some(Gesture::Select { origin, .. }) = &app.gesture
         && let Some(p) = ui.input(|i| i.pointer.interact_pos())
     {
         let r = Rect::from_two_pos(*origin, p).intersect(canvas);
-        ui.painter().rect_filled(r, 0, GREEN.gamma_multiply(0.12));
+        ui.painter().rect_filled(r, 0, crate::ui::theme::accent(ui).gamma_multiply(0.12));
         ui.painter()
-            .rect_stroke(r, 0, Stroke::new(1.0, GREEN), StrokeKind::Inside);
+            .rect_stroke(r, 0, Stroke::new(1.0, crate::ui::theme::accent(ui)), StrokeKind::Inside);
     }
     if let Some(position) = hover_position {
         hover_playhead(ui,Rect::from_min_max(ruler.min,canvas.max),ruler.bottom(),&app.view.piano,position);
@@ -149,7 +151,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         &app.view.piano,
         app.editor.transport.position,
     );
-    if !app.piano_tool.is_pitch()
+    if !app.editor.current_track().is_instrument() && !app.piano_tool.is_pitch()
         && let Some(reference) = app.editor.active_ref().cloned()
     {
         lyric(app, ui, canvas, &reference);
@@ -195,7 +197,7 @@ fn interaction(
         && let Some(p) = response.interact_pointer_pos()
     {
         app.commit_lyric();
-        if let Some((reference,note))=super::phonemes::hit(app,groups,canvas,p) {
+        if !app.editor.current_track().is_instrument() && let Some((reference,note))=super::phonemes::hit(app,groups,canvas,p) {
             let text=super::phonemes::text(app,&reference,&note);
             app.editor.select_reference(app.editor.track,reference.id);
             app.editor.selected=BTreeSet::from([note.id]);
@@ -251,7 +253,7 @@ fn interaction(
     }
     response.context_menu(|ui| {
         let selected = !app.editor.selected.is_empty();
-        if ui
+        if !app.editor.current_track().is_instrument() && ui
             .add_enabled(selected, Button::new(crate::i18n::t("填入歌词…")).shortcut_text(crate::ui::chrome::shortcut_text("Ctrl+L")))
             .clicked()
         {

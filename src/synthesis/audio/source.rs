@@ -83,9 +83,12 @@ impl MorphLayer {
         if fraction > 0.0 && frame + 1 == part.end_frame() as i64 {
             if data.pending.contains(&((frame + 1) as usize)) { return None; }
             if let Some(next) = data.parts.get(index + 1).filter(|next| next.start_frame == frame + 1) {
-                let a = part.audio.samples()[part.source_start + part.frames - 1];
-                let b = next.audio.samples()[next.source_start];
-                return Some(part.gains.map(|gain| (a + (b - a) * fraction) * gain));
+                let channels=part.audio.layout().channels();let next_channels=next.audio.layout().channels();
+                return Some(std::array::from_fn(|c|{
+                    let a=part.audio.samples()[(part.source_start+part.frames-1)*channels+c.min(channels-1)];
+                    let b=next.audio.samples()[next.source_start*next_channels+c.min(next_channels-1)];
+                    (a+(b-a)*fraction)*part.gains[c]
+                }));
             }
         }
         Some(part.sample(position))

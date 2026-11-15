@@ -55,6 +55,7 @@ impl App {
         }
         match import.mode {
             MidiImportMode::NewProject=>{
+                self.scripts.stop();
                 self.synthesis.reset_project();
                 self.editor=Editor::new(converted.project);
                 self.restore_transport_choices();

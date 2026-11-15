@@ -28,10 +28,11 @@ enum Page {
     Rendering,
     Shortcuts,
     Experiments,
+    Resources,
 }
 
 impl Page {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 8] = [
         Self::General,
         Self::Audio,
         Self::Editing,
@@ -39,14 +40,16 @@ impl Page {
         Self::Rendering,
         Self::Shortcuts,
         Self::Experiments,
+        Self::Resources,
     ];
     fn label(self) -> &'static str {
         match self {
+            Self::Resources=>crate::i18n::t("Manage Resources"),
             Self::General => crate::i18n::t("常规"),
             Self::Audio => crate::i18n::t("音频与 MIDI"),
             Self::Editing => crate::i18n::t("编辑器"),
             Self::Recording => crate::i18n::t("录制"),
-            Self::Rendering => crate::i18n::t("渲染"),
+            Self::Rendering => crate::i18n::t("Rendering"),
             Self::Experiments => crate::i18n::t("实验功能"),
             Self::Shortcuts => crate::i18n::t("快捷键"),
         }
@@ -136,12 +139,19 @@ pub fn show(app: &mut App, ctx: &Context) {
                     );
                     ui.add_space(18.0);
                     match page {
+                        Page::Resources=>{
+                            ui.horizontal(|ui|{
+                                if ui.button(crate::i18n::t("管理歌声")).clicked(){app.voice_manager=true;app.settings=false;}
+                                if ui.button(crate::i18n::t("Manage Instruments")).clicked(){app.instrument_manager=true;app.settings=false;}
+                            });
+                            crate::ui::voice_library::settings(app,ui);ui.separator();crate::ui::instruments::settings(app,ui);
+                        },
                         Page::General => pages::general(app, ui),
                         Page::Audio => pages::audio(app, ui),
                         Page::Editing => pages::editing(app, ui),
                         Page::Recording => pages::recording(ui),
                         Page::Rendering => pages::rendering(app, ui),
-                        Page::Experiments => experiments::show(app,ui),
+        Page::Experiments => experiments::show(app,ui),
                         Page::Shortcuts => shortcuts::show(ui),
                     }
                 });
@@ -163,6 +173,7 @@ fn navigation(ui: &mut Ui, page: Page, selected: bool) -> Response {
     }
     let icon = Rect::from_center_size(rect.left_center() + vec2(19.0, 0.0), Vec2::splat(18.0));
     match page {
+        Page::Resources=>Icon::Cloud.paint(ui,icon,MUTED),
         Page::Experiments => Icon::Settings.paint(ui,icon,MUTED),
         Page::General => Icon::Settings.paint(ui, icon, MUTED),
         Page::Editing => Icon::Notes.paint(ui, icon, MUTED),

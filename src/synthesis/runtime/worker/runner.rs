@@ -101,16 +101,10 @@ pub(super) fn run(
     {
         return;
     }
-    let mut context_required = false;
     let context = frontend.and_then(|lexicon| {
         loading_checkpoint()?;
         let identity = if voice.family.requires_identity() {
-            Some(match duration_key_override {
-                Some(value) => value,
-                None =>
-                voice::session_identity::saved_identity(&name, voice.family.model_version())
-                    .inspect_err(|_| context_required = true)?,
-            })
+            Some(duration_key_override.unwrap_or(0))
         } else {
             None
         };
@@ -125,13 +119,9 @@ pub(super) fn run(
         Ok(context) => context,
         Err(error) => {
             let error = format!("合成环境准备失败：{error}");
-            let event = if context_required {
-                Event::ContextRequired { error }
-            } else {
-                Event::Error {
+            let event = Event::Error {
                     revision: None,
                     error,
-                }
             };
             let _ = events.send(event);
             return;

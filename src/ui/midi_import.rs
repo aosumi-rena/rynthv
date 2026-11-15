@@ -139,7 +139,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                     .add_enabled(
                         can_import,
                         Button::new(RichText::new(crate::i18n::t("导入")).color(CANVAS))
-                            .fill(GREEN)
+                            .fill(crate::ui::theme::accent(ui))
                             .min_size(size),
                     )
                     .clicked();

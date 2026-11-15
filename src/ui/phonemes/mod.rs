@@ -23,21 +23,7 @@ struct Cell {
 }
 pub fn show(app: &mut App, ui: &mut Ui) {
     let rect = ui.max_rect();
-    let canvas = Rect::from_min_max(rect.min + vec2(GUTTER, 0.0), rect.max);
-    ui.painter().rect_filled(rect, 0, PANEL);
-    Icon::Phonemes.paint(
-        ui,
-        Rect::from_center_size(
-            pos2(rect.left() + 22.0, rect.top() + 16.0),
-            vec2(18.0, 18.0),
-        ),
-        TEXT,
-    );
-    let response = ui.interact(
-        canvas,
-        ui.id().with("phoneme-canvas"),
-        Sense::click_and_drag(),
-    );
+    let(canvas,response)=crate::ui::graph_surface::canvas(ui,rect,Some(Icon::Phonemes),"phoneme-canvas");
     if response.clicked() || response.drag_started() {
         app.editor.track_focus=false;
         crate::ui::lanes::parameter_deactivate(app);

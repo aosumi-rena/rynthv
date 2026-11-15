@@ -15,6 +15,7 @@ pub use gesture::CurveGesture;
 pub use rap::RapGesture;
 
 fn selected_family(app:&App)->Option<crate::synthesis::voice::VoiceFamily> {
+    if app.editor.current_track().is_instrument(){return None;}
     app.voice_selection().and_then(|key|app.synthesis.library.entry(&key)).and_then(|entry|entry.family)
         .or_else(||app.voice_inventory().and_then(|voice|voice.configuration.as_ref()).map(|config|config.family))
 }
@@ -32,12 +33,14 @@ pub(super) fn standard_expression_limit(app:&App, parameter:&Parameter)->Option<
 }
 
 pub(super) fn accepted_parameter_range(app:&App, parameter:&Parameter)->(f64,f64) {
+    if app.editor.current_track().is_instrument(){return parameter.range();}
     let (low,high)=parameter.range();
     standard_expression_limit(app,parameter).map_or((low,high),|limit|(low.max(-limit),high.min(limit)))
 }
 
 /// Display/edit capability only; imported curves remain intact for validation.
 pub(super) fn parameter_unavailable(app: &App, parameter: &Parameter) -> Option<&'static str> {
+    if app.editor.current_track().is_instrument(){return (!matches!(parameter,Parameter::Vibrato|Parameter::Loudness|Parameter::Breathiness)).then_some("Unavailable for this instrument");}
     use crate::synthesis::voice::VoiceFamily;
     match (selected_family(app), parameter) {
         (Some(VoiceFamily::R1Std | VoiceFamily::R2Std), Parameter::ToneShift) =>
@@ -59,16 +62,16 @@ pub fn end_frame(app: &mut App, ctx: &Context) {
 }
 
 pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
-    let Some(index) = app.view.lanes.iter().position(|l| l.id == id) else {
-        return;
-    };
-    let mut lane = app.view.lanes[index].clone();
+    let instrument=app.editor.current_track().is_instrument();
+    let Some(mut lane) = app.view.lanes.iter().chain(std::iter::once(&app.view.instrument_lanes.curve))
+        .find(|l|l.id==id).cloned() else {return;};
     let rect = ui.max_rect();
     ui.painter().rect_filled(rect, 0, PANEL);
-    let header = Rect::from_min_size(rect.min, vec2(rect.width(), 30.0));
+    let header = Rect::from_min_size(rect.min, vec2(rect.width(), if instrument {0.0}else{30.0}));
     let mut header_ui = child(ui, header, ("lane-header", id));
-    header::show(app, &mut header_ui, &mut lane);
-    app.view.lanes[index] = lane.clone();
+    if !instrument {header::show(app, &mut header_ui, &mut lane);}
+    if instrument {app.view.instrument_lanes.curve=lane.clone();}
+    else if let Some(target)=app.view.lanes.iter_mut().find(|l|l.id==id) {*target=lane.clone();}
     let unavailable = parameter_unavailable(app, &lane.foreground);
     let canvas = Rect::from_min_max(pos2(rect.left() + GUTTER, header.bottom()), rect.max);
     if canvas.height() < 5.0 {
@@ -95,7 +98,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     let (min, max) = geometry::lane_range(app,&lane);
     let y_for =
         |value: f64| canvas.bottom() - ((value - min) / (max - min)) as f32 * canvas.height();
-    let (low_label, high_label) = geometry::labels(&lane.foreground, min, max);
+    let (low_label, high_label) = geometry::labels(app, &lane.foreground, min, max);
     for (value, text) in [(min, low_label), (max, high_label)] {
         let y = y_for(value).clamp(canvas.top() + 10.0, canvas.bottom() - 10.0);
         label(ui, pos2(rect.left() + 4.0, y), text, MUTED);
@@ -146,12 +149,12 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
     if lane.background == Parameter::Rap {rap::show(app,ui,&response,canvas,false);}
     for (parameter, color, editable) in [
         (&lane.background, MUTED.gamma_multiply(0.5), false),
-        (&lane.foreground, GREEN, true),
+        (&lane.foreground, crate::ui::theme::accent(ui), true),
     ] {
+        if instrument && !editable {continue;}
         if *parameter == Parameter::Rap {continue;}
-        let Some(curve) = app.editor.group().unwrap().automation(parameter) else {
-            continue;
-        };
+        let empty=Automation::default();
+        let curve = app.editor.group().unwrap().automation(parameter).unwrap_or(&empty);
         let (low, high) = geometry::range(app,parameter, lane.zoom);
         let map = |(t, v): (i64, f64)| {
             pos2(
@@ -215,7 +218,7 @@ pub fn show(app: &mut App, ui: &mut Ui, id: u64) {
             }
             if editable && unavailable.is_none() && lane.tool == CurveTool::Point {
                 for &point in &curve.points {
-                    painter.circle_filled(map(point), if selection::contains(app,id,point.0) {4.0} else {2.0}, GREEN);
+                    painter.circle_filled(map(point), if selection::contains(app,id,point.0) {4.0} else {2.0}, crate::ui::theme::accent(ui));
                 }
             }
         }

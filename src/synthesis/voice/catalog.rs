@@ -1,6 +1,6 @@
 mod dnni;
 mod artwork;
-mod metadata;
+pub(super) mod metadata;
 mod nofs;
 mod resource;
 mod flat;

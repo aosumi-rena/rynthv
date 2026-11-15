@@ -24,15 +24,7 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
             app.rename = Some(super::rename::Rename::track(track.id, &track.name));
             ui.close();
         }
-        if ui.button(crate::i18n::t("新增音轨")).clicked() {
-            app.editor.add_track();
-            ui.close();
-        }
-        if ui.button(crate::i18n::t("新增伴奏轨…")).clicked() {
-            let id = app.editor.add_instrumental_track();
-            ui.close();
-            app.import_audio(Some(id), ui.ctx());
-        }
+        super::instrumental::create_menu(app, ui);
         super::rocoflex::track_menu(app, ui, track);
         let index = app
             .editor
@@ -174,7 +166,7 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
             r,
             2,
             if value {
-                GREEN
+                crate::ui::track_color::TrackColors::new(track).accent
             } else if response.hovered() {
                 BUTTON_HOVER
             } else {

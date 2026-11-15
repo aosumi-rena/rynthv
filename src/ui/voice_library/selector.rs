@@ -1,3 +1,4 @@
+use crate::ui::resource_picker::{menu_row,separator};
 use std::collections::BTreeMap;
 
 use super::{artwork, error_label, family_filter::{self, FamilyFilter, LABELS}, family_name, selected_entry, weak};
@@ -10,8 +11,6 @@ use crate::{
     ui::{icons::Icon, theme::*},
 };
 use eframe::egui::*;
-
-const POPUP_FILL: Color32 = Color32::from_rgb(61, 59, 64);
 
 pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
     let entry = selected_entry(app);
@@ -95,7 +94,7 @@ pub(crate) fn donor_picker(ui: &mut Ui, catalog: &VoiceCatalog, donor: &mut Opti
 fn voice_picker(anchor: &Response, catalog: Option<&VoiceCatalog>, selected: Option<&VoiceSelection>,
     track_actions: bool, can_clear: bool, scanning: bool, catalog_error: bool) -> Option<Choice>
 {
-    let picker_height = (anchor.ctx.content_rect().height() - 28.0).clamp(48.0, 1000.0);
+    let picker_height = crate::ui::resource_picker::height(&anchor.ctx);
     let mut choice = None;
     let popup = Popup::menu(anchor);
     let search_id = popup.get_id().with("voice-name-search");
@@ -114,18 +113,12 @@ fn voice_picker(anchor: &Response, catalog: Option<&VoiceCatalog>, selected: Opt
     popup
         .width(288.0)
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-        .frame(
-            Frame::popup(&anchor.ctx.style_of(Theme::Dark))
-                .fill(POPUP_FILL)
-                .stroke(Stroke::new(0.8, BUTTON_ACTIVE))
-                .corner_radius(5)
-                .inner_margin(4),
-        )
+        .frame(crate::ui::resource_picker::frame(&anchor.ctx))
         .show(|ui| {
             ui.set_width(280.0);
             ui.set_height(picker_height);
             ui.spacing_mut().item_spacing = vec2(0.0, 4.0);
-            header(ui);
+            crate::ui::resource_picker::header(ui,crate::i18n::t("歌声"));
             let input_id=search_id.with("input");
             let focus = ui.ctx().data(|data| data.get_temp::<bool>(focus_id)).unwrap_or(false);
             if focus {ui.ctx().memory_mut(|memory|memory.request_focus(input_id));}
@@ -251,89 +244,10 @@ fn representative_entries<'a>(catalog: Option<&'a VoiceCatalog>, selected: Optio
     entries
 }
 
-fn header(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 36.0), Sense::hover());
-    ui.painter().text(
-        rect.left_center() + vec2(8.0, 0.0),
-        Align2::LEFT_CENTER,
-        crate::i18n::t("歌声"),
-        section_title_font(),
-        TEXT,
-    );
-    let origin = rect.right_center() - vec2(24.0, 7.0);
-    for row in 0..3 {
-        let p = origin + vec2(0.0, row as f32 * 5.0);
-        ui.painter()
-            .rect_filled(Rect::from_min_size(p, vec2(5.0, 4.0)), 0, ICON_TOOL);
-        ui.painter().rect_filled(
-            Rect::from_min_size(p + vec2(7.0, 0.0), vec2(9.0, 2.0)),
-            0,
-            ICON_TOOL,
-        );
-    }
-}
-
-fn menu_row(ui: &mut Ui, label: &str, icon: Option<Icon>, enabled: bool) -> Response {
-    let (rect, response) = ui.allocate_exact_size(
-        vec2(ui.available_width(), 32.0),
-        if enabled {
-            Sense::click()
-        } else {
-            Sense::hover()
-        },
-    );
-    if enabled && response.hovered() {
-        ui.painter().rect_filled(rect, 3, BUTTON_HOVER);
-    }
-    let mut x = rect.left() + 8.0;
-    if let Some(icon) = icon {
-        icon.paint(
-            ui,
-            Rect::from_center_size(pos2(x + 10.0, rect.center().y), Vec2::splat(20.0)),
-            TEXT,
-        );
-        x += 28.0;
-    }
-    ui.painter().text(
-        pos2(x, rect.center().y),
-        Align2::LEFT_CENTER,
-        label,
-        FontId::proportional(12.0),
-        if enabled { TEXT } else { MUTED },
-    );
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
-    response.on_hover_cursor(CursorIcon::Default)
-}
-
-fn separator(ui: &mut Ui) {
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
-    ui.painter().hline(
-        rect.x_range(),
-        rect.center().y,
-        Stroke::new(1.0, BUTTON_ACTIVE),
-    );
-}
-
 fn card(ui: &mut Ui, entry: &VoiceCatalogEntry, selected: bool) -> Response {
     let enabled = entry.availability.is_loadable();
-    let (rect, response) = ui.allocate_exact_size(
-        vec2(ui.available_width(), 76.0),
-        if enabled {
-            Sense::click()
-        } else {
-            Sense::hover()
-        },
-    );
-    if selected || (enabled && response.hovered()) {
-        ui.painter()
-            .rect_filled(rect, 5, if selected { BUTTON_HOVER } else { BUTTON });
-    }
-    let art = Rect::from_min_size(rect.min + vec2(8.0, 6.0), Vec2::splat(64.0));
+    let (response, art, content) = crate::ui::resource_picker::card(ui,selected,enabled);
     artwork::paint(ui, art, entry.icon.as_ref());
-    let content = Rect::from_min_max(
-        pos2(art.right() + 12.0, rect.top() + 7.0),
-        rect.max - vec2(6.0, 4.0),
-    );
     let painter = ui
         .painter()
         .with_clip_rect(content.intersect(ui.clip_rect()));

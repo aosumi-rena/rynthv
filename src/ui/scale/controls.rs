@@ -22,6 +22,18 @@ pub fn panel(app: &mut App, ui: &mut Ui) {
     });
 }
 
+pub fn instrument(app:&mut App,ui:&mut Ui) {
+    let current=selection(app);let mut tonic=None;let mut scale=None;
+    ui.add_enabled_ui(current.editable,|ui|ui.columns(2,|columns|{
+        columns[0].label(crate::i18n::t("Root"));
+        let width=columns[0].available_width();tonic=tonic_selector(&mut columns[0],&current,width);
+        columns[1].label(crate::i18n::t("Mode"));
+        let width=columns[1].available_width();scale=scale_selector(&mut columns[1],&current,width);
+    }));
+    if let Some(tonic)=tonic{update(app,"root",tonic.native_name());}
+    if let Some(scale)=scale{update(app,"type",scale.native_name());}
+}
+
 fn controls(app: &mut App, ui: &mut Ui, vertical: bool) {
     let current = selection(app);
     let mut tonic = None;

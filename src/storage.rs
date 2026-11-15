@@ -3,15 +3,20 @@ use std::{collections::HashSet, fs, io::Write, path::Path};
 
 mod identity;
 mod audio;
+mod instrument;
+mod tunelab;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub enum ProjectFormat { Rvp, Svp }
+pub enum ProjectFormat { Rvp, Svp, Ixp, Tlp, Tlpx }
 
 impl ProjectFormat {
     pub fn from_path(path: &Path) -> Option<Self> {
         let extension = path.extension()?;
         if extension.eq_ignore_ascii_case("rvp") { Some(Self::Rvp) }
         else if extension.eq_ignore_ascii_case("svp") { Some(Self::Svp) }
+        else if extension.eq_ignore_ascii_case("ixp") { Some(Self::Ixp) }
+        else if extension.eq_ignore_ascii_case("tlp") { Some(Self::Tlp) }
+        else if extension.eq_ignore_ascii_case("tlpx") { Some(Self::Tlpx) }
         else { None }
     }
 }
@@ -33,10 +38,14 @@ pub fn load_svp_bytes(bytes: &[u8], path: &Path) -> Result<Project, String> {
 }
 
 fn decode_project(bytes: &[u8], path: &Path, format: ProjectFormat) -> Result<Project, String> {
-    let bytes = bytes.strip_prefix(&[0xef, 0xbb, 0xbf]).unwrap_or(bytes);
-    let bytes = bytes.trim_ascii_end().strip_suffix(&[0]).unwrap_or(bytes).trim_ascii_end();
-    let mut project: Project =
-        serde_json::from_slice(bytes).map_err(|e| format!("工程解析失败：{e}"))?;
+    let bytes = if format==ProjectFormat::Tlpx {bytes} else {
+        let bytes=bytes.strip_prefix(&[0xef,0xbb,0xbf]).unwrap_or(bytes);
+        bytes.trim_ascii_end().strip_suffix(&[0]).unwrap_or(bytes).trim_ascii_end()
+    };
+    let mut project: Project = if matches!(format,ProjectFormat::Tlp|ProjectFormat::Tlpx) {tunelab::decode(bytes,format==ProjectFormat::Tlpx)?}
+    else if format==ProjectFormat::Ixp {instrument::decode(bytes)?}else{
+        serde_json::from_slice(bytes).map_err(|e| format!("工程解析失败：{e}"))?
+    };
     match format {
         ProjectFormat::Rvp if project.version != RVP_VERSION => return Err("RVP_UNSUPPORTED_VERSION".into()),
         ProjectFormat::Svp if !(113..=SVP_VERSION).contains(&project.version) => {
@@ -45,7 +54,7 @@ fn decode_project(bytes: &[u8], path: &Path, format: ProjectFormat) -> Result<Pr
         ProjectFormat::Svp => {
             for track in &mut project.tracks { track.rocoflex = None; }
         }
-        ProjectFormat::Rvp => {}
+        ProjectFormat::Rvp|ProjectFormat::Ixp|ProjectFormat::Tlp|ProjectFormat::Tlpx => {}
     }
     project.version = RVP_VERSION;
     audio::load(&mut project)?;
@@ -71,6 +80,10 @@ fn decode_project(bytes: &[u8], path: &Path, format: ProjectFormat) -> Result<Pr
 
 pub fn save(path: &Path, project: &Project) -> Result<(), String> {
     let format = ProjectFormat::from_path(path).ok_or("PROJECT_UNSUPPORTED_FORMAT")?;
+    if format==ProjectFormat::Ixp{return Err("Save instrument tracks in a RynthV project (.rvp)".into())}
+    if format==ProjectFormat::Svp && project.tracks.iter().any(Track::is_instrument) {
+        return Err("Save instrument tracks in a RynthV project (.rvp)".into());
+    }
     let mut ordered = project.clone();
     let base = std::path::absolute(path).map_err(|e| e.to_string())?;
     for track in &mut ordered.tracks {
@@ -84,7 +97,7 @@ pub fn save(path: &Path, project: &Project) -> Result<(), String> {
         }
     }
     validate(&ordered)?;
-    ordered.version = match format { ProjectFormat::Rvp => RVP_VERSION, ProjectFormat::Svp => SVP_VERSION };
+    ordered.version = match format { ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx => RVP_VERSION, ProjectFormat::Svp => SVP_VERSION,ProjectFormat::Ixp=>unreachable!() };
     audio::save(&mut ordered);
     for group in ordered
         .library
@@ -93,7 +106,8 @@ pub fn save(path: &Path, project: &Project) -> Result<(), String> {
     {
         group.notes.sort_by_key(|n| n.onset);
     }
-    let bytes = serde_json::to_vec_pretty(&ordered).map_err(|e| e.to_string())?;
+    let bytes = if matches!(format,ProjectFormat::Tlp|ProjectFormat::Tlpx) {tunelab::encode(&ordered,format==ProjectFormat::Tlpx)?}
+        else {serde_json::to_vec_pretty(&ordered).map_err(|e| e.to_string())?};
     if bytes.len() > 64 * 1024 * 1024 {
         return Err("工程超过 64 MiB 读取上限".into());
     }

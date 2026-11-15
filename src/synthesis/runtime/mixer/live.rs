@@ -1,4 +1,4 @@
-mod spans;
+pub(in crate::synthesis::runtime) mod spans;
 
 use super::{Controls, native_bound};
 use crate::synthesis::{
@@ -53,6 +53,7 @@ impl LiveMixer {
             }
             if coverage.is_empty()
                 || output.rocoflex
+                || super::has_effects(&output.mixer)
                 || output.reference_muted
                 || controls.mute
                 || (!solo_tracks.is_empty() && !controls.solo)

@@ -42,7 +42,11 @@ impl Editor {
             self.project.tracks.push(track);
         }
         self.project.library.extend(project.library);
-        if let Some((track,reference))=first {self.track=track;self.reference=reference;self.selected.clear();}
+        if let Some((track,reference))=first {
+            self.track=track;self.reference=reference;self.selected.clear();
+            self.selected_tracks=std::collections::BTreeSet::from([track]);self.track_anchor=track;
+            self.selected_groups.clear();self.group_focus=false;self.track_focus=false;
+        }
         self.finish();
     }
 }

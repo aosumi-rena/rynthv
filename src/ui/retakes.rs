@@ -37,6 +37,7 @@ fn unavailable_at(
     if app.editor.is_editing() {
         return Some(crate::i18n::t("请先结束当前编辑"));
     }
+    if app.editor.current_track().is_instrument(){return (component==RetakeComponent::Duration).then(||crate::i18n::t("Unavailable"));}
     let reason = match voice_family(app, target) {
         Some(VoiceFamily::R1Std | VoiceFamily::R2Std) => Some(crate::i18n::t("当前歌声不支持 AI 重录")),
         Some(VoiceFamily::Sv2) => None,
@@ -89,6 +90,7 @@ fn create_at(app: &mut App, component: RetakeComponent, target: Target<'_>) {
         app.status = reason.into();
         return;
     }
+    let component=if app.editor.current_track().is_instrument()&&component==RetakeComponent::All{RetakeComponent::PitchAndTimbre}else{component};
     let component = if component == RetakeComponent::All
         && matches!(
             voice_family(app, target),

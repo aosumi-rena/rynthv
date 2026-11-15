@@ -12,7 +12,7 @@ pub(super) fn preview(ui:&Ui,id:Id,source:f64)->f64 {
         .filter(|v|v.source==source.to_bits() && v.frame+1>=frame).map_or(source,|v|v.value)
 }
 
-pub(super) fn show(ui:&mut Ui,id:Id,label:&str,source:f64,min:f64,max:f64,step:f64)->Option<f64> {
+pub(crate) fn show(ui:&mut Ui,id:Id,label:&str,source:f64,min:f64,max:f64,step:f64)->Option<f64> {
     let (rect,_)=ui.allocate_exact_size(vec2(ui.available_width(),40.0),Sense::hover());
     let rail=Rect::from_min_max(rect.left_top()+vec2(9.5,22.0),rect.right_top()+vec2(-9.5,42.0));
     let response=ui.interact(rail.expand2(vec2(9.5,0.0)),id.with("rail"),Sense::click_and_drag());

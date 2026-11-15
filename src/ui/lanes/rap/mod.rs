@@ -107,7 +107,7 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, fo
         let color = if !foreground {
             MUTED.gamma_multiply(0.45)
         } else if cell.explicit {
-            GREEN
+            crate::ui::theme::accent(ui)
         } else {
             MUTED
         };
@@ -122,7 +122,7 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, fo
                         pos2(p[1].x, area.bottom()),
                         pos2(p[0].x, area.bottom()),
                     ],
-                    GREEN.gamma_multiply(0.10),
+                    crate::ui::theme::accent(ui).gamma_multiply(0.10),
                     Stroke::NONE,
                 ));
             }

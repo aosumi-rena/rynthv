@@ -6,6 +6,7 @@ pub enum Target {
     Piano,
     Parameter(u64),
     Phonemes,
+    InstrumentDynamics,
 }
 impl Target {
     fn id(self) -> Id {

@@ -41,6 +41,18 @@ pub(super) fn general(app: &mut App, ui: &mut Ui) {
         "Direct3D 12",
         crate::i18n::t("当前使用 GPU 渲染，暂不支持切换渲染后端"),
     );
+    section(ui, crate::i18n::t("Accent Colors"));
+    for (label, color, default) in [
+        ("Voice accent color", &mut app.preferences.voice_accent, [125,178,53]),
+        ("Instrument accent color", &mut app.preferences.instrument_accent, [72,156,229]),
+    ] {
+        row(ui, crate::i18n::t(label), |ui| {
+            ui.horizontal(|ui| {
+                ui.color_edit_button_srgb(color);
+                if ui.button(crate::i18n::t("重置")).clicked() { *color = default; }
+            });
+        });
+    }
     section(ui, crate::i18n::t("帮助和指导"));
     toggle(ui, crate::i18n::t("显示状态栏"), &mut app.preferences.show_status_bar);
     toggle(ui, crate::i18n::t("显示控件操作提示"), &mut app.preferences.control_hints);
@@ -132,13 +144,6 @@ pub(super) fn recording(ui: &mut Ui) {
 }
 
 pub(super) fn rendering(app: &mut App, ui: &mut Ui) {
-    crate::ui::voice_library::settings(app, ui);
-    row(ui, crate::i18n::t("歌声数据库"), |ui| {
-        if ui.button(crate::i18n::t("管理歌声…")).clicked() {
-            app.settings = false;
-            app.voice_manager = true;
-        }
-    });
     section(ui, crate::i18n::t("音频导出"));
     row(ui, crate::i18n::t("音频转换器（FFmpeg）"), |ui| {
         if let Some(path) = &app.synthesis.library.settings.audio_converter {

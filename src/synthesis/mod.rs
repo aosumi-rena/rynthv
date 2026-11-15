@@ -1,5 +1,6 @@
 pub mod audio;
 pub mod engine;
+pub mod effects;
 pub mod experiments;
 pub mod execution;
 pub mod inference;
@@ -24,3 +25,4 @@ pub mod unison;
 pub(crate) mod r1_std;
 
 pub(crate) mod r2_std;
+pub mod instruments;

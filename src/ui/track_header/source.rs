@@ -41,6 +41,15 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, rect: Rect, text_rect: Rect, trac
         }
         return;
     }
+    if track.instrument.is_some() {
+        Icon::Instrument.paint(ui,Rect::from_center_size(rect.min+vec2(24.0,39.0),Vec2::splat(14.0)),MUTED);
+        let entry=app.synthesis.instruments.for_track(track);
+        let name=entry.map(|e|crate::i18n::t(&e.name)).unwrap_or(crate::i18n::t("Select Instrument"));
+        painter.text(rect.min+vec2(35.0,39.0),Align2::LEFT_CENTER,name,FontId::proportional(12.0),MUTED);
+        let response=ui.interact(Rect::from_min_max(rect.min+vec2(16.0,29.0),pos2(text_rect.right(),rect.bottom())),Id::new(("track-instrument",track.id)),Sense::click());
+        if response.clicked(){app.commit_lyric();app.editor.select_track(track.id);}
+        crate::ui::instruments::popup(app,&response);return;
+    }
     let missing=app.synthesis.voice_not_installed(track,&track.main_ref);
     (if missing {Icon::Warning}else{Icon::Microphone}).paint(
         ui,

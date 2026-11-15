@@ -239,7 +239,7 @@ pub(super) fn show(app: &mut App, ui: &Ui, response: &Response, canvas: Rect, ce
                     crate::model::beats(g.tempo.position_at(g.current).0),
                 );
                 ui.painter()
-                    .vline(x, canvas.y_range(), Stroke::new(1.0, GREEN));
+                    .vline(x, canvas.y_range(), Stroke::new(1.0, crate::ui::theme::accent(ui)));
             }
             g.frame = ui.ctx().cumulative_frame_nr();
         }

@@ -1,4 +1,4 @@
-mod controls;
+pub(crate) mod controls;
 mod dictionary;
 mod note;
 mod render;
@@ -13,6 +13,7 @@ use crate::app::App;
 use eframe::egui::*;
 
 pub fn show(app: &mut App, ui: &mut Ui, column: Column) {
+    let instrument=app.editor.current_track().is_instrument();
     let rect = ui.max_rect();
     ui.painter().rect_filled(rect, 4, PANEL);
     let header = Rect::from_min_size(rect.min, vec2(rect.width(), 42.0));
@@ -24,12 +25,12 @@ pub fn show(app: &mut App, ui: &mut Ui, column: Column) {
     header_ui.spacing_mut().interact_size.y = header.height() - 4.0;
     header_ui.horizontal(|ui| {
         let (icon, _) = ui.allocate_exact_size(vec2(20.0, 24.0), Sense::hover());
-        column.icon().paint(
+        (if instrument{super::instruments::icon(column)}else{column.icon()}).paint(
             ui,
             Rect::from_center_size(icon.center(), Vec2::splat(20.0)),
             MUTED,
         );
-        super::section_title(ui, column.label(), DragPayload::Column(column));
+        super::section_title(ui, if instrument{super::instruments::label(column)}else{column.label()}, DragPayload::Column(column));
     });
     ui.interact(header,Id::new(("panel-header-drag",column)),Sense::drag())
         .dnd_set_drag_payload(DragPayload::Column(column));
@@ -55,14 +56,25 @@ pub fn show(app: &mut App, ui: &mut Ui, column: Column) {
                 });
                 return;
             }
+            if instrument {
+                match column {
+                    Column::Voice=>super::instruments::track_panel(app,ui),
+                    Column::Note=>super::instruments::note_panel(app,ui),
+                    Column::Dictionary=>super::instruments::mixer_panel(app,ui),
+                    Column::Effects=>super::instruments::effects_panel(app,ui),
+                    Column::Script=>super::scripts::panel(app,ui),
+                    Column::Render=>render::show(app,ui),
+                    Column::Editor=>{}
+                }
+                return;
+            }
             match column {
                 Column::Note => note::show(app, ui),
                 Column::Voice => super::voice_library::show(app, ui),
                 Column::Render => render::show(app, ui),
                 Column::Dictionary => dictionary::show(app, ui, rect.height() - header.height()),
-                Column::Script => controls::padded(ui, |ui| {
-                    ui.weak(crate::i18n::t("脚本运行环境尚未接入"));
-                }),
+                Column::Effects => super::instruments::effects_panel(app,ui),
+                Column::Script => super::scripts::panel(app,ui),
                 Column::Editor => {}
             }
         });

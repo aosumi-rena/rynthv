@@ -1,6 +1,7 @@
 mod automation;
 mod dictionary;
 mod instrumental;
+mod instrument;
 mod language;
 mod phoneme_catalog;
 mod performance;
@@ -14,6 +15,7 @@ mod vocal_modes;
 pub use automation::*;
 pub use dictionary::*;
 pub use instrumental::*;
+pub use instrument::*;
 pub use language::*;
 pub use phoneme_catalog::*;
 pub use performance::*;

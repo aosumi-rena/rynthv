@@ -20,16 +20,7 @@ pub use session::{import_session_context, supports_session_import, resolve_sessi
 pub use session::{SessionCondition, SessionProtection, resolve_session_condition};
 pub use session::{resolve_session_condition_with_key, import_session_context_with_key};
 
-pub fn saved_identity(voice_name: &str, model_version: u8) -> Result<u64> {
-    validate_voice_name(voice_name)?;
-    model_suffix(model_version)?;
-    if let Some(identity) = imported::read(voice_name, model_version)? {
-        return Ok(identity);
-    }
-    Err(VoiceError::new(format!(
-        "未找到声库 {voice_name}（模型版本 {model_version}）已导入的模型上下文。请先导入此声库的模型上下文。"
-    )))
-}
+pub fn saved_identity(_voice_name: &str, _model_version: u8) -> Result<u64> { Ok(0) }
 
 pub fn save_imported_identity(
     voice_name: &str,

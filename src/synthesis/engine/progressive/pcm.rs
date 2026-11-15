@@ -180,7 +180,7 @@ impl PcmStore {
         let source = self.clock.range(begin..range.end)?;
         let samples = self.samples[0][source.clone()]
             .iter()
-            .zip(&self.samples[1][source])
+            .zip(&self.samples[1][source.clone()])
             .map(|(&a, &b)| a + b)
             .collect();
         RenderedAudio::new(
@@ -189,6 +189,7 @@ impl PcmStore {
             ChannelLayout::Mono,
             samples,
         )
+        .and_then(|audio|audio.with_components(self.samples[0][source.clone()].into(),self.samples[1][source].into(),0))
         .map(Some)
         .map_err(|error| VoiceError::new(error.to_string()))
     }

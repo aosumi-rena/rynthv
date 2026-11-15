@@ -1,4 +1,3 @@
-use crate::ui::theme;
 use eframe::egui::*;
 
 #[derive(Clone, Copy)]
@@ -14,15 +13,17 @@ pub(super) struct Flash {
     previous: Option<Point>,
     clip: Rect,
     pixel: f32,
+    color: Color32,
 }
 
 impl Flash {
-    pub fn new(clip: Rect, pixel: f32) -> Self {
+    pub fn new(clip: Rect, pixel: f32, color: Color32) -> Self {
         Self {
             mesh: Mesh::default(),
             previous: None,
             clip,
             pixel,
+            color,
         }
     }
 
@@ -88,9 +89,9 @@ impl Flash {
                 self.mesh.colored_vertex(
                     pos2(point.x, y + direction * offset * self.pixel),
                     Color32::from_rgba_unmultiplied(
-                        theme::GREEN.r(),
-                        theme::GREEN.g(),
-                        theme::GREEN.b(),
+                        self.color.r(),
+                        self.color.g(),
+                        self.color.b(),
                         (255.0 * opacity * point.intensity).round() as u8,
                     ),
                 );

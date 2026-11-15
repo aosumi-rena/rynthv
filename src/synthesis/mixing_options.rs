@@ -21,8 +21,10 @@ pub(super) fn validate_mixer(mixer: &Extra) -> Result<(), String> {
             "gainDecibel" | "pan" => value.as_f64().is_some_and(f64::is_finite),
             "mute" | "solo" | "display" => value.is_boolean(),
             "fxPresetName" => value.is_string(),
+            "micPresetName" => value.as_str()==Some(""),
+            "micParams" => value==&serde_json::json!({"instrumentMics":{"mics":[],"mute":false,"solo":false,"link":false},"room":{"name":"","micArrays":[]}}),
             "fxParams" => {
-                validate_effects(value)?;
+                super::effects::Configuration::read(value)?;
                 true
             }
             "scriptData" => true,
@@ -34,26 +36,16 @@ pub(super) fn validate_mixer(mixer: &Extra) -> Result<(), String> {
     }
     Ok(())
 }
-
-fn validate_effects(value: &Value) -> Result<(), String> {
-    let effects = value.as_object().ok_or("混音 fxParams 必须为对象")?;
-    for (name, value) in effects {
-        let label = match name.as_str() {
-            "room" => "空间定位",
-            "postRoomEq" => "均衡器",
-            "compressor" => "压缩器",
-            "reverb" => "混响",
-            _ => return Err(format!("暂不支持混音效果 fxParams.{name}")),
-        };
-        match value.get("enabled").and_then(Value::as_bool) {
-            Some(false) => {}
-            Some(true) => {
-                return Err(format!("暂不支持已启用的{label}效果（fxParams.{name}）"));
-            }
-            None => return Err(format!("混音效果 fxParams.{name}.enabled 缺失或不是布尔值")),
+pub(super) fn validate_instrument_mixer(mixer:&Extra)->Result<(),String> {
+    let mut rest=mixer.clone();
+    if let Some(value)=rest.get("fxParams") {
+        if super::effects::Configuration::read(value)?.room.is_some() {
+            return Err("Room Sound is a voice effect; instruments use their microphone room".into());
         }
     }
-    Ok(())
+    if let Some(value)=rest.remove("micParams") {super::instruments::microphones::Configuration::parse(&value)?;}
+    if let Some(value)=rest.remove("micPresetName") {if !value.is_string(){return Err("Invalid microphone preset name".into());}}
+    validate_mixer(&rest)
 }
 
 pub(super) fn validate_export_bypass(config: &Extra) -> Result<(), String> {

@@ -1,10 +1,10 @@
 mod experiments;
 pub(crate) mod artwork;
-mod context;
 mod language;
 mod management;
 mod panel;
 mod parameters;
+pub(crate) use parameters::control as parameter_control;
 mod unison;
 mod tuning;
 mod paths;
@@ -78,3 +78,4 @@ fn language_name(language: &str) -> &str {
         other => other,
     }
 }
+pub(crate) use unison::slider::show as parameter_slider;

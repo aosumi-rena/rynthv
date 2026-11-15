@@ -2,6 +2,7 @@ mod instrumental;
 mod clipboard;
 mod midi;
 mod project_import;
+mod project_drop;
 mod transport_preferences;
 mod voice;
 pub use midi::{MidiImport, MidiImportMode, MidiImportPhase};
@@ -39,10 +40,15 @@ pub struct App {
     pub view: ViewState,
     pub preferences: ui::settings::Preferences,
     pub preset_library: ui::voice_library::PresetLibrary,
+    pub control_presets:ui::presets::State,
+    pub scripts:ui::scripts::State,
     pub path: Option<PathBuf>,
     pub error: Option<String>,
     pub settings: bool,
     pub voice_manager: bool,
+    pub instrument_manager: bool,
+    pub instrument_mixer:bool,
+    pub instrument_rewrite:Option<ui::instruments::rewrite::Job>,
     pub rocoflex: ui::rocoflex::Integration,
     pub voice_finetuning: ui::voice_finetuning::VoiceFinetuningState,
     pub about: bool,
@@ -63,6 +69,7 @@ pub struct App {
     pub audio_import: Option<instrumental::AudioImport>,
     pub midi_import: Option<MidiImport>,
     project_import: Option<project_import::Import>,
+    dropped_project: Option<PathBuf>,
     pub rename: Option<ui::rename::Rename>,
     pub time_edit: Option<ui::time_edit::TimeEdit>,
     pub bpm_edit: Option<ui::tempo_input::BpmEdit>,
@@ -100,6 +107,7 @@ impl App {
                     for l in &mut v.lanes {
                         l.id = new_id();
                     }
+                    v.instrument_lanes.curve.id = new_id();
                     view = v;
                 }
                 Ok(_) => error = Some(crate::i18n::t("保存的工作区尺寸或结构无效，已重置布局").into()),
@@ -128,10 +136,15 @@ impl App {
             view,
             preferences,
             preset_library: Default::default(),
+            control_presets:Default::default(),
+            scripts:Default::default(),
             path: None,
             error,
             settings: false,
             voice_manager: false,
+            instrument_manager: false,
+            instrument_mixer:false,
+            instrument_rewrite:None,
             rocoflex: ui::rocoflex::Integration::new(cc.wgpu_render_state.clone()),
             voice_finetuning: Default::default(),
             about: false,
@@ -152,6 +165,7 @@ impl App {
             audio_import: None,
             midi_import: None,
             project_import: None,
+            dropped_project:None,
             rename: None,
             time_edit: None,
             bpm_edit: None,
@@ -175,6 +189,7 @@ impl App {
         app
     }
     pub fn open_path(&mut self, path: PathBuf) {
+        self.scripts.stop();
         self.project_import=None;
         if storage::ProjectFormat::from_path(&path).is_none() {
             self.begin_project_import(path,MidiImportMode::NewProject,&self.context.clone());
@@ -228,12 +243,13 @@ impl App {
         ui::tempo_input::finish(self);
         self.commit_lyric();
         self.editor.finish();
-        let native = self.path.as_ref().filter(|path| ProjectFormat::from_path(path) == Some(ProjectFormat::Rvp));
+        let native = self.path.as_ref().filter(|path| matches!(ProjectFormat::from_path(path),Some(ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx)));
         let path = if save_as || native.is_none() {
             let name = self.path.as_ref().and_then(|p| p.file_stem()).and_then(|n| n.to_str())
                 .unwrap_or(crate::i18n::t("未命名"));
-            let mut dialog = rfd::FileDialog::new().add_filter("RynthV (*.rvp)", &["rvp"]);
-            if save_as {
+            let mut dialog = rfd::FileDialog::new().add_filter("RynthV (*.rvp)", &["rvp"])
+                .add_filter("TuneLab (*.tlpx)", &["tlpx"]).add_filter("TuneLab JSON (*.tlp)", &["tlp"]);
+            if save_as && !self.editor.project.tracks.iter().any(|track|track.is_instrument()) {
                 dialog = dialog.add_filter("Synthesizer V (*.svp)", &["svp"]);
             }
             if let Some(parent) = self.path.as_deref().and_then(std::path::Path::parent) {
@@ -245,13 +261,13 @@ impl App {
         };
         let Some(mut path) = path else { return false; };
         if path.extension().is_none() { path.set_extension("rvp"); }
-        if !save_as && ProjectFormat::from_path(&path) != Some(ProjectFormat::Rvp) {
+        if !save_as && !matches!(ProjectFormat::from_path(&path),Some(ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx)) {
             self.error = Some(crate::i18n::t("RVP_SAVE_REQUIRED").into());
             return false;
         }
         match storage::save(&path, &self.project_for_save()) {
             Ok(()) => {
-                if ProjectFormat::from_path(&path) == Some(ProjectFormat::Rvp) {
+                if matches!(ProjectFormat::from_path(&path),Some(ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx)) {
                     self.editor.mark_saved();
                     self.path = Some(path);
                 }
@@ -278,6 +294,8 @@ impl App {
         }
     }
     fn perform_file(&mut self, action: FileAction, ctx: &Context) {
+        self.scripts.stop();
+        self.instrument_rewrite=None;
         self.project_import=None;
         self.midi_import = None;
         self.gesture = None;
@@ -320,6 +338,7 @@ impl App {
         }
     }
     pub fn edit_lyric(&mut self) {
+        if self.editor.current_track().is_instrument(){return;}
         if let Some(note) = self
             .editor
             .notes()
@@ -372,6 +391,7 @@ impl App {
         }
     }
     fn dialogs(&mut self, ctx: &Context) {
+        self.dropped_project_dialog(ctx);
         if let Some(action) = self.pending.clone() {
             let title=match &action {FileAction::New=>crate::i18n::t("新建..."),FileAction::Open|FileAction::OpenPath(_)=>crate::i18n::t("打开..."),FileAction::ImportMidi=>crate::i18n::t("导入..."),FileAction::Close=>crate::i18n::t("退出...")};
             match ui::prompt::unsaved(ctx,title) {
@@ -401,11 +421,20 @@ impl App {
             ui::settings::show(self, ctx);
         }
         ui::voice_library::dialogs(self, ctx);
+        ui::instruments::dialog(self,ctx);
+        ui::instruments::mixer_dialog(self,ctx);
+        ui::presets::dialog(self,ctx);
     }
 }
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
+        ui::theme::set_accent(ui, if self.editor.current_track().is_instrument() {
+            self.preferences.instrument_accent
+        } else {
+            self.preferences.voice_accent
+        });
         let ctx = ui.ctx().clone();
+        ui::instruments::rewrite::poll(self,&ctx);
         if let Some(provider) = self.rocoflex.poll(&self.preferences.rocoflex, &ctx) {
             self.synthesis.set_rocoflex_provider(provider);
         }
@@ -418,7 +447,10 @@ impl eframe::App for App {
         if !self.rocoflex.owns_drop(&ctx) && let Some(path)=dropped.first() {
             if dropped.len()!=1 {self.error=Some(crate::i18n::t("请一次拖入一个工程文件。").into());}
             else if path.extension().and_then(|e|e.to_str()).is_some_and(|e|rynthv::project_import::EXTENSIONS.iter().any(|ext|e.eq_ignore_ascii_case(ext))) {
-                self.request_file(FileAction::OpenPath(path.clone()),&ctx);
+                if self.project_import.is_some()||self.dropped_project.is_some(){self.error=Some(crate::i18n::t("已有工程正在导入。").into());}
+                else if path.extension().and_then(|e|e.to_str()).is_some_and(|e|["svp","ixp","tlp","tlpx"].iter().any(|ext|e.eq_ignore_ascii_case(ext))){
+                    self.dropped_project=Some(path.clone());
+                }else{self.request_file(FileAction::OpenPath(path.clone()),&ctx);}
             }
         }
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {
@@ -432,14 +464,18 @@ impl eframe::App for App {
             audio_seconds,
         );
         let transport_position = self.editor.transport.position;
+        ui::scripts::poll(self,&ctx);
         if self.editor.transport.playing {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
         if self.pending.is_none()
+            && self.dropped_project.is_none()
             && !self.rocoflex.owns_keyboard(&ctx)
             && self.error.is_none()
             && !self.settings
             && !self.voice_manager
+            && !self.instrument_manager
+            && !self.instrument_mixer
             && self.synthesis.context_import.dialog.is_none()
             && !self.about
             && self.rename.is_none()
@@ -447,6 +483,8 @@ impl eframe::App for App {
             && self.bpm_edit.is_none()
             && self.fill_lyrics.is_none()
             && !self.preset_library.is_naming()
+            && !self.control_presets.is_naming()
+            && !self.scripts.has_dialog()
             && self.midi_import.is_none()
             && !Popup::is_any_open(&ctx)
         {
@@ -507,7 +545,7 @@ impl eframe::App for App {
                 ui.label(RichText::new(crate::i18n::message(hint)).size(11.0).color(ui::theme::MUTED));
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.label(
-                        RichText::new(crate::i18n::message(self.synthesis.status()))
+                        RichText::new(crate::i18n::message(ui::synthesis::status(self)))
                             .size(11.0)
                             .color(ui::theme::MUTED),
                     );
@@ -517,6 +555,7 @@ impl eframe::App for App {
         self.dialogs(&ctx);
         ui::rename::show(self, &ctx);
         if self.pending.is_none() && self.error.is_none() {
+            ui::scripts::dialog(self,&ctx);
             ui::time_edit::show(self, &ctx);
             ui::fill_lyrics::show(self, &ctx);
             ui::midi_import::show(self, &ctx);

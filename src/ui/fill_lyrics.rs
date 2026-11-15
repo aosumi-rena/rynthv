@@ -106,7 +106,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                     .add_enabled(
                         !words.is_empty(),
                         Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS))
-                            .fill(GREEN)
+                            .fill(crate::ui::theme::accent(ui))
                             .min_size(size),
                     )
                     .on_hover_text(crate::ui::chrome::shortcut_text(crate::i18n::t("Ctrl+Enter 确定")))

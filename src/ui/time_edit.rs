@@ -132,7 +132,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                 submit |= ui
                     .add_sized(
                         size,
-                        Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS)).fill(GREEN),
+                        Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS)).fill(crate::ui::theme::accent(ui)),
                     )
                     .clicked();
             });

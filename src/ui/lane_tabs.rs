@@ -8,6 +8,10 @@ use crate::app::App;
 use eframe::egui::*;
 
 pub(super) fn show(app: &mut App, ui: &mut Ui) {
+    if app.editor.current_track().is_instrument() {
+        super::instruments::lanes::tabs(app,ui);
+        return;
+    }
     let experiments_available=app.voice_inventory().and_then(|v|v.configuration.as_ref())
         .is_some();
     for lane in &mut app.view.lanes {
@@ -40,21 +44,15 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
                         lane.visible = !lane.visible;
                     }
                 }
-                if ui
-                    .add_enabled(
-                        app.view.lanes.len() < 16,
-                        IconButton::new(Icon::Plus, crate::i18n::t("新增参数区域"))
-                            .size(vec2(30.0, 26.0))
-                            .icon_size(14.0),
-                    )
-                    .clicked()
+                if add_button(ui,app.view.lanes.len()<16).clicked()
                 {
                     app.view.lanes.push(Lane::new());
                 }
             });
         });
-    if let Some(id) = close {
-
+    if let Some(id) = close {close_lane(app,ui,id);}
+}
+fn close_lane(app: &mut App, ui: &Ui, id: u64) {
         app.view.lanes.retain(|lane| lane.id != id);
         if matches!(app.gesture, Some(Gesture::Parameter { lane, .. }) if lane == id)
             || matches!(&app.gesture,Some(Gesture::Curve(g)) if g.lane==id) {
@@ -62,10 +60,12 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
             app.gesture = None;
         }
         ui.ctx().request_repaint();
-    }
+}
+fn add_button(ui:&mut Ui,enabled:bool)->Response {
+    ui.add_enabled(enabled,IconButton::new(Icon::Plus,crate::i18n::t("新增参数区域")).size(vec2(30.0,26.0)).icon_size(14.0))
 }
 
-fn tab(ui: &mut Ui, icon: Icon, text: &str, active: bool, lane: Option<u64>) -> (Response, bool) {
+pub(crate) fn tab(ui: &mut Ui, icon: Icon, text: &str, active: bool, lane: Option<u64>) -> (Response, bool) {
     let color = if active { TEXT } else { MUTED };
     let galley = ui
         .painter()

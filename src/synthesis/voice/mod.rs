@@ -1,5 +1,6 @@
 mod archive;
 mod catalog;
+pub(crate) use catalog::metadata::MetadataIndex;
 mod config;
 mod duration_frontend;
 pub(crate) mod embedded;

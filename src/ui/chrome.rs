@@ -125,7 +125,7 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             let selected = app.piano_tool != super::piano::Tool::PitchAnchor
                 && !super::lanes::parameter_active(app) && !super::phonemes::phoneme_active(app)
                 && !app.editor.selected.is_empty();
-            if item(ui, crate::i18n::t("填入歌词…"), "Ctrl+L", selected) {
+            if !app.editor.current_track().is_instrument() && item(ui, crate::i18n::t("填入歌词…"), "Ctrl+L", selected) {
                 super::fill_lyrics::open(app);
             }
             if item(ui, crate::i18n::t("静音音符"), "Ctrl+M", selected) {
@@ -148,9 +148,10 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             item(ui, crate::i18n::t("检测曲速"), "", false);
         });
         ui.menu_button(crate::i18n::t("项目"), |ui| {
-            if item(ui, crate::i18n::t("创建音轨"), "", true) {
+            if item(ui, crate::i18n::t("添加歌声音轨…"), "", true) {
                 app.editor.add_track();
             }
+            if item(ui,crate::i18n::t("Add Instrument Track..."),"",true){app.editor.add_instrument_track();}
             if item(
                 ui,
                 crate::i18n::t("在走带处插入新组"),
@@ -159,7 +160,7 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             ) {
                 app.editor.add_group();
             }
-            if item(ui, crate::i18n::t("创建伴奏轨"), "", true) {
+            if item(ui, crate::i18n::t("添加音频音轨…"), "", true) {
                 let id = app.editor.add_instrumental_track();
                 app.import_audio(Some(id), &ctx);
             }
@@ -181,8 +182,7 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             }
         });
         ui.menu_button(crate::i18n::t("脚本"), |ui| {
-            item(ui, crate::i18n::t("重新扫描"), "", false);
-            item(ui, crate::i18n::t("打开脚本文件夹"), "", false);
+            super::scripts::menu(app,ui);
         });
         ui.menu_button(crate::i18n::t("其他"), |ui| {
             if item(ui, crate::i18n::t("关于 RynthV"), "", true) {
@@ -254,7 +254,7 @@ pub fn shortcuts(app: &mut App, ctx: &Context) {
     } else if command(Key::Z, ctrl) {
         app.editor.undo();
     }
-    if !super::lanes::parameter_active(app) && !super::phonemes::phoneme_active(app)
+    if !app.editor.current_track().is_instrument() && !super::lanes::parameter_active(app) && !super::phonemes::phoneme_active(app)
         && super::piano::anchor_keyboard(app, ctx) {
         return;
     }
@@ -272,7 +272,7 @@ pub fn shortcuts(app: &mut App, ctx: &Context) {
         edit::duplicate(app);
     }
     if !super::lanes::parameter_active(app) && !super::phonemes::phoneme_active(app)
-        && app.piano_tool != super::piano::Tool::PitchAnchor && command(Key::L, ctrl) {
+        && !app.editor.current_track().is_instrument() && app.piano_tool != super::piano::Tool::PitchAnchor && command(Key::L, ctrl) {
         super::fill_lyrics::open(app);
         return;
     }
@@ -303,14 +303,14 @@ pub fn shortcuts(app: &mut App, ctx: &Context) {
         app.piano_tool = super::piano::Tool::NoteDraw;
         app.status.clear();
     }
-    if command(Key::Num3, Modifiers::ALT) {
+    if !app.editor.current_track().is_instrument() && command(Key::Num3, Modifiers::ALT) {
         app.commit_lyric();
         app.editor.selected.clear();
         app.piano_tool = super::piano::Tool::PitchAnchor;
         app.show_pitch = true;
         app.status.clear();
     }
-    if command(Key::Num4, Modifiers::ALT) {
+    if !app.editor.current_track().is_instrument() && command(Key::Num4, Modifiers::ALT) {
         app.commit_lyric();
         app.piano_tool = super::piano::Tool::PitchDraw;
         app.show_pitch = true;

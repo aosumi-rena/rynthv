@@ -102,7 +102,8 @@ fn draw_waveform(context: &Draw<'_>, waveform: &Waveform) -> bool {
             continue;
         }
         let mut mesh = Mesh::default();
-        let mut flash = Flash::new(clip, pixel);
+        let [r,g,b]=app.preferences.voice_accent;
+        let mut flash = Flash::new(clip, pixel, Color32::from_rgb(r,g,b));
         let columns = ((right - left) / pixel).ceil() as usize;
         mesh.reserve_vertices(columns * 4);
         mesh.reserve_triangles(columns * 2);

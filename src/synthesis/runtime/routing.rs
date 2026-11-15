@@ -10,7 +10,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 impl Runtime {
     pub fn voice_not_installed(&self,track:&Track,reference:&GroupRef)->bool {
-        !track.is_instrumental() && self.library.catalog().and_then(|catalog|
+        !track.is_instrumental() && !track.is_instrument() && self.library.catalog().and_then(|catalog|
             catalog.is_bank_installed(&track.main_ref.database,&reference.database))==Some(false)
     }
     pub fn resolve_voice(
@@ -18,7 +18,7 @@ impl Runtime {
         track: &Track,
         reference: &GroupRef,
     ) -> Result<Option<VoiceSelection>, String> {
-        if track.is_instrumental() {
+        if track.is_instrumental() || track.is_instrument() {
             return Ok(None);
         }
         match self.library.catalog() {
@@ -51,7 +51,7 @@ impl Runtime {
         self.pending_voices.clear();
         let mut required = BTreeSet::new();
         for track in &project.tracks {
-            if track.is_instrumental() {
+            if track.is_instrumental() || track.is_instrument() {
                 continue;
             }
             for reference in track.references() {
@@ -127,8 +127,16 @@ impl Runtime {
         if self.last_revision == Some(revision)
             && self.last_audio_generation == self.instrumentals.generation
         {
+            if self.instruments_changed {
+                self.instruments_changed=false;
+                self.instruments.sync(project,self.library.settings.instruments.clone(),&self.repaint);
+                self.prepare_recordings(project);
+                self.refresh_playback();
+            }
             return;
         }
+        self.instruments_changed=false;
+        self.instruments.sync(project,self.library.settings.instruments.clone(),&self.repaint);
         self.reconcile_voices(project);
         let identities: BTreeMap<_, _> = self
             .routes
@@ -163,6 +171,9 @@ impl Runtime {
                 .try_fold(BTreeSet::new(), |mut solo, track| {
                     crate::synthesis::mixing_options::validate_mixer(&track.mixer)
                         .map_err(|error| format!("音轨 {}：{error}", track.name))?;
+                    if track.rocoflex.as_ref().is_some_and(|r|r.enabled) && super::mixer::has_effects(&track.mixer) {
+                        return Err(format!("{}: Rocoflex with track effects is not supported",track.name));
+                    }
                     match track.mixer.get("solo").and_then(serde_json::Value::as_bool) {
                         Some(true) => {
                             solo.insert(track.id);
@@ -184,6 +195,7 @@ impl Runtime {
             Err(error) => {
                 self.project_error = Some(error);
                 self.morphs.reset();
+                self.effects=Default::default();
                 self.recordings = super::mixer::RecordingMix::default();
                 for voice in self.voices.values_mut() {
                     if let Some(worker) = &voice.worker {
@@ -202,6 +214,7 @@ impl Runtime {
         }
         self.dispatch_voices();
         self.aggregate_voices();
+        self.sync_effects();
         self.prepare_recordings(project);
         self.sync_morph_tracks(project);
         self.refresh_playback();

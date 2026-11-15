@@ -218,6 +218,8 @@ pub struct RocoflexTrack {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Track {
+    #[serde(default, rename="rynthvInstrument", skip_serializing_if="Option::is_none")]
+    pub instrument: Option<super::InstrumentTrack>,
     #[serde(skip, default = "new_id")]
     pub id: EntityId,
     pub name: String,
@@ -255,6 +257,7 @@ impl Track {
             ]),
             extra: BTreeMap::from([("renderEnabled".into(), json!(false))]),
             instrumental: None,
+            instrument: None,
             rocoflex: None,
         }
     }
@@ -264,6 +267,7 @@ impl Track {
     pub fn is_instrumental(&self) -> bool {
         self.instrumental.is_some()
     }
+    pub fn is_instrument(&self) -> bool { self.instrument.is_some() }
     pub fn audio_clip(&self) -> Option<&AudioClip> {
         self.instrumental.as_ref()?.clip.as_ref()
     }

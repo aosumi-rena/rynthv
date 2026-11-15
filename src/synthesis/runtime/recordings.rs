@@ -5,7 +5,8 @@ use std::sync::Arc;
 impl Runtime {
     pub(super) fn prepare_recordings(&mut self, project: &Project) {
         match mixer::recordings(project, &self.instrumentals, &self.solo_tracks) {
-            Ok(mix) => {
+            Ok(mut mix) => {
+                if let Err(error)=mixer::append_instruments(&mut mix,project,&self.instruments,&self.solo_tracks){self.recording_error=Some(error);return;}
                 self.recordings = mix;
                 self.recording_error = None;
             }
@@ -30,7 +31,7 @@ impl Runtime {
                 .ceil() as usize;
             end = end.max(last);
             let voice = self.routes.get(&id.reference()).and_then(|key| self.voices.get(key));
-            if plan.output_controls[id].rocoflex || voice.is_some_and(|v| v.live.is_some()) {
+            if plan.output_controls[id].rocoflex || self.effects.contains(plan.output_controls[id].track_id) || voice.is_some_and(|v| v.live.is_some()) {
                 continue;
             }
 
@@ -67,7 +68,7 @@ impl Runtime {
                 pending,
                 end.max(self.metronome.end_frames),
             )
-            .with_morphs(self.morph_playback())
+            .with_morphs(self.morph_playback().into_iter().chain(self.effects.playback()).collect())
             .with_metronome(Arc::clone(&self.metronome.track));
             self.playback
                 .load_source(Arc::new(source), self.desired_seconds, self.desired_playing);

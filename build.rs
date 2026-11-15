@@ -1,8 +1,11 @@
 use std::{env, path::PathBuf};
 #[path="native/build.rs"]
 mod standard_native;
+#[path="native/scripts/build.rs"]
+mod script_native;
 
 fn main() {
+    script_native::build();
     println!("cargo::rerun-if-changed=assets/branding/app-icon.ico");
     println!("cargo::rerun-if-changed=assets/branding/app-icon.rc");
 

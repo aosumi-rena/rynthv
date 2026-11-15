@@ -16,9 +16,9 @@ pub(super) fn morph_input(plan: &crate::synthesis::plan::RenderPlan, events: &Ev
     mirrors: &[OwnerId], pcm: Option<Arc<crate::synthesis::audio::RenderedAudio>>, start: Option<i64>)
 {
     let owners = mirrors.iter().copied().filter(|id| plan.output_controls.get(id)
-        .is_some_and(|out| out.rocoflex && !out.reference_muted)).collect::<Vec<_>>();
+        .is_some_and(|out| (out.rocoflex || mixer::has_effects(&out.mixer)) && !out.reference_muted)).collect::<Vec<_>>();
     if !owners.is_empty() {
-        let _ = events.send(Event::MorphInput { revision, owners, pcm, start });
+        let _ = events.send(Event::MorphInput { revision, owners, pcm, start, complete:false });
     }
 }
 
@@ -97,6 +97,12 @@ impl<'network, 'tree> WorkState<'network, 'tree> {
             let stats = self.cache.stats();
             let complete = stats.queued == 0 && stats.running == 0 && stats.failed == 0;
             let mut owners = snapshot.unwrap_or_else(|| self.cache.snapshot());
+            for owner in &owners {
+                if mixer::has_effects(&owner.controls.mixer) {
+                    let _=events.send(Event::MorphInput {revision:self.revision,owners:vec![owner.owner],
+                        pcm:Some(Arc::clone(&owner.audio)),start:None,complete:true});
+                }
+            }
             if !complete { owners.retain(|owner| owner.controls.rocoflex); }
             let audio = if complete {
                 match mixer::mix(&owners, &self.solo_tracks) {

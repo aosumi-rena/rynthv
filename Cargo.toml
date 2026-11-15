@@ -16,6 +16,11 @@ name = "rynthv-synth"
 path = "src/synthesis_cli.rs"
 
 [dependencies]
+arboard = {version="=3.6.1",default-features=false}
+blake3 = {version="=1.8.7", features=["pure"]}
+rustfft = "=6.4.1"
+matrixmultiply = "=0.3.11"
+half = "=2.7.1"
 eframe = { version = "=0.36.2", default-features = false, features = ["default_fonts", "wgpu_no_default_features", "accesskit"] }
 egui_extras = { version = "=0.36.2", default-features = false, features = ["svg", "file", "image"] }
 image = { version = "=0.25.10", default-features = false, features = ["png"] }
@@ -49,7 +54,7 @@ wgpu = { version = "=30.0.1", default-features = false, features = ["vulkan", "g
 rfd = { version = "=0.17.2", default-features = false, features = ["xdg-portal", "wayland"] }
 
 [build-dependencies]
-find-msvc-tools = "=0.1.14"
+find-msvc-tools = "=0.1.15"
 
 [profile.release]
 lto = "thin"

@@ -7,7 +7,7 @@ use serde::Deserialize;
 const MAX_METADATA_BYTES: u64 = 64 * 1024;
 
 #[derive(Debug)]
-pub(super) struct DisplayMetadata {
+pub(crate) struct DisplayMetadata {
     pub genres: Vec<String>,
     pub pitch_range: Option<String>,
     pub languages: Vec<String>,
@@ -15,7 +15,7 @@ pub(super) struct DisplayMetadata {
 }
 
 #[derive(Debug, Default)]
-pub(super) struct MetadataIndex {
+pub(crate) struct MetadataIndex {
     entries: Vec<Entry>,
 }
 
@@ -40,7 +40,7 @@ struct MetadataFile {
 }
 
 impl MetadataIndex {
-    pub(super) fn load(root: &Path) -> Self {
+    pub(crate) fn load(root: &Path) -> Self {
         let Ok(files) = fs::read_dir(root.join("meta")) else {
             return Self::default();
         };
@@ -51,7 +51,7 @@ impl MetadataIndex {
         Self { entries }
     }
 
-    pub(super) fn lookup(&self, name: &str, vendor: &str) -> Option<&DisplayMetadata> {
+    pub(crate) fn lookup(&self, name: &str, vendor: &str) -> Option<&DisplayMetadata> {
         let matches = self
             .entries
             .iter()

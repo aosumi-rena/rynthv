@@ -1,4 +1,4 @@
-mod live;
+pub(super) mod live;
 mod recordings;
 pub(super) use live::LiveMixer;
 pub(super) use recordings::{RecordingMix, recordings};
@@ -14,6 +14,23 @@ use crate::{
 use std::{collections::{BTreeMap, BTreeSet}, ops::Range, sync::Arc};
 
 const NATIVE_SAMPLE_RATE: u32 = 48_000;
+
+pub(super) fn append_instruments(mix:&mut RecordingMix,project:&crate::model::Project,instruments:&crate::synthesis::instruments::Instruments,solo:&BTreeSet<u64>)->Result<(),String>{
+    for (track_id,output) in &instruments.mixer.tracks{
+        let Some(track)=project.tracks.iter().find(|t|t.id==*track_id) else{continue};
+        if let Some(error)=&output.error {return Err(error.clone());}
+        let controls=Controls::read_instrument(&track.mixer)?;
+        if controls.mute||(!solo.is_empty()&&!solo.contains(&track.id)){continue}
+        for audio in &output.parts {
+        let frames=audio.frames();let start=(audio.start_seconds()*48000.0).round() as i64;
+        let (left,right)=controls.gains(audio.layout());
+        let layer=AudioLayer{track_id:track.id,audio:Arc::clone(audio),start_frame:start,source_start:0,frames,gains:[left as f32,right as f32]};
+        mix.end=mix.end.max(layer.end_frame());mix.layers.push(layer);
+        }
+        if let Some(range)=&output.pending {mix.pending.push(range.clone());mix.end=mix.end.max(range.end);}
+    }
+    Ok(())
+}
 
 struct Controls {
     mute: bool,
@@ -49,7 +66,7 @@ pub(super) fn mix_with_recordings(
         .map_err(|error| format!("无法分配混音片段：{error}"))?;
     let mut output_frames = 0;
     for owner in owners {
-        if owner.controls.rocoflex {
+        if owner.controls.rocoflex || has_effects(&owner.controls.mixer) {
             continue;
         }
         if owner.audio.sample_rate() != NATIVE_SAMPLE_RATE {
@@ -128,6 +145,10 @@ pub(super) fn mix_with_recordings(
         .map(Arc::new)
         .map(Some)
         .map_err(|error| format!("混音输出无效：{error}"))
+}
+
+pub(super) fn has_effects(mixer:&Extra)->bool {
+    mixer.get("fxParams").and_then(|v|crate::synthesis::effects::Configuration::read(v).ok()).is_some_and(|v|v.enabled())
 }
 
 fn prepare_span(owner: &PublishedOwner, controls: Controls) -> Result<Option<Span<'_>>, String> {
@@ -248,8 +269,15 @@ fn native_bound(project_sample: i64, project_rate: u32) -> Result<usize, String>
 }
 
 impl Controls {
+    fn read_instrument(extra: &Extra) -> Result<Self, String> {
+        crate::synthesis::mixing_options::validate_instrument_mixer(extra)?;
+        Self::values(extra)
+    }
     fn read(extra: &Extra) -> Result<Self, String> {
         crate::synthesis::mixing_options::validate_mixer(extra)?;
+        Self::values(extra)
+    }
+    fn values(extra: &Extra) -> Result<Self, String> {
         let mute = boolean(extra, "mute")?;
         let solo = boolean(extra, "solo")?;
         let decibels = number(extra, "gainDecibel")?;

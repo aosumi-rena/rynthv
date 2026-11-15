@@ -36,7 +36,7 @@ model-condition values are not printed in the report.
 render-score: --profile FILE (requires a build with --features synth-profile)
               --duration-identity U64 (invocation global override;
               exact voice-revision override takes precedence; otherwise uses
-              configured global override, then saved context/session;
+              configured global override, then literal zero;
               not used by original SV1 models)
 
 render-score takes explicit note/phone records and writes native float32 WAV.

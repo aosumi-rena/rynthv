@@ -22,6 +22,7 @@ pub fn waveforms(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
     if !app.show_waveform {
         return;
     }
+    if app.editor.current_track().is_instrument(){return;}
     let now = Instant::now();
     let mut animating = false;
     let mut notes = HashMap::new();
@@ -46,6 +47,7 @@ pub fn pitch(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
     if !app.show_pitch {
         return;
     }
+    if app.editor.current_track().is_instrument(){crate::ui::instruments::visuals::show(app,ui,canvas,true);return;}
     for group in groups {
         for piece in app.synthesis.visuals(OwnerId::new(group.reference.id)).flat_map(|v|v.pieces()) {
             let painter = painter(ui, canvas, app, &piece.range);

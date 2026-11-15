@@ -4,7 +4,7 @@ use rynthv::synthesis::{
     engine,
     score::ExplicitScore,
     settings::{SynthesisSettings, VoiceSelection},
-    voice::{PreparedVoice, VoiceInventory, session_identity},
+    voice::{PreparedVoice, VoiceInventory},
 };
 use serde_json::{Value, json};
 use std::{fs, time::Instant};
@@ -35,7 +35,6 @@ pub fn run(
         .configuration
         .as_ref()
         .ok_or("Voice metadata is unavailable")?;
-    let name = &config.name;
     let mut identity_source = "not required";
     let identity = if voice.family.requires_identity() {
         let selection = VoiceSelection { database_id: inventory.database_id.clone(), revision: config.version.parse()? };
@@ -52,8 +51,8 @@ pub fn run(
             identity_source = "global settings override";
             value
         } else {
-            identity_source = "saved RynthV context/session";
-            session_identity::saved_identity(name, voice.family.model_version()).map_err(|error| error.to_string())?
+            identity_source = "default zero";
+            0
         };
         Some(selected)
     } else if args.duration_identity.is_some() {

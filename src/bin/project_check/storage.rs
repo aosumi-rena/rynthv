@@ -4,7 +4,8 @@ use std::path::Path;
 
 pub(super) fn tracks(project:&Project)->Value {
     json!(project.tracks.iter().map(|track|json!({
-        "name":track.name,"instrumental":track.is_instrumental(),
+        "name":track.name,"instrumental":track.is_instrumental(),"instrument":track.instrument,
+        "groups":track.references().filter_map(|r|project.group(&r.group_id).map(|g|json!({"name":g.name,"notes":g.notes.len(),"offset":r.blick_offset,"begin":r.blick_absolute_begin,"end":r.blick_absolute_end,"database":r.database,"pitch_curves":g.pitch_controls.len(),"parameters":g.parameters}))).collect::<Vec<_>>(),
         "clip":track.instrumental.as_ref().and_then(|a|a.clip.as_ref()).map(|clip|json!({
             "path":clip.path,"onset_seconds":clip.onset_seconds,"duration_seconds":clip.duration_seconds,
             "window":clip.window(),"trim_begin_seconds":clip.trim_begin_seconds,"trim_end_seconds":clip.trim_end_seconds,

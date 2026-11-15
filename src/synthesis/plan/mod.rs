@@ -116,7 +116,7 @@ impl Planner {
         let mut previous = std::mem::take(&mut self.plan.requests);
         let previous_output = std::mem::take(&mut self.plan.output_controls);
         for track in &project.tracks {
-            if track.is_instrumental() {
+            if track.is_instrumental() || track.is_instrument() {
                 continue;
             }
             for reference in track.references() {

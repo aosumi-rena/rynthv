@@ -7,6 +7,7 @@ use crate::app::App;
 use eframe::egui::*;
 
 pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
+    super::instruments::dynamics::finish_released(app, ui.ctx());
     let rect = ui.max_rect();
     let rail = Rect::from_min_max(
         pos2(rect.right() - super::tool_rail::WIDTH, rect.top()),
@@ -14,7 +15,7 @@ pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
     );
     super::tool_rail::show(app, &mut child(ui, rail, "tool-rail"));
     let main = Rect::from_min_max(rect.min, pos2(rail.left() - 5.0, rect.bottom()));
-    let columns = app.view.columns.clone();
+    let columns:Vec<_>=app.view.columns.iter().copied().filter(|c|!app.editor.current_track().is_instrument()||*c!=Column::Dictionary).collect();
     let panels = columns.len() - 1;
     let panel_width = app
         .view
@@ -44,7 +45,7 @@ pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
                     ui.input(|i| i.pointer.hover_pos().is_some_and(|p| p.x < r.center().x));
                 let target = if before { r.left() } else { r.right() };
                 ui.painter()
-                    .vline(target, r.y_range(), Stroke::new(3.0, GREEN));
+                    .vline(target, r.y_range(), Stroke::new(3.0, crate::ui::theme::accent(ui)));
                 if ui.input(|i|i.pointer.any_released()) {
                     DragAndDrop::take_payload::<DragPayload>(ui.ctx());
                     drop = Some((source, index + usize::from(!before)));
@@ -157,7 +158,7 @@ fn editor(app: &mut App, ui: &mut Ui,seeked:bool) {
             ui.painter().hline(
                 rect.x_range(),
                 if first { rect.top() } else { rect.bottom() },
-                Stroke::new(3.0, GREEN),
+                Stroke::new(3.0, crate::ui::theme::accent(ui)),
             );
             if response.dnd_release_payload::<DragPayload>().is_some() {
                 app.view.arrangement_first = if matches!(*payload, DragPayload::Arrangement) {
@@ -180,22 +181,31 @@ fn piano_stack(app: &mut App, ui: &mut Ui) {
     if app.piano_collapsed || rect.height() <= super::piano::TOOLBAR_HEIGHT {
         return;
     }
+    let instrument=app.editor.current_track().is_instrument();
     let lanes: Vec<_> = app
         .view
         .lanes
         .iter()
-        .filter(|l| l.visible)
+        .filter(|l| l.visible && !instrument)
         .cloned()
         .collect();
+    let mut wave: f32=if instrument&&app.show_waveform{80.0}else{0.0};
     let desired: f32 = lanes.iter().map(|l| l.height + 5.0).sum();
-    let phonemes = if app.view.phonemes { 100.0 } else { 0.0 };
-    let available = (tabs.top() - toolbar.bottom() - 125.0 - phonemes).max(0.0);
+    let show_native_lane=if instrument{app.view.instrument_lanes.active.is_some()}else{app.view.phonemes};
+    let mut phonemes: f32 = if show_native_lane { 100.0 } else { 0.0 };
+    if instrument {
+        let budget=(tabs.top()-toolbar.bottom()-160.0).max(0.0);
+        let lower_scale=(budget/(wave+phonemes).max(1.0)).min(1.0);
+        wave*=lower_scale;
+        phonemes*=lower_scale;
+    }
+    let available = (tabs.top() - toolbar.bottom() - 125.0 - phonemes - wave).max(0.0);
     let scale = if desired > available {
         available / desired.max(1.0)
     } else {
         1.0
     };
-    let mut y = tabs.top() - desired * scale - phonemes;
+    let mut y = tabs.top() - desired * scale - phonemes - wave;
     super::piano::show(
         app,
         &mut child(
@@ -204,9 +214,10 @@ fn piano_stack(app: &mut App, ui: &mut Ui) {
             "piano",
         ),
     );
-    if app.view.phonemes {
+    if wave>0.0{let r=Rect::from_min_size(pos2(rect.left(),y),vec2(rect.width(),wave));super::instruments::visuals::waveform_lane(app,&child(ui,r,"instrument-waveform"));y+=wave;}
+    if show_native_lane && phonemes>1.0 {
         let p = Rect::from_min_size(pos2(rect.left(), y), vec2(rect.width(), phonemes));
-        super::phonemes::show(app,&mut child(ui,p,"phonemes"));
+        if instrument{super::instruments::lanes::show(app,&mut child(ui,p,"instrument-lane"));}else{super::phonemes::show(app,&mut child(ui,p,"phonemes"));}
         y += phonemes;
     }
     let mut reorder = None;
@@ -232,7 +243,7 @@ fn piano_stack(app: &mut App, ui: &mut Ui) {
             let response = ui.interact(r, Id::new(("lane-drop", lane.id)), Sense::hover());
             if response.contains_pointer() {
                 ui.painter()
-                    .hline(r.x_range(), r.top(), Stroke::new(3.0, GREEN));
+                    .hline(r.x_range(), r.top(), Stroke::new(3.0, crate::ui::theme::accent(ui)));
                 if response.dnd_release_payload::<DragPayload>().is_some() {
                     reorder = Some((source, lane.id));
                 }

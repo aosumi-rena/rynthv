@@ -1,7 +1,7 @@
 use crate::ui::theme::*;
 use eframe::egui::*;
 
-pub(super) fn padded(ui: &mut Ui, content: impl FnOnce(&mut Ui)) {
+pub(crate) fn padded(ui: &mut Ui, content: impl FnOnce(&mut Ui)) {
     Frame::new().inner_margin(16).show(ui, |ui| {
         ui.set_width(ui.available_width());
         ui.spacing_mut().item_spacing.y = 12.0;

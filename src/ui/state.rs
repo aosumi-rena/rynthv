@@ -11,12 +11,14 @@ pub enum Column {
     Dictionary,
     Render,
     Script,
+    Effects,
 }
 impl Column {
-    pub const PANELS: [Self; 5] = [
+    pub const PANELS: [Self; 6] = [
         Self::Voice,
         Self::Note,
         Self::Dictionary,
+        Self::Effects,
         Self::Render,
         Self::Script,
     ];
@@ -28,6 +30,7 @@ impl Column {
             Self::Dictionary => crate::i18n::t("词典"),
             Self::Render => crate::i18n::t("渲染"),
             Self::Script => crate::i18n::t("脚本"),
+            Self::Effects => crate::i18n::t("Effects"),
         }
     }
     pub fn icon(self) -> super::icons::Icon {
@@ -39,6 +42,7 @@ impl Column {
             Self::Dictionary => Icon::Dictionary,
             Self::Render => Icon::Render,
             Self::Script => Icon::Script,
+            Self::Effects => Icon::Effects,
         }
     }
 }
@@ -96,6 +100,10 @@ pub struct ViewState {
     pub scale: ScaleDisplay,
     pub lanes: Vec<Lane>,
     pub phonemes: bool,
+    #[serde(default)]
+    pub instrument_lanes: super::instruments::lanes::InstrumentLanes,
+    #[serde(default="dock_position")]
+    pub instrument_dock: [f32; 2],
 }
 impl Default for ViewState {
     fn default() -> Self {
@@ -125,6 +133,8 @@ impl Default for ViewState {
                 ..Lane::new()
             }],
             phonemes: false,
+            instrument_lanes: Default::default(),
+            instrument_dock: dock_position(),
         }
     }
 }
@@ -133,6 +143,7 @@ impl ViewState {
         if self.columns.contains(&column) {
             self.columns.retain(|c| *c != column);
         } else {
+            if !self.panel_order.contains(&column){self.panel_order.push(column);}
             let rank = self.panel_order.iter().position(|c|*c==column).unwrap();
             let index = self.columns.iter().position(|c|
                 self.panel_order.iter().position(|p|p==c).unwrap()>rank).unwrap_or(self.columns.len());
@@ -150,8 +161,9 @@ impl ViewState {
         }
     }
     pub fn valid(&self) -> bool {
-        self.panel_order.len()==6
-            && self.panel_order.iter().collect::<std::collections::HashSet<_>>().len()==6
+        self.panel_order.contains(&Column::Editor)
+            && self.panel_order.iter().collect::<std::collections::HashSet<_>>().len()==self.panel_order.len()
+            && self.columns.iter().all(|c|self.panel_order.contains(c))
             && self.columns
             .iter()
             .filter(|c| **c == Column::Editor)
@@ -181,6 +193,8 @@ impl ViewState {
             && (8.0..=48.0).contains(&self.row_height)
             && [4, 8, 16, 32, 64, 128].contains(&self.grid)
             && self.lanes.len() <= 16
+            && self.instrument_lanes.valid()
+            && self.instrument_dock.iter().all(|v|v.is_finite() && (0.0..=1.0).contains(v))
             && self.lanes.iter().all(|l| {
                 l.height.is_finite()
                     && (64.0..=600.0).contains(&l.height)
@@ -190,8 +204,9 @@ impl ViewState {
     }
 }
 fn panel_order()->Vec<Column> {
-    vec![Column::Editor,Column::Voice,Column::Note,Column::Dictionary,Column::Render,Column::Script]
+    vec![Column::Editor,Column::Voice,Column::Note,Column::Dictionary,Column::Effects,Column::Render,Column::Script]
 }
+fn dock_position()->[f32;2] {[0.5,0.94]}
 #[derive(Clone, Copy)]
 pub enum DragPayload {
     Column(Column),

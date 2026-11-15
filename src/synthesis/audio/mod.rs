@@ -39,7 +39,11 @@ pub struct RenderedAudio {
     start_seconds: f64,
     layout: ChannelLayout,
     samples: Arc<[f32]>,
+    components: Option<ComponentSamples>,
 }
+
+#[derive(Clone, Debug)]
+struct ComponentSamples { primary: Arc<[f32]>, aspiration: Arc<[f32]>, offset: usize }
 
 impl RenderedAudio {
     pub fn new(
@@ -77,6 +81,7 @@ impl RenderedAudio {
             start_seconds,
             layout,
             samples: samples.into(),
+            components: None,
         })
     }
 
@@ -100,6 +105,19 @@ impl RenderedAudio {
     }
     pub fn duration_seconds(&self) -> f64 {
         self.frames() as f64 / f64::from(self.sample_rate)
+    }
+
+    pub(crate) fn with_components(mut self, primary:Arc<[f32]>, aspiration:Arc<[f32]>, offset:usize) -> Result<Self,AudioError> {
+        if self.layout!=ChannelLayout::Mono || primary.len()!=aspiration.len()
+            || offset.checked_add(self.frames()).is_none_or(|end|end>primary.len()) {
+            return Err(AudioError::InvalidPcm("Invalid primary/aspiration slice".into()));
+        }
+        self.components=Some(ComponentSamples {primary,aspiration,offset});Ok(self)
+    }
+
+    pub(crate) fn voice_sample(&self, frame:usize)->[f32;2] {
+        if let Some(c)=&self.components {[c.primary[c.offset+frame],c.aspiration[c.offset+frame]]}
+        else {[self.samples[frame*self.layout.channels()],0.0]}
     }
 }
 

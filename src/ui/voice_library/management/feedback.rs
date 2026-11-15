@@ -1,8 +1,7 @@
-use super::super::{context, error_label, text, weak};
+use super::super::{error_label, text, weak};
 use crate::{
     app::App,
     synthesis::{runtime::VoiceState, voice::VoiceCatalogEntry},
-    ui::theme::*,
 };
 use eframe::egui::*;
 pub(super) fn status(
@@ -18,7 +17,7 @@ pub(super) fn status(
             });
         }
         VoiceState::Loaded(_) if app.synthesis.voice_error(selection).is_none() => {
-            text(ui, RichText::new(crate::i18n::t("已加载")).color(GREEN));
+            text(ui, RichText::new(crate::i18n::t("已加载")).color(crate::ui::theme::accent(ui)));
         }
         _ => {}
     }
@@ -32,14 +31,9 @@ pub(super) fn status(
                 crate::i18n::t("合成环境准备失败")
             },
         );
-        ui.collapsing(crate::i18n::t("查看错误详情"), |ui| error_label(ui, &error));
-        if app
-            .synthesis
-            .inventory(selection)
-            .is_some_and(|voice| voice.configuration.is_some())
-        {
-            context::controls(app, ui, selection);
-        }
+        ui.collapsing(crate::i18n::t("查看错误详情"), |ui| {
+            error_label(ui, &error)
+        });
     }
 }
 
@@ -74,7 +68,10 @@ pub(super) fn diagnostics(app: &App, ui: &mut Ui, entry: &VoiceCatalogEntry) {
             );
         }
         if let Some(elapsed) = app.synthesis.load_elapsed(&entry.selection()) {
-            weak(ui, crate::lformat!("加载耗时 {:.2} 秒", elapsed.as_secs_f64()));
+            weak(
+                ui,
+                crate::lformat!("加载耗时 {:.2} 秒", elapsed.as_secs_f64()),
+            );
         }
     }
     if let Some(catalog) = app.synthesis.library.catalog()

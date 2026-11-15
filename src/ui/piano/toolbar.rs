@@ -21,7 +21,7 @@ fn contents(app: &mut App, ui: &mut Ui) {
     ui.horizontal_centered(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         title(app, ui);
-        editing_tools(app, ui);
+        if app.editor.current_track().is_instrument(){crate::ui::instruments::toolbar(app,ui);}else{editing_tools(app, ui);}
         ui.add_space(15.0);
         for (icon, label, active) in [
             (Icon::Pitch, crate::i18n::t("显示音高曲线"), &mut app.show_pitch),
@@ -124,7 +124,7 @@ fn title(app: &mut App, ui: &mut Ui) {
             ui.ctx().request_repaint();
         }
         ui.add_space(3.0);
-        crate::ui::section_title(ui, crate::i18n::t("钢琴卷帘"), DragPayload::Piano);
+        crate::ui::section_title(ui, crate::i18n::t(if app.editor.current_track().is_instrument(){"Notes"}else{"钢琴卷帘"}), DragPayload::Piano);
     });
 }
 

@@ -228,5 +228,5 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         &app.view.arrangement,
         app.editor.transport.position,
     );
-    super::rendering_hint::show(ui,body,app.synthesis.is_synthesizing());
+    super::rendering_hint::show(ui,body,app.synthesis.is_synthesizing(),app.editor.current_track().is_instrument());
 }

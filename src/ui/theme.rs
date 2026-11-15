@@ -10,6 +10,20 @@ pub const GRID: Color32 = Color32::from_rgb(58, 57, 60);
 pub const TEXT: Color32 = Color32::from_rgb(201, 199, 204);
 pub const MUTED: Color32 = Color32::from_rgb(135, 133, 139);
 pub const GREEN: Color32 = Color32::from_rgb(125, 178, 53);
+pub fn accent(ui: &Ui) -> Color32 {
+    ui.visuals().selection.stroke.color
+}
+pub fn set_accent(ui: &mut Ui, rgb: [u8; 3]) {
+    let color = Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+    if ui.ctx().style_of(Theme::Dark).visuals.selection.stroke.color != color {
+        ui.ctx().style_mut_of(Theme::Dark, |style| {
+            style.visuals.selection.stroke = Stroke::new(1.0, color);
+            style.visuals.selection.bg_fill = color.lerp_to_gamma(PANEL, 0.7);
+        });
+    }
+    ui.visuals_mut().selection.stroke = Stroke::new(1.0, color);
+    ui.visuals_mut().selection.bg_fill = color.lerp_to_gamma(PANEL, 0.7);
+}
 pub const EDGE: Color32 = Color32::from_rgb(21, 21, 23);
 pub const BORDER: Color32 = Color32::from_rgb(57, 55, 58);
 pub const BUTTON: Color32 = Color32::from_rgb(68, 66, 71);

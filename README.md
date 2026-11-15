@@ -1,10 +1,10 @@
-# RynthV
+# RynthV & RinstX
 
 <p align="center">
   <img src="assets/branding/app-icon.png" alt="RynthV 图标" width="96" height="96">
 </p>
 
-使用 Rust + egui 开发的歌声合成引擎。
+使用 Rust + egui 开发的歌声和乐器合成引擎。
 
 ## 构建与运行
 
@@ -31,19 +31,38 @@ cargo build --release --locked --bins
 
 需要可用的图形驱动、ALSA 音频设备和桌面对应的 XDG 门户后端（KDE 使用 `xdg-desktop-portal-kde`）。
 
-## 声库与配置
+### macOS
 
-首次使用请在设置中手动选择声库目录和发音词典目录，程序不会自动探测资源路径，也不附带声库、词典或用户模型上下文。
+需要 Xcode Command Line Tools 和支持 Metal 的 Mac。首次构建前安装命令行工具：
 
-| 声库类型 | Windows | Linux |
-| --- | --- | --- |
-| R1 STD | 支持 | 支持 |
-| R2 STD | 支持 | 支持 |
-| R2 AI | 支持 | 支持 |
-| R2 AI Flat | 支持 | 支持 |
-| R3 AI | 需要导入模型上下文 | 需要导入模型上下文 |
-| R3 AI 2 | 需要导入模型上下文 | 需要导入模型上下文 |
+```sh
+xcode-select --install
+```
 
-配置目录：Windows 为 `%LOCALAPPDATA%/RynthV`，Linux 为 `$XDG_CONFIG_HOME/RynthV`（未设置时为 `$HOME/.config/RynthV`）。模型上下文在 Windows 保存在 `%APPDATA%/RynthV/context.json`，Linux 保存在上述配置目录的 `context.json`。
+安装完成后，在项目目录构建并运行：
+
+```sh
+cargo build --release --locked --bins
+./target/release/rynthv
+```
+
+## 资源与配置
+
+首次使用请在设置中手动选择声库／乐器目录和发音词典目录，程序不会自动探测资源路径，也不附带声库、乐器音源或词典。
+
+| 类型 | Windows | Linux | macOS |
+| --- | --- | --- | --- |
+| R1 STD | 支持 | 支持 | 支持 |
+| R2 STD | 支持 | 支持 | 支持 |
+| R2 AI | 支持 | 支持 | 支持 |
+| R2 AI Flat | 支持 | 支持 | 支持 |
+| R3 AI | 支持 | 支持 | 支持 |
+| R3 AI 2 | 支持 | 支持 | 支持 |
+| Inst | 支持 | 支持 | 支持 |
+
+配置目录：
+- Windows 为 `%LOCALAPPDATA%/RynthV`  
+- Linux 为 `$XDG_CONFIG_HOME/RynthV`（未设置时为 `$HOME/.config/RynthV`）  
+- macOS 为 `~/Library/Application Support/RynthV`
 
 命令行合成与诊断工具的用法可通过 `cargo run --release --locked --bin rynthv-synth -- --help` 查看。

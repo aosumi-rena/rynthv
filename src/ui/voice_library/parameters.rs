@@ -7,8 +7,9 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
     ui.spacing_mut().item_spacing.y = 0.0;
     for spec in VOICE_CONTROLS {control(app,ui,spec);}
 }
-pub(super) fn control(app:&mut App,ui:&mut Ui,mut spec:ParameterSpec) {
-    if crate::synthesis::parameters::VOICE_CONTROLS.iter().any(|s|s.key==spec.key) {
+pub(crate) fn control(app:&mut App,ui:&mut Ui,mut spec:ParameterSpec) {
+    let instrument=app.editor.current_track().is_instrument();
+    if !instrument && crate::synthesis::parameters::VOICE_CONTROLS.iter().any(|s|s.key==spec.key) {
         spec.limit*=app.synthesis.library.settings.experiments.expression_factor();
     }
     let parameter=match spec.key {
@@ -17,16 +18,16 @@ pub(super) fn control(app:&mut App,ui:&mut Ui,mut spec:ParameterSpec) {
         "paramGender"=>Some(crate::model::Parameter::Gender),
         _=>None,
     };
-    let bounded=parameter.as_ref().is_some_and(|p|crate::ui::lanes::standard_expression_limit(app,p).is_some());
+    let bounded=!instrument && parameter.as_ref().is_some_and(|p|crate::ui::lanes::standard_expression_limit(app,p).is_some());
     if bounded {
         let (_,high)=crate::ui::lanes::accepted_parameter_range(app,parameter.as_ref().unwrap());
         spec.limit=spec.limit.min(high as f32);
     }
     let additional=VOICE_CONTROLS.iter().chain(crate::synthesis::parameters::TUNING_CONTROLS.iter()).any(|s|s.key==spec.key);
-    let supported = app.voice_inventory().and_then(|v| v.configuration.as_ref())
+    let supported = (instrument && matches!(spec.key,"paramLoudness"|"paramBreathiness")) || (!instrument && app.voice_inventory().and_then(|v| v.configuration.as_ref())
         .is_some_and(|v| v.family == VoiceFamily::Sv2 || (v.family.is_standard() && additional &&
             spec.key!="paramToneShift") ||
-            (!v.family.is_standard() && additional && app.synthesis.library.settings.experiments.active(app.synthesis.library.settings.experiments.dds_controls)));
+            (!v.family.is_standard() && additional && app.synthesis.library.settings.experiments.active(app.synthesis.library.settings.experiments.dds_controls))));
     match app.editor.voice_parameter(spec) {
         Ok((reference, value)) if supported => {
             let id = ui.make_persistent_id((spec.key, reference, app.editor.revision));

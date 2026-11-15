@@ -117,7 +117,7 @@ pub fn status(app: &App) -> &str {
 pub fn diagnostic(app: &App) -> Option<&str> { app.rocoflex.error.as_deref() }
 
 pub fn track_menu(app: &mut App, ui: &mut Ui, track: &Track) {
-    if track.is_instrumental() { return; }
+    if track.is_instrumental() || track.is_instrument() { return; }
     let available = app.rocoflex.provider.is_some();
     ui.separator();
     let mut enabled = track.rocoflex.as_ref().is_some_and(|r| r.enabled);
@@ -274,4 +274,3 @@ pub fn show(app: &mut App, ctx: &Context) {
     if !app.voice_finetuning.open { integration.lab.disconnect(); integration.draft = None; }
     for (id, settings) in changes { update_track(app, id, settings); }
 }
-

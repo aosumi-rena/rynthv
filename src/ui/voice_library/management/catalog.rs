@@ -34,7 +34,10 @@ pub(super) fn entries(app: &App, state: &State) -> Vec<VoiceCatalogEntry> {
                 continue;
             }
             let matches = query.is_empty()
-                || entry.localized_display_name().to_lowercase().contains(&query)
+                || entry
+                    .localized_display_name()
+                    .to_lowercase()
+                    .contains(&query)
                 || entry.localized_vendor().to_lowercase().contains(&query)
                 || family_name(entry).to_lowercase().contains(&query)
                 || entry.languages.iter().any(|s| {
@@ -51,10 +54,14 @@ pub(super) fn entries(app: &App, state: &State) -> Vec<VoiceCatalogEntry> {
     }
     let mut entries: Vec<_> = banks.into_values().cloned().collect();
     entries.sort_by(|a, b| {
-        let category=super::super::selector::category_of(a).cmp(&super::super::selector::category_of(b));
-        if !category.is_eq() {return category;}
+        let category =
+            super::super::selector::category_of(a).cmp(&super::super::selector::category_of(b));
+        if !category.is_eq() {
+            return category;
+        }
         let names = || {
-            a.localized_display_name().to_lowercase()
+            a.localized_display_name()
+                .to_lowercase()
                 .cmp(&b.localized_display_name().to_lowercase())
                 .then_with(|| a.localized_display_name().cmp(b.localized_display_name()))
                 .then_with(|| a.database_id.cmp(&b.database_id))

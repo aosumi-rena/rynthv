@@ -7,6 +7,7 @@ pub enum Icon {
     ChevronRight,
     Plus,
     Close,
+    Link,
     Play,
     Pause,
     Stop,
@@ -39,16 +40,40 @@ pub enum Icon {
     Swap,
     Phonemes,
     Brand,
+    Instrument,
+    MicMixer,
+    Effects,
+    Dynamics,
+    InstrumentAutomation,
+    Staccato, Tenuto, Accent, Slur, Tremolo, Breath, Harmonics, Fall, Trill,
+    Reset, SmartArticulation,
 }
 impl Icon {
     pub fn image(self) -> Image<'static> {
         match self {
+            Self::Staccato => Image::new(include_image!("../../assets/icons/rinstx/staccato.svg")),
+            Self::Tenuto => Image::new(include_image!("../../assets/icons/rinstx/tenuto.svg")),
+            Self::Accent => Image::new(include_image!("../../assets/icons/rinstx/accent.svg")),
+            Self::Slur => Image::new(include_image!("../../assets/icons/rinstx/legato.svg")),
+            Self::Tremolo => Image::new(include_image!("../../assets/icons/rinstx/tremolo.svg")),
+            Self::Breath => Image::new(include_image!("../../assets/icons/rinstx/breath.svg")),
+            Self::Harmonics => Image::new(include_image!("../../assets/icons/rinstx/harmonic.svg")),
+            Self::Fall => Image::new(include_image!("../../assets/icons/rinstx/fall.svg")),
+            Self::Trill => Image::new(include_image!("../../assets/icons/rinstx/trill.svg")),
+            Self::Reset => Image::new(include_image!("../../assets/icons/rinstx/reset.svg")),
+            Self::SmartArticulation => Image::new(include_image!("../../assets/icons/rinstx/auto.svg")),
+            Self::Instrument => Image::new(include_image!("../../assets/icons/rinstx/instrument.svg")),
+            Self::MicMixer => Image::new(include_image!("../../assets/icons/rinstx/mixer.svg")),
+            Self::Effects => Image::new(include_image!("../../assets/icons/rinstx/effects.svg")),
+            Self::Dynamics => Image::new(include_image!("../../assets/icons/rinstx/dynamics.svg")),
+            Self::InstrumentAutomation => Image::new(include_image!("../../assets/icons/rinstx/automation.svg")),
             Self::ChevronDown => Image::new(include_image!("../../assets/icons/chevron-down.svg")),
             Self::ChevronRight => {
                 Image::new(include_image!("../../assets/icons/chevron-right.svg"))
             }
             Self::Plus => Image::new(include_image!("../../assets/icons/plus.svg")),
             Self::Close => Image::new(include_image!("../../assets/icons/close.svg")),
+            Self::Link => Image::new(include_image!("../../assets/icons/link.svg")),
             Self::Play => Image::new(include_image!("../../assets/icons/play.svg")),
             Self::Pause => Image::new(include_image!("../../assets/icons/pause.svg")),
             Self::Stop => Image::new(include_image!("../../assets/icons/stop.svg")),
@@ -84,10 +109,9 @@ impl Icon {
         }
     }
     pub fn paint(self, ui: &Ui, rect: Rect, tint: Color32) {
-        self.image()
-            .tint(tint)
-            .fit_to_exact_size(rect.size())
-            .paint_at(ui, rect);
+        let image = self.image().tint(tint).fit_to_exact_size(rect.size());
+        let size = image.load_and_calc_size(ui, rect.size()).unwrap_or(rect.size());
+        image.paint_at(ui, Rect::from_center_size(rect.center(), size));
     }
 }
 
@@ -100,6 +124,7 @@ pub struct IconButton {
     framed: bool,
     shared_background: bool,
     background: Option<Color32>,
+    tint: Option<Color32>,
 }
 impl IconButton {
     pub fn new(icon: Icon, label: &'static str) -> Self {
@@ -112,6 +137,7 @@ impl IconButton {
             framed: false,
             shared_background: false,
             background: None,
+            tint: None,
         }
     }
     pub fn size(mut self, size: Vec2) -> Self {
@@ -139,6 +165,10 @@ impl IconButton {
         self.background = Some(color);
         self
     }
+    pub fn tint(mut self, color: Color32) -> Self {
+        self.tint = Some(color);
+        self
+    }
 }
 impl Widget for IconButton {
     fn ui(self, ui: &mut Ui) -> Response {
@@ -163,13 +193,16 @@ impl Widget for IconButton {
             };
             ui.painter().rect_filled(rect, 3, fill);
         }
-        let tint = if self.selected {
+        if self.selected && let Some(color) = self.tint {
+            ui.painter().rect_stroke(rect, 3, Stroke::new(1.0, color), StrokeKind::Inside);
+        }
+        let tint = self.tint.unwrap_or_else(|| if self.selected {
             TEXT
         } else if self.framed {
             ICON_TOOL
         } else {
             MUTED
-        };
+        });
         let tint = if enabled {
             tint
         } else {

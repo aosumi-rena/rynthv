@@ -21,6 +21,8 @@ pub struct VoiceSelection {
 #[serde(deny_unknown_fields)]
 pub struct SynthesisSettings {
     #[serde(default)]
+    pub instruments: super::instruments::InstrumentSettings,
+    #[serde(default)]
     pub experiments: super::experiments::ExperimentalSettings,
     pub databases: Option<PathBuf>,
     pub sv1_databases: Option<PathBuf>,
@@ -52,6 +54,7 @@ fn default_duration_key() -> u64 {
 impl Default for SynthesisSettings {
     fn default() -> Self {
         Self {
+            instruments: Default::default(),
             experiments: Default::default(),
             databases: None, sv1_databases: None, phoneme_data:Default::default(), r2_ai_flat_databases:None, r2_ai_flat_models:None, selected_voice: None,
             voice_sources: Vec::new(),

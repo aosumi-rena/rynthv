@@ -123,6 +123,11 @@ pub fn draw_notes(app: &App, ui: &Ui, canvas: Rect, groups: &[SceneGroup]) {
                     StrokeKind::Inside,
                 );
             }
+            if app.editor.current_track().is_instrument(){
+                crate::ui::instruments::articulation::note_symbols(app,g.reference.id,ui,note,r,painter.clip_rect(),
+                    if active { foreground(color) } else { MUTED });
+                continue;
+            }
             painter
                 .with_clip_rect(r.intersect(painter.clip_rect()))
                 .text(

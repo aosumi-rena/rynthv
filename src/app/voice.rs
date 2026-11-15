@@ -17,6 +17,7 @@ impl App {
             .filter(|s| !s.is_empty())
     }
     pub fn has_voice(&self) -> bool {
+        if self.editor.current_track().is_instrument(){return false;}
         self.editor.current_track().references().any(|r| {
             ["name", "id"].iter().any(|key| {
                 r.database
@@ -45,6 +46,7 @@ impl App {
         self.synthesis.voice_error(&self.voice_selection()?)
     }
     pub fn select_voice(&mut self, selection: VoiceSelection) {
+        if self.editor.current_track().is_instrument(){return;}
         let Some(entry) = self.synthesis.library.entry(&selection) else {
             return;
         };

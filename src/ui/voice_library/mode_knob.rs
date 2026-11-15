@@ -16,14 +16,7 @@ struct Draft {
 
 fn arc(painter: &Painter, center: Pos2, radius: f32, value: f64, color: Color32) {
     let (low,high)=crate::synthesis::experiments::ExperimentalSettings::ui().style_range();
-    let sweep = ((value-low)/(high-low)).clamp(0.0,1.0) as f32*270.0;
-    if sweep == 0.0 {return}
-    let steps = (sweep/3.0).ceil() as usize;
-    let points: Vec<_> = (0..=steps).map(|step| {
-        let angle = (135.0+sweep*step as f32/steps as f32).to_radians();
-        center+vec2(angle.cos(),angle.sin())*radius
-    }).collect();
-    painter.add(Shape::line(points,Stroke::new(2.0,color)));
+    crate::ui::knob::arc(painter,center,radius,((value-low)/(high-low)) as f32,color);
 }
 
 pub(super) fn show(ui: &mut Ui, rect: Rect, id: Id, source: [Option<f64>;3],

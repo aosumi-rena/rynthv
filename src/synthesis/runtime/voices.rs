@@ -171,10 +171,13 @@ impl Runtime {
                 updates.owners = true;
                 self.complete_visuals(visuals);
             }
-            worker::Event::MorphInput { revision, owners, pcm, start } if revision == v.revision => {
+            worker::Event::MorphInput { revision, owners, pcm, start, complete } if revision == v.revision => {
                 for id in owners {
                     if let Some(request) = v.plan.requests.get(&id) {
-                        self.morphs.source(id, request.epoch, request.coverage, pcm.as_ref(), start);
+                        if v.plan.output_controls.get(&id).is_some_and(|out|out.rocoflex) {
+                            self.morphs.source(id, request.epoch, request.coverage, pcm.as_ref(), start);
+                        }
+                        self.effects.source(id,request.epoch,pcm.as_ref(),start,complete);
                     }
                 }
             }
