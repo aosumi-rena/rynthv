@@ -3,6 +3,13 @@ use std::{collections::HashSet,fs::File,io::Read,path::{Path,PathBuf}};
 use super::{StdResources,configuration::require,discovery::{Discovered,read_bounded}};
 use super::super::{Result,VoiceError,VoiceFamily};
 
+#[cfg(windows)]
+const RENDERER_MAGIC:[u8;2]=*b"MZ";
+#[cfg(target_os="linux")]
+const RENDERER_MAGIC:[u8;4]=*b"\x7fELF";
+#[cfg(target_os="macos")]
+const RENDERER_MAGIC:[u8;4]=[0xcf,0xfa,0xed,0xfe];
+
 fn file(path:&Path)->Result<PathBuf> {
     if !path.is_file(){return Err(VoiceError::new(format!("STD resource missing: {}. Install the matching std-resources bundle beside the RynthV executable, then rescan voices.",path.display())));}
     Ok(path.canonicalize()?)
@@ -33,9 +40,9 @@ pub(super) fn resolve(bank:&Discovered)->Result<StdResources> {
             "japanese-kata2romaji-dict.txt","japanese-sute2romaji-dict.txt","edict.txt"] {file(&directory.join(name))?;}
         let table=if directory.join("japanese-romaji.txt").is_file(){"japanese-romaji.txt"}else{"japanese-romaji-phones.txt"};
         phones(&directory.join(table),None)?;
-        let renderer=file(&root.join("r1/r1_llsm2.dll"))?;
-        let mut input=File::open(&renderer)?;let mut magic=[0;2];input.read_exact(&mut magic)?;
-        require(&magic==b"MZ","Invalid R1 renderer DLL in std-resources")?;
+        let renderer=file(&root.join(format!("r1/{}r1_llsm2{}",std::env::consts::DLL_PREFIX,std::env::consts::DLL_SUFFIX)))?;
+        let mut input=File::open(&renderer)?;let mut magic=[0;RENDERER_MAGIC.len()];input.read_exact(&mut magic)?;
+        require(magic==RENDERER_MAGIC,"Invalid R1 renderer library in std-resources")?;
         return Ok(StdResources::R1{metadata:bank.path.clone(),data:file(bank.data.as_ref().ok_or_else(||VoiceError::new("R1 data path missing"))?)?,
             language_directory:directory.canonicalize()?,renderer_library:renderer});
     }
