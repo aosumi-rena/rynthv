@@ -22,16 +22,22 @@ impl StdBank {
   let count=r.count(1_000_000)?;let contexts=r.count(1_000_000)?;
   ensure(r.name()?=="japanese"&&r.name()?=="romaji","R1 bank requires Japanese romaji resources")?;
   let flags=r.take(4)?.to_vec();ensure(flags.iter().all(|b|*b<=1),"Invalid R1 metadata flags")?;
-  if flags[3]!=0||contexts!=0{return Err(StdError::Unsupported("Grouped or linked-classifier R1 bank is not supported by this frontend".into()));}
-  r.take(32)?;let mut entries=Vec::with_capacity(count);let mut total=0usize;
-  for _ in 0..count {let n=r.count(65536)?;let mut entry=Vec::with_capacity(n);for _ in 0..n {
-   let n=r.count(500)?;total+=n;ensure(total<=16_777_216,"R1 metadata phone capacity exceeded")?;
-   let ids=r.words(n)?.into_iter().map(usize::from).collect::<Vec<_>>();ensure(ids.iter().all(|i|*i<phones.len()),"R1 stored phone outside dictionary")?;
-   let(start,end,onset_start,onset_end,blend)=(r.floats(n)?,r.floats(n)?,r.floats(n)?,r.floats(n)?,r.floats(n)?);
-   let enabled=r.take(n)?.iter().map(|b|*b!=0).collect();
-   fn vectors(r:&mut Reader,n:usize)->Result<Vec<Vec<f32>>>{(0..n).map(|_|{let k=r.count(4096)?;r.floats(k)}).collect()}
-   let encodings=if flags[0]!=0{Some(vectors(&mut r,n)?)}else{None};let features=if flags[1]!=0{Some(vectors(&mut r,n)?)}else{None};
-   entry.push(Syllable{phones:ids,start,end,onset_start,onset_end,blend,enabled,features,encodings});}entries.push(entry);}
+  if contexts!=0{return Err(StdError::Unsupported("Linked-classifier R1 bank is not supported by this frontend".into()));}
+  let mut linked=Vec::new();let mut library=0;
+  if flags[3]!=0{let n=r.count(64)?;let mut names=vec![r.name()?];for _ in 0..n{linked.push(r.count(1_000_000)?);names.push(r.name()?);}
+   let data=paths.data.file_stem().and_then(|name|name.to_str());
+   library=names.iter().position(|name|data.is_some_and(|data|data.eq_ignore_ascii_case(name))).ok_or_else(||StdError::Invalid("R1 data file is not a sub-library of this bank".into()))?;}
+  r.take(32)?;let mut total=0usize;
+  let mut entries=(0..count).map(|_|syllables(&mut r,phones.len(),&mut total,flags[0]!=0,flags[1]!=0)).collect::<Result<Vec<_>>>()?;
+  let mut selected=None;
+  for(i,n)in linked.into_iter().enumerate(){let mut group=Vec::with_capacity(n);
+   for _ in 0..n{let link=r.count(count)?;let mut entry=syllables(&mut r,phones.len(),&mut total,false,false)?;
+    if i+1==library{let source=link.checked_sub(1).map(|at|&entries[at]).ok_or_else(||StdError::Invalid("R1 sub-library entry lacks its classifier link".into()))?;
+     ensure(entry.len()==source.len()&&entry.iter().zip(source).all(|(a,b)|a.phones==b.phones),"R1 sub-library entry disagrees with its classifier link")?;
+     for(syllable,from)in entry.iter_mut().zip(source){syllable.features=from.features.clone();syllable.encodings=from.encodings.clone();}
+     group.push(entry);}}
+   if i+1==library{selected=Some(group);}}
+  if let Some(group)=selected{entries=group;}
   let qsa=Qsa::read(&r.blob()?)?;ensure(qsa.selectors==phones.len(),"R1 bank model and phone dictionary orders disagree")?;
   let kg=if flags[1]!=0{Some(Kg::read(&r.blob()?)?)}else{None};let mut rules=Vec::new();
   if flags[2]!=0{let n=r.count(65536)?;let patterns=r.take(n*24)?.to_vec();let mut p=Reader::new(&patterns);
@@ -55,4 +61,14 @@ impl StdBank {
   if forward {if a.phone+1<s.phones.len(){Some(Address{phone:a.phone+1,..a})}else if a.syllable+1<self.entries[a.entry].len()&&!self.entries[a.entry][a.syllable+1].phones.is_empty(){Some(Address{syllable:a.syllable+1,phone:0,..a})}else{None}}
   else if a.phone>0{Some(Address{phone:a.phone-1,..a})}else if a.syllable>0{let n=self.entries[a.entry][a.syllable-1].phones.len();(n>0).then_some(Address{syllable:a.syllable-1,phone:n.saturating_sub(1),..a})}else{None}}
  pub(super) fn context(&self,a:Address)->[usize;3]{[self.neighbor(a,false).map(|p|self.phone(p)).unwrap_or(self.silence),self.phone(a),self.neighbor(a,true).map(|p|self.phone(p)).unwrap_or(self.silence)]}
+}
+fn syllables(r:&mut Reader,phones:usize,total:&mut usize,encodings:bool,features:bool)->Result<Vec<Syllable>>{
+ let n=r.count(65536)?;let mut entry=Vec::with_capacity(n);for _ in 0..n {
+  let n=r.count(500)?;*total+=n;ensure(*total<=16_777_216,"R1 metadata phone capacity exceeded")?;
+  let ids=r.words(n)?.into_iter().map(usize::from).collect::<Vec<_>>();ensure(ids.iter().all(|i|*i<phones),"R1 stored phone outside dictionary")?;
+  let(start,end,onset_start,onset_end,blend)=(r.floats(n)?,r.floats(n)?,r.floats(n)?,r.floats(n)?,r.floats(n)?);
+  let enabled=r.take(n)?.iter().map(|b|*b!=0).collect();
+  fn vectors(r:&mut Reader,n:usize)->Result<Vec<Vec<f32>>>{(0..n).map(|_|{let k=r.count(4096)?;r.floats(k)}).collect()}
+  let encodings=if encodings{Some(vectors(r,n)?)}else{None};let features=if features{Some(vectors(r,n)?)}else{None};
+  entry.push(Syllable{phones:ids,start,end,onset_start,onset_end,blend,enabled,features,encodings});}Ok(entry)
 }

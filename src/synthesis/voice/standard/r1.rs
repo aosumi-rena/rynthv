@@ -63,6 +63,7 @@ pub(super) fn inspect(path:&Path)->Result<Option<Discovered>> {
     require(&header[..4]==b"s5l "&&u32::from_le_bytes(header[4..8].try_into().unwrap())==3,"Unsupported R1 metadata format")?;
     let language=name(&mut file)?;let phoneset=name(&mut file)?;
     let mut flags=[0;4];file.read_exact(&mut flags)?;
+    let library=if flags[3]==1 {file.read_exact(&mut [0;4])?;name(&mut file)?}else{"master".to_owned()};
     let fields=settings(&folder.join("settings.xml"))?;
     let display=fields.get("name").filter(|s|!s.trim().is_empty()).cloned()
         .unwrap_or_else(||folder.file_name().unwrap_or_default().to_string_lossy().into_owned());
@@ -71,14 +72,15 @@ pub(super) fn inspect(path:&Path)->Result<Option<Discovered>> {
     let version=fields.get("version").filter(|s|!s.is_empty()).cloned().unwrap_or_else(||"0".into());
     let revision=version.parse::<u32>().map(VoiceRevision::release).or_else(|_|version.parse::<VoiceRevision>())
         .map_err(|_|VoiceError::new("Unsupported R1 bank revision in settings.xml"))?;
-    let data=folder.join("master.s5d");
+    let data=folder.join(format!("{library}.s5d"));
     let validation=(||->Result<()> {
         require(language=="japanese"&&phoneset=="romaji","Only Japanese romaji R1 banks are supported")?;
         for (key,expected) in [("language",language.as_str()),("phoneset",phoneset.as_str())] {
             require(fields.get(key).is_none_or(|s|s==expected),"R1 settings disagree with bank language/phone set")?;
         }
-        require(flags.iter().all(|v|*v<=1)&&flags[3]==0&&u32::from_le_bytes(header[36..40].try_into().unwrap())==0,"Grouped or linked-classifier R1 banks are not supported")?;
-        let mut data=File::open(&data).map_err(|_|VoiceError::new("R1 bank needs master.s5d beside master.s5l"))?;
+        require(flags.iter().all(|v|*v<=1)&&u32::from_le_bytes(header[36..40].try_into().unwrap())==0,"Linked-classifier R1 banks are not supported")?;
+        require(!library.is_empty()&&!library.contains(['/','\\']),"Invalid R1 sub-library name")?;
+        let mut data=File::open(&data).map_err(|_|VoiceError::new(format!("R1 bank needs {library}.s5d beside master.s5l")))?;
         require(data.metadata()?.len()<=1024*1024*1024,"R1 data exceeds 1 GiB")?;
         let mut bytes=[0;100];data.read_exact(&mut bytes)?;
         let u=|at|u32::from_le_bytes(bytes[at..at+4].try_into().unwrap());
