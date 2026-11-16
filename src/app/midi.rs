@@ -38,6 +38,22 @@ impl App {
         else {
             return;
         };
+        self.import_project_path(path, mode, ctx);
+    }
+
+    pub(super) fn import_project_path(&mut self, path: PathBuf, mode: MidiImportMode, ctx: &Context) {
+        if mode == MidiImportMode::NewProject {
+            self.open_path(path);
+            return;
+        }
+        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("rvp")) {
+            self.request_file(super::FileAction::OpenPath(path), ctx);
+            return;
+        }
+        ui::piano::cancel_audition(self);
+        ui::tempo_input::finish(self);
+        self.commit_lyric();
+        self.editor.finish();
         if !path.extension().is_some_and(|e|e.eq_ignore_ascii_case("mid") || e.eq_ignore_ascii_case("midi")) {
             self.begin_project_import(path,mode,ctx);return;
         }

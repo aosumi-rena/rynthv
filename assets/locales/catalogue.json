@@ -1458,7 +1458,11 @@
     "打开或导入工程": "Open or Import Project",
     "添加乐器音轨": "Add Instrument Track",
     "添加歌声音轨…": "Add Voice Track...",
-    "添加音频音轨…": "Add Audio Track..."
+    "添加音频音轨…": "Add Audio Track...",
+    "ROCOFLEX_MORPHING": "ROCOFLEX_MORPHING",
+    "Default initial track": "Default initial track",
+    "Please drop one file at a time.": "Please drop one file at a time.",
+    "歌声音轨": "Voice track"
   },
   "locales": {
     "de-de": {
@@ -2849,7 +2853,11 @@
       "Use on Current Track": "Auf aktueller Spur verwenden",
       "User Scripts": "Benutzerskripte",
       "Vibrato": "Vibrato",
-      "Voice accent color": "Akzentfarbe für Gesang"
+      "Voice accent color": "Akzentfarbe für Gesang",
+      "ROCOFLEX_MORPHING": "Morphing…",
+      "Default initial track": "Standardspur beim Start",
+      "Please drop one file at a time.": "Bitte jeweils nur eine Datei ablegen.",
+      "Voice track": "Gesangsspur"
     },
     "es-la": {
       " · overlapping notes split into {} parts": " · notas superpuestas divididas en {0} partes",
@@ -4239,7 +4247,11 @@
       "Use on Current Track": "Usar en la pista actual",
       "User Scripts": "Scripts del usuario",
       "Vibrato": "Vibrato",
-      "Voice accent color": "Color de acento de voz"
+      "Voice accent color": "Color de acento de voz",
+      "ROCOFLEX_MORPHING": "Transformando…",
+      "Default initial track": "Pista inicial predeterminada",
+      "Please drop one file at a time.": "Arrastra un solo archivo a la vez.",
+      "Voice track": "Pista de voz"
     },
     "fr-fr": {
       " · overlapping notes split into {} parts": " · notes superposées réparties en {0} parties",
@@ -5629,7 +5641,11 @@
       "Use on Current Track": "Utiliser sur la piste actuelle",
       "User Scripts": "Scripts utilisateur",
       "Vibrato": "Vibrato",
-      "Voice accent color": "Couleur d’accent des voix"
+      "Voice accent color": "Couleur d’accent des voix",
+      "ROCOFLEX_MORPHING": "Transformation…",
+      "Default initial track": "Piste initiale par défaut",
+      "Please drop one file at a time.": "Déposez un seul fichier à la fois.",
+      "Voice track": "Piste vocale"
     },
     "ja-jp": {
       " · overlapping notes split into {} parts": " · 重なったノートを {0} パートに分離",
@@ -7019,7 +7035,11 @@
       "Use on Current Track": "現在のトラックに適用",
       "User Scripts": "ユーザースクリプト",
       "Vibrato": "ビブラート",
-      "Voice accent color": "歌声のアクセントカラー"
+      "Voice accent color": "歌声のアクセントカラー",
+      "ROCOFLEX_MORPHING": "モーフィング中…",
+      "Default initial track": "初期トラック",
+      "Please drop one file at a time.": "ファイルは一度に1つずつドロップしてください。",
+      "Voice track": "歌声トラック"
     },
     "ko-kr": {
       " · overlapping notes split into {} parts": " · 겹치는 음표를 {0}개 파트로 분리",
@@ -8409,7 +8429,11 @@
       "Use on Current Track": "현재 트랙에 적용",
       "User Scripts": "사용자 스크립트",
       "Vibrato": "비브라토",
-      "Voice accent color": "보컬 강조 색상"
+      "Voice accent color": "보컬 강조 색상",
+      "ROCOFLEX_MORPHING": "모핑 중…",
+      "Default initial track": "기본 시작 트랙",
+      "Please drop one file at a time.": "파일을 한 번에 하나씩 놓으세요.",
+      "Voice track": "보컬 트랙"
     },
     "pt-br": {
       " · overlapping notes split into {} parts": " · notas sobrepostas divididas em {0} partes",
@@ -9799,7 +9823,11 @@
       "Use on Current Track": "Usar na faixa atual",
       "User Scripts": "Scripts do usuário",
       "Vibrato": "Vibrato",
-      "Voice accent color": "Cor de destaque da voz"
+      "Voice accent color": "Cor de destaque da voz",
+      "ROCOFLEX_MORPHING": "Transformando…",
+      "Default initial track": "Faixa inicial padrão",
+      "Please drop one file at a time.": "Arraste um arquivo de cada vez.",
+      "Voice track": "Faixa de voz"
     },
     "ru-ru": {
       " · overlapping notes split into {} parts": " · пересекающиеся ноты разделены на {0} партий",
@@ -11189,7 +11217,11 @@
       "Use on Current Track": "Использовать на текущей дорожке",
       "User Scripts": "Пользовательские скрипты",
       "Vibrato": "Вибрато",
-      "Voice accent color": "Цвет акцента вокала"
+      "Voice accent color": "Цвет акцента вокала",
+      "ROCOFLEX_MORPHING": "Морфинг…",
+      "Default initial track": "Начальная дорожка",
+      "Please drop one file at a time.": "Перетаскивайте по одному файлу.",
+      "Voice track": "Вокальная дорожка"
     },
     "vi-vn": {
       " · overlapping notes split into {} parts": " · các nốt chồng nhau đã chia thành {0} bè",
@@ -12579,7 +12611,11 @@
       "Use on Current Track": "Dùng trên rãnh hiện tại",
       "User Scripts": "Tập lệnh người dùng",
       "Vibrato": "Rung âm",
-      "Voice accent color": "Màu nhấn giọng hát"
+      "Voice accent color": "Màu nhấn giọng hát",
+      "ROCOFLEX_MORPHING": "Đang biến đổi…",
+      "Default initial track": "Loại bản nhạc ban đầu",
+      "Please drop one file at a time.": "Vui lòng kéo thả từng tệp một.",
+      "Voice track": "Bản nhạc giọng hát"
     },
     "zh-cn": {
       " · overlapping notes split into {} parts": " · 重叠音符拆出 {0} 条声部",
@@ -13969,7 +14005,11 @@
       "Use on Current Track": "用于当前音轨",
       "User Scripts": "用户脚本",
       "Vibrato": "颤音",
-      "Voice accent color": "歌声强调色"
+      "Voice accent color": "歌声强调色",
+      "ROCOFLEX_MORPHING": "正在变声…",
+      "Default initial track": "默认初始音轨",
+      "Please drop one file at a time.": "请一次拖入一个文件。",
+      "Voice track": "歌声音轨"
     },
     "zh-tw": {
       " · overlapping notes split into {} parts": " · 重疊音符拆出 {0} 條聲部",
@@ -15359,7 +15399,11 @@
       "Use on Current Track": "用於目前音軌",
       "User Scripts": "使用者腳本",
       "Vibrato": "顫音",
-      "Voice accent color": "歌聲強調色"
+      "Voice accent color": "歌聲強調色",
+      "ROCOFLEX_MORPHING": "正在變聲…",
+      "Default initial track": "預設初始音軌",
+      "Please drop one file at a time.": "請一次拖入一個檔案。",
+      "Voice track": "歌聲音軌"
     },
     "en-us": {
       " · overlapping notes split into {} parts": " · overlapping notes split into {0} parts",
@@ -16749,7 +16793,11 @@
       "Use on Current Track": "Use on Current Track",
       "User Scripts": "User Scripts",
       "Vibrato": "Vibrato",
-      "Voice accent color": "Voice accent color"
+      "Voice accent color": "Voice accent color",
+      "ROCOFLEX_MORPHING": "Morphing…",
+      "Default initial track": "Default initial track",
+      "Please drop one file at a time.": "Please drop one file at a time.",
+      "Voice track": "Voice track"
     }
   }
 }

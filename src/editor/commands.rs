@@ -62,7 +62,7 @@ impl Editor {
     pub fn add_track(&mut self) {
         self.begin("创建音轨");
         let mut t = Track::new(self.project.tracks.len());
-        t.name = format!("{} {}",crate::i18n::t("未命名音轨"),self.project.tracks.len()+1);
+        t.name = format!("{} {}",crate::i18n::t("未命名音轨"),self.project.tracks.iter().filter(|t|!t.is_instrument()&&!t.is_instrumental()).count()+1);
         t.disp_color = self.project.next_track_color();
         self.track = t.id;
         self.reference = None;

@@ -6,7 +6,7 @@ impl Editor {
         self.begin("创建伴奏轨");
         let mut track = Track::new(self.project.tracks.len());
         track.disp_color = self.project.next_track_color();
-        track.name = format!("{} {}",crate::i18n::t("伴奏"),self.project.tracks.len()+1);
+        track.name = format!("{} {}",crate::i18n::t("伴奏"),self.project.tracks.iter().filter(|t|t.is_instrumental()).count()+1);
         track.instrumental = Some(InstrumentalTrack::default());
         track
             .main_ref

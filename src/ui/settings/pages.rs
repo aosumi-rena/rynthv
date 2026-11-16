@@ -13,6 +13,15 @@ pub(super) fn general(app: &mut App, ui: &mut Ui) {
                 }
             });
     });
+    row(ui, crate::i18n::t("Default initial track"), |ui| {
+        ComboBox::from_id_salt("default-initial-track")
+            .width(ui.available_width())
+            .selected_text(crate::i18n::t(if app.preferences.default_instrument_track { "乐器音轨" } else { "歌声音轨" }))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut app.preferences.default_instrument_track, false, crate::i18n::t("歌声音轨"));
+                ui.selectable_value(&mut app.preferences.default_instrument_track, true, crate::i18n::t("乐器音轨"));
+            });
+    });
     row(ui, crate::i18n::t("界面缩放"), |ui| {
         let id = ui.make_persistent_id("zoom-draft");
         let mut percent = ui

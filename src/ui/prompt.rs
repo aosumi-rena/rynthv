@@ -33,7 +33,7 @@ pub fn preset_name(ctx:&Context,id:&str,text:&mut String,focus:&mut bool)->Optio
             });
             if valid&&ui.input(|i|i.key_pressed(Key::Enter)){answer=Some(true);}
         });
-    if response.should_close()&&answer.is_none(){answer=Some(false);}
+    if (response.is_top_modal && !response.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)))&&answer.is_none(){answer=Some(false);}
     answer
 }
 
@@ -139,7 +139,7 @@ pub fn choices(
                 }
             }
         });
-    if response.should_close() {
+    if response.is_top_modal && !response.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)) {
         choice = Some(0);
     }
     choice
@@ -206,5 +206,5 @@ pub fn notice(ctx: &Context, title: &str, message: &str) -> bool {
                 )
                 .clicked();
         });
-    accepted || response.should_close()
+    accepted || (response.is_top_modal && !response.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)))
 }

@@ -7,9 +7,14 @@ mod transport_preferences;
 mod voice;
 pub use midi::{MidiImport, MidiImportMode, MidiImportPhase};
 
-fn blank_project()->Project {
+fn blank_project(instrument: bool)->Project {
     let mut project=Project::default();
-    project.tracks[0].name=format!("{} 1",crate::i18n::t("未命名音轨"));
+    let track = &mut project.tracks[0];
+    track.name = format!("{} 1", crate::i18n::t(if instrument { "乐器音轨" } else { "未命名音轨" }));
+    if instrument {
+        track.instrument = Some(Default::default());
+        track.disp_color = TrackColor::from_rgb(72, 156, 229);
+    }
     project.render_config.insert("filename".into(),crate::i18n::t("未命名").into());
     project
 }
@@ -131,7 +136,7 @@ impl App {
         let last_preferences =
             serde_json::to_string_pretty(&preferences).expect("valid interface preferences");
         let mut app = Self {
-            editor: Editor::new(blank_project()),
+            editor: Editor::new(blank_project(preferences.default_instrument_track)),
             synthesis: synthesis::runtime::Runtime::new(cc.egui_ctx.clone()),
             view,
             preferences,
@@ -314,7 +319,7 @@ impl App {
         self.bpm_edit = None;
         match action {
             FileAction::New => {
-                self.editor = Editor::new(blank_project());
+                self.editor = Editor::new(blank_project(self.preferences.default_instrument_track));
                 self.restore_transport_choices();
                 self.synthesis.reset_project();
                 self.rocoflex.clear();
@@ -322,6 +327,7 @@ impl App {
             }
             FileAction::Open => {
                 if let Some(path) = rfd::FileDialog::new()
+                    .add_filter("RynthV", &["rvp"])
                     .add_filter(crate::i18n::t("歌声工程"), rynthv::project_import::EXTENSIONS)
                     .pick_file()
                 {
@@ -445,12 +451,18 @@ impl eframe::App for App {
         self.poll_project_import(&ctx);
         let dropped=ctx.input(|i|i.raw.dropped_files.iter().map(|f|f.path().to_path_buf()).collect::<Vec<_>>());
         if !self.rocoflex.owns_drop(&ctx) && let Some(path)=dropped.first() {
-            if dropped.len()!=1 {self.error=Some(crate::i18n::t("请一次拖入一个工程文件。").into());}
-            else if path.extension().and_then(|e|e.to_str()).is_some_and(|e|rynthv::project_import::EXTENSIONS.iter().any(|ext|e.eq_ignore_ascii_case(ext))) {
-                if self.project_import.is_some()||self.dropped_project.is_some(){self.error=Some(crate::i18n::t("已有工程正在导入。").into());}
-                else if path.extension().and_then(|e|e.to_str()).is_some_and(|e|["svp","ixp","tlp","tlpx"].iter().any(|ext|e.eq_ignore_ascii_case(ext))){
+            if dropped.len()!=1 {
+                self.error=Some(crate::i18n::t("Please drop one file at a time.").into());
+            } else if self.project_import.is_some() || self.dropped_project.is_some() || self.midi_import.is_some() || self.audio_import.is_some() || self.pending.is_some() {
+                self.error=Some(crate::i18n::t("已有工程正在导入。").into());
+            } else if let Some(extension)=path.extension().and_then(|e|e.to_str()) {
+                if extension.eq_ignore_ascii_case("rvp") {
+                    self.request_file(FileAction::OpenPath(path.clone()), &ctx);
+                } else if rynthv::project_import::EXTENSIONS.iter().any(|ext|extension.eq_ignore_ascii_case(ext)) {
                     self.dropped_project=Some(path.clone());
-                }else{self.request_file(FileAction::OpenPath(path.clone()),&ctx);}
+                } else if instrumental::EXTENSIONS.iter().any(|ext|extension.eq_ignore_ascii_case(ext)) {
+                    self.import_audio_path(None, path.clone(), &ctx);
+                }
             }
         }
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {

@@ -81,7 +81,7 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
     let morphing = app.synthesis.morph_pending(track.id);
     if morphing || app.synthesis.morph_error(track.id).is_some() {
         let at = pos2(text_rect.right() - 3.0, rect.top() + 17.0);
-        let (label, color) = if morphing { (crate::i18n::t("ROCOFLEX_RENDERING"), MUTED) }
+        let (label, color) = if morphing { (crate::i18n::t("ROCOFLEX_MORPHING"), MUTED) }
         else { (crate::i18n::t("ROCOFLEX_RENDER_ERROR"), Color32::LIGHT_RED) };
         let galley = painter.layout_no_wrap(label.to_owned(), FontId::proportional(10.0), color);
         let badge = Rect::from_min_size(at - vec2(galley.size().x + 4.0, galley.size().y * 0.5), galley.size()).expand2(vec2(4.0, 1.0));

@@ -160,7 +160,7 @@ pub fn show(app: &mut App, ctx: &Context) {
     if app.preferences != before {
         app.preferences.apply(ctx);
     }
-    if close || modal.should_close() {
+    if close || (modal.is_top_modal && !modal.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))) {
         app.settings = false;
     }
 }

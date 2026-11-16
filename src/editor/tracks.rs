@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 impl Editor {
     pub fn add_instrument_track(&mut self){
         self.begin("添加乐器音轨");let mut track=Track::new(self.project.tracks.len());
-        track.name=format!("{} {}",crate::i18n::t("乐器音轨"),self.project.tracks.len()+1);
+        track.name=format!("{} {}",crate::i18n::t("乐器音轨"),self.project.tracks.iter().filter(|t|t.is_instrument()).count()+1);
         track.disp_color=crate::model::TrackColor::from_rgb(72,156,229);track.instrument=Some(Default::default());
         self.track=track.id;self.reference=None;self.selected.clear();self.selected_tracks=BTreeSet::from([track.id]);self.track_anchor=track.id;self.track_focus=false;
         self.project.tracks.push(track);self.finish();

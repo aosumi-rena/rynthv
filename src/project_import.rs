@@ -3,7 +3,7 @@ use serde::Deserialize;
 use crate::model::{Project,Track,InstrumentalTrack,AudioClip};
 mod data;
 
-pub const EXTENSIONS:&[&str]=&["rvp","svp","ixp","tlp","tlpx","vsqx","vpr","vsq","mid","midi","ust","ustx","ccs","xml","musicxml","s5p","dv","ppsf","tssln","ufdata","zip"];
+pub const EXTENSIONS:&[&str]=&["svp","ixp","tlp","tlpx","vsqx","vpr","vsq","mid","midi","ust","ustx","ccs","xml","musicxml","s5p","dv","ppsf","tssln","ufdata","zip"];
 #[derive(Deserialize)]
 pub struct Asset {
     pub track_name:String,

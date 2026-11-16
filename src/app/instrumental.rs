@@ -3,6 +3,8 @@ use crate::model::{AudioClip, EntityId};
 use eframe::egui::Context;
 use std::path::PathBuf;
 
+pub(super) const EXTENSIONS: &[&str] = &["wav", "mp3", "flac", "ogg", "aif", "aiff"];
+
 pub struct AudioImport {
     pub track: EntityId,
     path: PathBuf,
@@ -13,11 +15,15 @@ impl App {
     pub fn import_audio(&mut self, target: Option<EntityId>, ctx: &Context) {
         let Some(path) = rfd::FileDialog::new()
             .set_title(crate::i18n::t("导入伴奏"))
-            .add_filter(crate::i18n::t("音频文件"), &["wav", "mp3", "flac", "ogg", "aif", "aiff"])
+            .add_filter(crate::i18n::t("音频文件"), EXTENSIONS)
             .pick_file()
         else {
             return;
         };
+        self.import_audio_path(target, path, ctx);
+    }
+
+    pub(super) fn import_audio_path(&mut self, target: Option<EntityId>, path: PathBuf, ctx: &Context) {
         self.commit_lyric();
         self.editor.finish();
         let track = target.unwrap_or_else(|| self.editor.add_instrumental_track());

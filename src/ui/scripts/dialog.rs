@@ -79,7 +79,7 @@ impl Pending {
                     if self.form.buttons!="Ok"&&ui.add_sized(vec2(width,32.),Button::new(crate::i18n::t("取消"))).clicked(){choice=Some(if yes_no{json!("cancel")}else{json!(false)});}
                 });
             });
-        if response.should_close()&&choice.is_none(){choice=Some(if self.form.buttons=="YesNoCancel"{json!("cancel")}else{json!(false)});}
+        if (response.is_top_modal && !response.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)))&&choice.is_none(){choice=Some(if self.form.buttons=="YesNoCancel"{json!("cancel")}else{json!(false)});}
         if let Some(status)=choice {let _=self.request.reply.send(Ok(json!({"status":status,"answers":self.answers})));true}else{false}
     }
 }

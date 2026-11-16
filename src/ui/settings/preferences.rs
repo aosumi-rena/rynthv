@@ -7,6 +7,7 @@ use std::path::Path;
 pub struct Preferences {
     pub language: crate::i18n::Language,
     pub zoom: f32,
+    pub default_instrument_track: bool,
     pub show_status_bar: bool,
     pub control_hints: bool,
     pub voice_accent: [u8; 3],
@@ -25,6 +26,7 @@ impl Default for Preferences {
         Self {
             language: Default::default(),
             zoom: 1.0,
+            default_instrument_track: false,
             show_status_bar: true,
             control_hints: false,
             voice_accent: [125, 178, 53],

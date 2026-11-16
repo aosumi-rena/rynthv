@@ -164,7 +164,7 @@ pub fn dialog(app: &mut App, ctx: &Context) {
             .mixer.insert("micParams".into(),serde_json::to_value(config).expect("finite microphone controls"));
         app.editor.finish();
     }
-    if close || modal.should_close() {
+    if close || (modal.is_top_modal && !modal.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))) {
         app.instrument_mixer = false;
     }
 }

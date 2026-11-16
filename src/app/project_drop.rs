@@ -25,7 +25,7 @@ impl App {
             } else if choice == 1 {
                 self.commit_lyric();
                 self.editor.finish();
-                self.begin_project_import(path, MidiImportMode::Tracks, ctx);
+                self.import_project_path(path, MidiImportMode::Tracks, ctx);
             }
         }
     }

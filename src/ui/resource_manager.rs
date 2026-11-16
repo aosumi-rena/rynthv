@@ -69,7 +69,7 @@ pub fn dialog<T>(
                     content(data, ui);
                 });
         });
-    close || modal.should_close()
+    close || (modal.is_top_modal && !modal.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)))
 }
 pub fn header(
     ui: &mut Ui,
