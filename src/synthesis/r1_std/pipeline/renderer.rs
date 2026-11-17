@@ -18,6 +18,15 @@ unsafe extern "system" {
  fn GetProcAddress(handle:*mut c_void,name:*const u8)->*mut c_void;
  fn FreeLibrary(handle:*mut c_void)->i32;
 }
+#[cfg(not(windows))]
+unsafe extern "C" {
+ fn dlopen(path:*const std::ffi::c_char,flags:i32)->*mut c_void;
+ fn dlsym(handle:*mut c_void,name:*const std::ffi::c_char)->*mut c_void;
+ fn dlclose(handle:*mut c_void)->i32;
+ fn dlerror()->*const std::ffi::c_char;
+}
+#[cfg(not(windows))]
+const RTLD_NOW_LOCAL:i32=if cfg!(target_os="macos"){2|4}else{2};
 impl Native {
  #[cfg(windows)]
  pub fn load(path:&Path)->Result<Self>{use std::os::windows::ffi::OsStrExt;
@@ -32,7 +41,17 @@ impl Native {
   if result.is_err(){unsafe{FreeLibrary(handle);}}result
  }
  #[cfg(not(windows))]
- pub fn load(_path:&Path)->Result<Self>{Err(StdError::Unsupported("This R1 renderer-library adapter currently requires Windows".into()))}
+ pub fn load(path:&Path)->Result<Self>{use std::{ffi::{CStr,CString},os::unix::ffi::OsStrExt};
+  let full=CString::new(path.canonicalize()?.as_os_str().as_bytes()).expect("canonical paths contain no NUL");
+  let handle=unsafe{dlopen(full.as_ptr(),RTLD_NOW_LOCAL)};
+  if handle.is_null(){return Err(StdError::Native(format!("Cannot load independent R1 renderer: {}",unsafe{CStr::from_ptr(dlerror())}.to_string_lossy())));}
+  let symbol=|name:&CStr|->Result<*mut c_void>{let p=unsafe{dlsym(handle,name.as_ptr())};if p.is_null(){Err(StdError::Native("Independent R1 renderer ABI is incomplete".into()))}else{Ok(p)}};
+  let result=(||Ok(Self{handle,samples:unsafe{std::mem::transmute::<*mut c_void,Samples>(symbol(c"r1_llsm2_samples")?)},
+   render:unsafe{std::mem::transmute::<*mut c_void,Render>(symbol(c"r1_llsm2_render_stream")?)},
+   axis:unsafe{std::mem::transmute::<*mut c_void,Axis>(symbol(c"r1_llsm2_noise_axis")?)},
+   phases:unsafe{std::mem::transmute::<*mut c_void,Phases>(symbol(c"r1_llsm2_source_phases")?)}}))();
+  if result.is_err(){unsafe{dlclose(handle);}}result
+ }
  pub fn noise_axis(&self,c:&Config)->Result<Vec<f32>>{let mut out=vec![0.;c.bins];let code=unsafe{(self.axis)(out.len()as i32,c.nyquist,c.warp,out.as_mut_ptr())};ensure(code==0,"R1 noise-axis calculation failed")?;Ok(out)}
  pub fn phase_function(&self)->SourcePhases {SourcePhases(self.phases)}
  pub fn render(&self,c:&Config,frames:&[Frame],spectra:&[Option<Vec<f32>>],cancel:&std::sync::atomic::AtomicBool,emit:&mut dyn FnMut(usize,&[f32])->Result<()>)->Result<Vec<f32>>{
@@ -62,7 +81,7 @@ impl Native {
   ensure(output.iter().all(|v|v.is_finite()),"R1 renderer returned nonfinite PCM")?;Ok(output)
  }
 }
-impl Drop for Native {fn drop(&mut self){#[cfg(windows)]unsafe{FreeLibrary(self.handle);}}}
+impl Drop for Native {fn drop(&mut self){#[cfg(windows)]unsafe{FreeLibrary(self.handle);}#[cfg(not(windows))]unsafe{dlclose(self.handle);}}}
 
 #[derive(Clone,Copy)]
 pub(super) struct SourcePhases(Phases);

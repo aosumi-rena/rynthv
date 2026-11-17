@@ -6,13 +6,13 @@ mod script_native;
 
 fn main() {
     script_native::build();
+    standard_native::build();
     println!("cargo::rerun-if-changed=assets/branding/app-icon.ico");
     println!("cargo::rerun-if-changed=assets/branding/app-icon.rc");
 
     if env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
-    standard_native::build();
 
     let target = env::var("TARGET").expect("Cargo must provide TARGET");
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("Cargo manifest directory"));
