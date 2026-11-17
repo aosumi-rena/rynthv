@@ -41,9 +41,16 @@ impl<'a> VocoderStage<'a> {
         #[cfg(feature = "synth-profile")]
         let _profile = crate::synthesis::profiling::span("vocoder.prepare");
         let root = tree.root_index();
-        let config = Configuration::parse(&tree.payload(root)?)?;
-        let modules = Modules::prepare(tree, root, config)?;
-        let condition = VocoderCondition::prepare(tree, modules.conditions)?;
+        let compact = tree.node(root)?.type_id == super::configuration::ROOT_TYPE
+            && tree.node(root)?.children.len() == super::configuration::COMPACT_CHILDREN;
+        let (config, modules, condition) = if compact {
+            super::compact::prepare(tree, root)?
+        } else {
+            let config = Configuration::parse(&tree.payload(root)?)?;
+            let modules = Modules::prepare(tree, root, config)?;
+            let condition = VocoderCondition::prepare(tree, modules.conditions)?;
+            (config, modules, condition)
+        };
         if config.bands != 8 || modules.input_projection.is_none() {
             return Err(VoiceError::new("Unsupported vocoder source variant"));
         }
@@ -57,7 +64,8 @@ impl<'a> VocoderStage<'a> {
         };
         let positional = modules
             .recurrent_sampler
-            .map(|sampler| PositionalGru::prepare(tree, sampler))
+            .map(|sampler| if compact { PositionalGru::prepare_compact(tree, sampler) }
+                else { PositionalGru::prepare(tree, sampler) })
             .transpose()?;
 
         let condition_channels = match &positional {

@@ -1,5 +1,6 @@
 mod source;
-pub use source::R2VocoderSource;
+mod r3;
+pub use source::VocoderSource;
 use source::ResolvedSource;
 use super::{PreparedTree, Result, VoiceError};
 use crate::synthesis::stages::vocoder::VocoderStage;
@@ -26,10 +27,10 @@ pub(crate) fn clear() {
     if let Ok(mut cache) = CACHE.lock() { *cache = None; }
 }
 
-pub(crate) fn load(source: &R2VocoderSource) -> Result<Arc<VocoderOverride>> {
+pub(crate) fn load(source: &VocoderSource) -> Result<Arc<VocoderOverride>> {
     let source = ResolvedSource::resolve(source)?;
     let model = {
-        let mut cache = CACHE.lock().map_err(|_| VoiceError::new("R2_VOCODER_INVALID"))?;
+        let mut cache = CACHE.lock().map_err(|_| VoiceError::new("VOCODER_OVERRIDE_INVALID"))?;
         if cache.as_ref().is_none_or(|cached| cached.source != source) {
             *cache = Some(Cached { source: source.clone(), model: Arc::new(OnceLock::new()) });
         }
@@ -39,14 +40,13 @@ pub(crate) fn load(source: &R2VocoderSource) -> Result<Arc<VocoderOverride>> {
 }
 
 fn prepare(source: ResolvedSource) -> Result<Arc<VocoderOverride>> {
-    let bytes = source.read()?;
-    if super::embedded::root_type(&bytes)? != super::embedded::types::VOCODER_TYPE_ID {
-        return Err(VoiceError::new("R2_VOCODER_INVALID"));
-    }
-    let tree = Arc::new(PreparedTree::prepare_embedded_execution(&bytes, true)?);
+    let (tree, identity) = source.prepare()?;
+    let expected = if source.r3 { crate::synthesis::stages::vocoder::configuration::ROOT_TYPE }
+        else { super::embedded::types::VOCODER_TYPE_ID };
+    if tree.node(tree.root_index())?.type_id != expected { return Err(VoiceError::new("VOCODER_OVERRIDE_INVALID")); }
+    let tree = Arc::new(tree);
     let stage = VocoderStage::prepare(&tree)?;
-    if stage.positional.is_some() { return Err(VoiceError::new("R2_VOCODER_INVALID")); }
     stage.into_stream()?;
     source.validate()?;
-    Ok(Arc::new(VocoderOverride { tree, source, identity: blake3::hash(&bytes).to_hex().to_string() }))
+    Ok(Arc::new(VocoderOverride { tree, source, identity }))
 }

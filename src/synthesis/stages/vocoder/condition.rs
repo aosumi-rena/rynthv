@@ -23,10 +23,23 @@ pub struct VocoderCondition {
     pub frame_seconds: f32,
     pub frame_samples: usize,
 
-    pub sample_normalizer_node: usize,
+    pub sample_normalizer_node: Option<usize>,
 }
 
 impl VocoderCondition {
+    pub(super) fn prepare_compact(tree: &PreparedTree, index: usize, sample_rate: u32, hop: usize) -> Result<Self> {
+        let node = tree.node(index)?;
+        if node.type_id != CONDITION_TYPE_ID || node.children.len() != 1 {
+            return Err(VoiceError::new("Invalid compact vocoder condition"));
+        }
+        let normalizer = tree.range_normalizer(node.children[0])?.clone();
+        if normalizer.channels() != CHANNELS {
+            return Err(VoiceError::new("Vocoder condition normalizer must have 72 channels"));
+        }
+        Ok(Self { normalizer, sample_rate, frame_seconds: hop as f32 / sample_rate as f32,
+            frame_samples: hop, sample_normalizer_node: None })
+    }
+
     pub fn prepare(tree: &PreparedTree, index: usize) -> Result<Self> {
         let node = tree.node(index)?;
         let payload_bytes = match node.type_id {
@@ -91,7 +104,7 @@ impl VocoderCondition {
             sample_rate,
             frame_seconds,
             frame_samples: (sample_rate as f32 * frame_seconds).round() as usize,
-            sample_normalizer_node: node.children[1],
+            sample_normalizer_node: Some(node.children[1]),
         })
     }
 

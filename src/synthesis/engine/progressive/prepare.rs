@@ -19,7 +19,7 @@ pub fn prepare(
     base: Option<&CompletedOwner>,
     mut checkpoint: impl FnMut(RenderStage) -> Result<()>,
 ) -> Result<PreparedRender> {
-    voice.require_r2_vocoder(input.experiments.settings.r2_vocoder)?;
+    voice.require_vocoder_override(input.experiments.settings.r2_vocoder)?;
     let mut phrase = score::prepare_owner(input, lexicon, voice.model("duration")?, voice.family)?;
     super::super::experimental::prepare_modes(voice,input,&mut phrase)?;
     let experimental=super::super::experimental::needs_complete(input,voice.family)?;

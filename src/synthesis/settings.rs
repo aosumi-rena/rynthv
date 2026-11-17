@@ -39,6 +39,8 @@ pub struct SynthesisSettings {
     #[serde(default)]
     pub r2_vocoder_voice: Option<VoiceSelection>,
     #[serde(default)]
+    pub vocoder_r3: bool,
+    #[serde(default)]
     pub r2_ai_flat_databases: Option<PathBuf>,
     #[serde(default)]
     pub r2_ai_flat_models: Option<PathBuf>,
@@ -62,7 +64,7 @@ impl Default for SynthesisSettings {
             experiments: Default::default(),
             databases: None, sv1_databases: None, phoneme_data:Default::default(), r2_ai_flat_databases:None, r2_ai_flat_models:None, selected_voice: None,
             voice_sources: Vec::new(),
-            audio_converter: None, phone_conversion: None, r2_vocoder: None, r2_vocoder_voice: None,
+            audio_converter: None, phone_conversion: None, r2_vocoder: None, r2_vocoder_voice: None, vocoder_r3: false,
             duration_key_override_enabled: false, duration_key_override_value: default_duration_key(),
             voice_duration_key_overrides: Vec::new(),
         }

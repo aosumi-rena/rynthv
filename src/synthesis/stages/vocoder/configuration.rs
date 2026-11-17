@@ -3,6 +3,7 @@ use crate::synthesis::voice::{PreparedTree, Result, VoiceError, embedded::types:
 pub const ROOT_TYPE: [u8; 16] = [
     0xc6, 0xbc, 0xba, 0x5d, 0x8c, 0xa1, 0xf6, 0xce, 0xd6, 0x49, 0x89, 0x7b, 0x4b, 0xfc, 0x23, 0x81,
 ];
+pub(crate) const COMPACT_CHILDREN: usize = 11;
 
 #[derive(Clone, Copy, Debug)]
 pub struct Configuration {
@@ -52,6 +53,12 @@ impl Configuration {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum SpectralFilter {
+    Module(usize),
+    Window { samples: usize, fft_size: usize },
+}
+
 #[derive(Clone, Debug)]
 pub struct Modules {
     pub conditions: usize,
@@ -60,9 +67,9 @@ pub struct Modules {
     pub spectral_heads: usize,
     pub coefficients: usize,
     pub gain_network: usize,
-    pub harmonic_filter: usize,
-    pub noise_filter: usize,
-    pub third_filter: usize,
+    pub harmonic_filter: SpectralFilter,
+    pub noise_filter: SpectralFilter,
+    pub third_filter: SpectralFilter,
     pub analysis_filterbank: usize,
     pub synthesis_filterbank: usize,
     pub postfilter_network: usize,
@@ -105,9 +112,9 @@ impl Modules {
             spectral_heads: at(base + 1),
             coefficients: at(base + 2),
             gain_network: at(base + 3),
-            harmonic_filter: at(base + 4),
-            noise_filter: at(base + 5),
-            third_filter: at(base + 6),
+            harmonic_filter: SpectralFilter::Module(at(base + 4)),
+            noise_filter: SpectralFilter::Module(at(base + 5)),
+            third_filter: SpectralFilter::Module(at(base + 6)),
             synthesis_filterbank: at(base + 7),
             analysis_filterbank: at(base + 8),
             postfilter_network: at(base + 9),

@@ -34,11 +34,27 @@ pub(super) struct Archive {
 
 impl Archive {
     pub fn load(path: &Path, context: &FormatContext) -> Result<Self> {
-        let bytes: Arc<[u8]> = fs::read(path)?.into();
+        Self::from_bytes(fs::read(path)?.into(), context)
+    }
+
+    pub fn from_bytes(bytes: Arc<[u8]>, context: &FormatContext) -> Result<Self> {
+        Self::parse_bytes(bytes, context, false)
+    }
+
+    pub fn from_vocoder_file(bytes: Arc<[u8]>, context: &FormatContext) -> Result<(Self, bool)> {
+        let unsigned = bytes.get(0x18..0x118).is_some_and(|signature| {
+            signature.iter().all(|&byte| byte == 0)
+        });
+        Ok((Self::parse_bytes(bytes, context, unsigned)?, unsigned))
+    }
+
+    fn parse_bytes(bytes: Arc<[u8]>, context: &FormatContext, unsigned: bool) -> Result<Self> {
         if bytes.len() < 0x149 || bytes[..8] != [0xff, 0, 0xca, 0x7f, 3, 0, 0, 0] {
             return Err(VoiceError::new("Invalid DNNI v3 magic or truncated header"));
         }
-        verify_signature(&bytes, context)?;
+        if !unsigned {
+            verify_signature(&bytes, context)?;
+        }
         let nonce = array(&bytes, 0x118)?;
         let material: [u8; 32] = stream::decode(
             &bytes[0x124..0x144],

@@ -73,6 +73,10 @@ pub struct SpectralFilterStream {
 }
 
 impl SpectralFilterStream {
+    pub(super) fn with_geometry(frame_samples: usize, window_samples: usize, fft_size: usize) -> Result<Self> {
+        Ok(Self { filter: DynamicFilter::new(frame_samples, window_samples, fft_size)? })
+    }
+
     pub(crate) fn process_independent(&mut self,parameters:&Sequence,excitation:&Sequence,end:bool)->Result<Sequence> {
         self.filter.process_independent(parameters,excitation,end)
     }

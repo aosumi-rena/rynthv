@@ -24,13 +24,21 @@ const SPECTRAL_START: usize = 3;
 pub struct PositionalGru {
     projection: Affine,
     retained_channels: usize,
-    phase_divisor: u16,
+    phase_divisor: u32,
     frequencies: Arc<[f32]>,
     recurrent: Gru,
 }
 
 impl PositionalGru {
     pub fn prepare(tree: &PreparedTree, index: usize) -> Result<Self> {
+        Self::prepare_layout(tree, index, false)
+    }
+
+    pub(super) fn prepare_compact(tree: &PreparedTree, index: usize) -> Result<Self> {
+        Self::prepare_layout(tree, index, true)
+    }
+
+    fn prepare_layout(tree: &PreparedTree, index: usize, compact: bool) -> Result<Self> {
         #[cfg(feature = "synth-profile")]
         let _profile = crate::synthesis::profiling::span("vocoder.positional_gru.prepare");
         let node = tree.node(index)?;
@@ -42,16 +50,23 @@ impl PositionalGru {
         let payload = tree.payload(index)?;
 
         if payload.len() != 12
-            || u32::from_le_bytes(payload[4..8].try_into().unwrap()) != 0
-            || u32::from_le_bytes(payload[8..12].try_into().unwrap()) != INPUT_CHANNELS as u32
+            || (!compact
+                && (u32::from_le_bytes(payload[4..8].try_into().unwrap()) != 0
+                    || u32::from_le_bytes(payload[8..12].try_into().unwrap())
+                        != INPUT_CHANNELS as u32))
         {
             return Err(VoiceError::new(
                 "Unsupported vocoder positional condition configuration",
             ));
         }
-        let retained_channels = u16::from_le_bytes(payload[0..2].try_into().unwrap()) as usize;
-        let phase_divisor = u16::from_le_bytes(payload[2..4].try_into().unwrap());
-        if retained_channels == 0 || phase_divisor == 0 {
+        let declared_channels = u16::from_le_bytes(payload[0..2].try_into().unwrap()) as usize;
+        let packed_width = u16::from_le_bytes(payload[2..4].try_into().unwrap());
+        let phase_divisor = if compact {
+            u32::from_le_bytes(payload[4..8].try_into().unwrap())
+        } else {
+            u32::from(packed_width)
+        };
+        if declared_channels == 0 || phase_divisor == 0 {
             return Err(VoiceError::new(
                 "Vocoder positional dimensions and phase divisor must be positive",
             ));
@@ -66,6 +81,14 @@ impl PositionalGru {
         if frequencies.is_empty() || frequencies.iter().any(|value| !value.is_finite()) {
             return Err(VoiceError::new("Invalid vocoder positional frequencies"));
         }
+        let retained_channels = if compact {
+            declared_channels
+                .checked_sub(frequencies.len() * 2)
+                .filter(|&count| count > 0)
+                .ok_or_else(|| VoiceError::new("Invalid compact vocoder feature dimensions"))?
+        } else {
+            declared_channels
+        };
         let projection_node = tree.node(node.children[1])?;
         if projection_node.type_id != PROJECTION_TYPE_ID
             || projection_node.children.len() != 2
@@ -101,7 +124,12 @@ impl PositionalGru {
             .checked_mul(2)
             .and_then(|count| count.checked_add(retained_channels))
             .ok_or_else(|| VoiceError::new("Vocoder positional feature count overflows"))?;
-        if recurrent.input_channels() != features {
+        if recurrent.input_channels() != features
+            || (compact
+                && (recurrent.output_channels() != usize::from(packed_width)
+                    || frequencies.len()
+                        != u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize))
+        {
             return Err(VoiceError::new(
                 "Vocoder positional features do not match the GRU input",
             ));

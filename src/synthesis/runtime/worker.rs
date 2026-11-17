@@ -111,7 +111,7 @@ impl Worker {
         phone_conversion: Option<PathBuf>,
         duration_key_override: Option<u64>,
         r2_vocoder_required: bool,
-        r2_vocoder_source: Option<crate::synthesis::voice::R2VocoderSource>,
+        r2_vocoder_source: Option<crate::synthesis::voice::VocoderSource>,
         repaint: eframe::egui::Context,
         wake: RenderWake,
     ) -> Result<Self, String> {

@@ -174,19 +174,20 @@ impl VoiceInventory {
         let settings = crate::synthesis::settings::SynthesisSettings::load().map_err(VoiceError::new)?;
         let source = if settings.experiments.r2_vocoder {
             if let Some(voice) = &settings.r2_vocoder_voice {
-                if settings.r2_vocoder.is_some() { return Err(VoiceError::new("R2_VOCODER_INVALID")); }
+                if settings.r2_vocoder.is_some() { return Err(VoiceError::new("VOCODER_OVERRIDE_INVALID")); }
                 let mut donor = settings.clone();
                 donor.selected_voice = Some(voice.clone());
-                Some(super::R2VocoderSource::Voice(donor.selected_directory().map_err(VoiceError::new)?))
-            } else { settings.r2_vocoder.clone().map(super::R2VocoderSource::File) }
+                let path = donor.selected_directory().map_err(VoiceError::new)?;
+                Some(if settings.vocoder_r3 { super::VocoderSource::R3Voice(path) } else { super::VocoderSource::R2Voice(path) })
+            } else { settings.r2_vocoder.clone().map(|path| if settings.vocoder_r3 { super::VocoderSource::R3File(path) } else { super::VocoderSource::R2File(path) }) }
         } else { None };
         Self::load_with_vocoder(directory, settings.experiments.r2_vocoder, source.as_ref())
     }
 
-    pub(crate) fn load_with_vocoder(directory: &Path, required: bool, source: Option<&super::R2VocoderSource>) -> Result<Self> {
+    pub(crate) fn load_with_vocoder(directory: &Path, required: bool, source: Option<&super::VocoderSource>) -> Result<Self> {
         let mut inventory = Self::load_source(directory)?;
         if required && inventory.configuration.as_ref().is_some_and(|c| c.family.requires_identity()) {
-            let source = source.ok_or_else(|| VoiceError::new("R2_VOCODER_REQUIRED"))?;
+            let source = source.ok_or_else(|| VoiceError::new("VOCODER_OVERRIDE_REQUIRED"))?;
             let model = super::vocoder_override::load(source)?;
             inventory.source_identity.push_str(":r2-vocoder:");
             inventory.source_identity.push_str(&model.identity);

@@ -1,29 +1,32 @@
 use super::widgets::{row, section, toggle};
-use crate::{app::App, synthesis::{experiments::ExperimentalSettings, voice::R2VocoderSource}};
+use crate::{app::App, synthesis::{experiments::ExperimentalSettings, voice::VocoderSource}};
 use eframe::egui::{self, Ui};
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
 struct Validation {
-    source: R2VocoderSource,
+    source: VocoderSource,
     result: Arc<Mutex<Option<Result<(), String>>>>,
 }
 
 pub(super) fn show(app: &mut App, ui: &mut Ui, settings: &mut ExperimentalSettings) {
-    section(ui, crate::i18n::t("R2_VOCODER"));
-    toggle(ui, crate::i18n::t("R2_VOCODER_ENABLE"), &mut settings.r2_vocoder);
+    section(ui, crate::i18n::t("VOCODER_OVERRIDE"));
+    toggle(ui, crate::i18n::t("VOCODER_OVERRIDE_ENABLE"), &mut settings.r2_vocoder);
     if !settings.r2_vocoder { return; }
-    let id = ui.id().with("r2-vocoder-validation");
+    let id = ui.id().with("vocoder-validation");
     let mode_id = id.with("voice-source");
     let mut voice_source = app.synthesis.library.settings.r2_vocoder_voice.is_some()
         || ui.ctx().data(|data| data.get_temp::<bool>(mode_id)).unwrap_or(false);
-    let before = voice_source;
-    ui.horizontal(|ui| {
-        ui.selectable_value(&mut voice_source, false, crate::i18n::t("R2_VOCODER_FILE"));
-        ui.selectable_value(&mut voice_source, true, crate::i18n::t("R2_VOCODER_VOICE"));
+    let mut choice = usize::from(app.synthesis.library.settings.vocoder_r3) * 2 + usize::from(voice_source);
+    let before = choice;
+    ui.horizontal_wrapped(|ui| {
+        for (index, label) in ["VOCODER_OVERRIDE_FILE", "VOCODER_OVERRIDE_VOICE", "VOCODER_OVERRIDE_R3_FILE", "VOCODER_OVERRIDE_R3_VOICE"].into_iter().enumerate() {
+            ui.selectable_value(&mut choice, index, crate::i18n::t(label));
+        }
     });
-    if voice_source != before {
-        app.synthesis.set_r2_vocoder(None);
+    voice_source = choice % 2 == 1;
+    if choice != before {
+        app.synthesis.set_vocoder_generation(choice >= 2);
         ui.ctx().data_mut(|data| data.remove::<Validation>(id));
     }
     ui.ctx().data_mut(|data| data.insert_temp(mode_id, voice_source));
@@ -32,7 +35,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, settings: &mut ExperimentalSettin
     let source = match app.synthesis.library.r2_vocoder_source() {
         Ok(Some(source)) => source,
         Ok(None) => {
-            ui.colored_label(egui::Color32::LIGHT_RED, crate::i18n::t("R2_VOCODER_REQUIRED"));
+            ui.colored_label(egui::Color32::LIGHT_RED, crate::i18n::t("VOCODER_OVERRIDE_REQUIRED"));
             return;
         }
         Err(error) => { ui.colored_label(egui::Color32::LIGHT_RED, crate::i18n::message(&error)); return; }
@@ -45,7 +48,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, settings: &mut ExperimentalSettin
             let result = Arc::clone(&value.result);
             let repaint = ui.ctx().clone();
             if let Err(error) = std::thread::Builder::new().name("vocoder-validation".into()).spawn(move || {
-                let checked = crate::synthesis::voice::validate_r2_vocoder(&source).map_err(|error| error.to_string());
+                let checked = crate::synthesis::voice::validate_vocoder(&source).map_err(|error| error.to_string());
                 if let Ok(mut result) = result.lock() { *result = Some(checked); }
                 repaint.request_repaint();
             }) {
@@ -57,10 +60,10 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, settings: &mut ExperimentalSettin
     };
     if let Ok(result) = validation.result.lock() {
         match result.as_ref() {
-            None => { ui.label(crate::i18n::t("R2_VOCODER_CHECKING")); }
-            Some(Ok(())) => { ui.label(crate::i18n::t("R2_VOCODER_VALID")); }
+            None => { ui.label(crate::i18n::t("VOCODER_OVERRIDE_CHECKING")); }
+            Some(Ok(())) => { ui.label(crate::i18n::t("VOCODER_OVERRIDE_VALID")); }
             Some(Err(error)) => {
-                ui.colored_label(egui::Color32::LIGHT_RED, crate::i18n::t("R2_VOCODER_INVALID"))
+                ui.colored_label(egui::Color32::LIGHT_RED, crate::i18n::t("VOCODER_OVERRIDE_INVALID"))
                     .on_hover_text(crate::i18n::message(error));
             }
         }
@@ -92,7 +95,7 @@ fn voice_field(app: &mut App, ui: &mut Ui) -> bool {
     let before = voice.clone();
     ui.horizontal(|ui| {
         if voice.is_some() && clear_button(ui).clicked() { voice = None; }
-        crate::ui::voice_library::vocoder_picker(ui, app.synthesis.library.catalog(), &mut voice, app.synthesis.library.is_scanning());
+        crate::ui::voice_library::vocoder_picker(ui, app.synthesis.library.catalog(), &mut voice, app.synthesis.library.is_scanning(), app.synthesis.library.settings.vocoder_r3);
     });
     if voice != before { app.synthesis.set_r2_vocoder_voice(voice); return true; }
     false

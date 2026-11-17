@@ -28,7 +28,7 @@ pub(super) fn run(
     phone_conversion: Option<PathBuf>,
     duration_key_override: Option<u64>,
     r2_vocoder_required: bool,
-    r2_vocoder_source: Option<crate::synthesis::voice::R2VocoderSource>,
+    r2_vocoder_source: Option<crate::synthesis::voice::VocoderSource>,
     commands: Receiver<Command>,
     events: Events,
     alive: Arc<AtomicBool>,
@@ -59,7 +59,7 @@ pub(super) fn run(
     let loaded = Ok::<_,VoiceError>(inventory).and_then(|inventory| {
         loading_checkpoint()?;
         let prepared = inventory.prepare()?;
-        prepared.require_r2_vocoder(r2_vocoder_required)?;
+        prepared.require_vocoder_override(r2_vocoder_required)?;
         loading_checkpoint()?;
         let (name, version) = inventory
             .configuration

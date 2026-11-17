@@ -50,8 +50,12 @@ impl SignalStream {
     pub(crate) fn new(stage: &VocoderStage<'_>) -> Result<Self> {
         let hop = stage.condition.frame_samples;
         let period = stage.condition.frame_seconds;
-        let make_filter =
-            |node| SpectralFilterStream::new(SpectralFilterConfig::prepare(stage.tree, node)?, hop);
+        let make_filter = |spec| match spec {
+            super::configuration::SpectralFilter::Module(node) =>
+                SpectralFilterStream::new(SpectralFilterConfig::prepare(stage.tree, node)?, hop),
+            super::configuration::SpectralFilter::Window { samples, fft_size } =>
+                SpectralFilterStream::with_geometry(hop, samples, fft_size),
+        };
         let mut noise_filter=make_filter(stage.modules.noise_filter)?;
         noise_filter.set_noise();
         let mut gain=GainFilter::prepare(stage.tree,stage.modules.coefficients,hop,period)?;

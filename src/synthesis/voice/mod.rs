@@ -42,9 +42,9 @@ pub use revision::VoiceRevision;
 pub use speakers::Speaker;
 pub use tensor::{TensorLayout, TensorStorage};
 
-pub use vocoder_override::R2VocoderSource;
+pub use vocoder_override::VocoderSource;
 
-pub fn validate_r2_vocoder(source: &R2VocoderSource) -> Result<()> {
+pub fn validate_vocoder(source: &VocoderSource) -> Result<()> {
     vocoder_override::load(source).map(|_| ())
 }
 

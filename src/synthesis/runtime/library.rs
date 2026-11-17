@@ -103,15 +103,15 @@ impl VoiceLibrary {
         library
     }
 
-    pub fn r2_vocoder_source(&self) -> Result<Option<crate::synthesis::voice::R2VocoderSource>, String> {
-        use crate::synthesis::voice::{R2VocoderSource, VoiceFamily};
+    pub fn r2_vocoder_source(&self) -> Result<Option<crate::synthesis::voice::VocoderSource>, String> {
+        use crate::synthesis::voice::{VocoderSource, VoiceFamily};
         if let Some(key) = &self.settings.r2_vocoder_voice {
-            if self.settings.r2_vocoder.is_some() { return Err(crate::i18n::t("R2_VOCODER_INVALID").into()); }
-            let entry = self.entry(key).filter(|entry| entry.family == Some(VoiceFamily::Sv1) && entry.availability.is_loadable())
-                .ok_or_else(|| crate::i18n::t("R2_VOCODER_INVALID").to_owned())?;
-            Ok(Some(R2VocoderSource::Voice(entry.directory.clone())))
+            if self.settings.r2_vocoder.is_some() { return Err(crate::i18n::t("VOCODER_OVERRIDE_INVALID").into()); }
+            let entry = self.entry(key).filter(|entry| (if self.settings.vocoder_r3 { entry.family.is_some_and(|f| f.requires_identity()) } else { entry.family == Some(VoiceFamily::Sv1) }) && entry.availability.is_loadable())
+                .ok_or_else(|| crate::i18n::t("VOCODER_OVERRIDE_INVALID").to_owned())?;
+            Ok(Some(if self.settings.vocoder_r3 { VocoderSource::R3Voice(entry.directory.clone()) } else { VocoderSource::R2Voice(entry.directory.clone()) }))
         } else {
-            Ok(self.settings.r2_vocoder.clone().map(R2VocoderSource::File))
+            Ok(self.settings.r2_vocoder.clone().map(|path| if self.settings.vocoder_r3 { VocoderSource::R3File(path) } else { VocoderSource::R2File(path) }))
         }
     }
 
@@ -283,6 +283,13 @@ impl Runtime {
     pub fn set_phoneme_data(&mut self,version:crate::synthesis::settings::PhonemeVersion,path:Option<PathBuf>) {
         let mut settings=self.library.settings.clone();settings.phoneme_data.set(version,path);
         if settings!=self.library.settings && self.library.update(settings){self.rescan_voices();}
+    }
+    pub fn set_vocoder_generation(&mut self, r3: bool) {
+        let mut settings = self.library.settings.clone();
+        settings.vocoder_r3 = r3;
+        settings.r2_vocoder = None;
+        settings.r2_vocoder_voice = None;
+        self.update_vocoder(settings);
     }
     pub fn set_r2_vocoder(&mut self, path: Option<PathBuf>) {
         let mut settings = self.library.settings.clone();

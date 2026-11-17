@@ -1,3 +1,4 @@
+mod compact;
 pub mod condition;
 pub mod configuration;
 pub mod excitation;

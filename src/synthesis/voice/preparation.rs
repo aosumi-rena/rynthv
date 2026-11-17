@@ -225,11 +225,11 @@ impl PreparedVoice {
         self
     }
 
-    pub fn uses_r2_vocoder(&self) -> bool { self.vocoder_override.is_some() }
+    pub fn has_vocoder_override(&self) -> bool { self.vocoder_override.is_some() }
 
-    pub(crate) fn require_r2_vocoder(&self, required: bool) -> Result<()> {
+    pub(crate) fn require_vocoder_override(&self, required: bool) -> Result<()> {
         if required && self.family.requires_identity() {
-            self.vocoder_override.as_ref().ok_or_else(|| VoiceError::new("R2_VOCODER_REQUIRED"))?.validate_current()?;
+            self.vocoder_override.as_ref().ok_or_else(|| VoiceError::new("VOCODER_OVERRIDE_REQUIRED"))?.validate_current()?;
         }
         Ok(())
     }

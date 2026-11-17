@@ -106,10 +106,10 @@ pub(super) fn vocoder_path(path: &Path) -> Result<std::path::PathBuf> {
         .map_err(|error| VoiceError::new(error.to_string()))?;
     validate(&manifest)?;
     let model = manifest.models.iter().find(|model| model.role == "vocoder")
-        .ok_or_else(|| VoiceError::new("R2_VOCODER_INVALID"))?;
+        .ok_or_else(|| VoiceError::new("VOCODER_OVERRIDE_INVALID"))?;
     let target = directory.join(&model.file).canonicalize()?;
     if target.parent() != Some(directory) || target.metadata()?.len() != model.bytes as u64 {
-        return Err(VoiceError::new("R2_VOCODER_INVALID"));
+        return Err(VoiceError::new("VOCODER_OVERRIDE_INVALID"));
     }
     Ok(target)
 }

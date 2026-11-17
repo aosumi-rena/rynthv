@@ -22,13 +22,13 @@ impl Default for FamilyFilter {
 }
 
 impl FamilyFilter {
-    pub(super) fn r2_ai() -> Self { Self([false, false, true, true, false, false]) }
+    pub(super) fn vocoder(r3: bool) -> Self { Self([r3, r3, !r3, !r3, false, false]) }
 
-    pub(super) fn show_r2_ai(ui: &mut Ui) {
+    pub(super) fn show_vocoder(ui: &mut Ui, r3: bool) {
         ui.add_enabled_ui(false, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(5.0, 4.0);
-                for label in &LABELS[2..4] { let _ = toggle(ui, label, true); }
+                for label in &LABELS[if r3 { 0..2 } else { 2..4 }] { let _ = toggle(ui, label, true); }
             });
         });
     }
