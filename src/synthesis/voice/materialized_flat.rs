@@ -99,6 +99,21 @@ fn read_bounded(path: &Path, maximum: usize) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+pub(super) fn vocoder_path(path: &Path) -> Result<std::path::PathBuf> {
+    let path = path.canonicalize()?;
+    let directory = path.parent().ok_or_else(|| VoiceError::new("Materialized manifest has no parent"))?;
+    let manifest: Manifest = serde_json::from_slice(&read_bounded(&path, MAX_MANIFEST_BYTES)?)
+        .map_err(|error| VoiceError::new(error.to_string()))?;
+    validate(&manifest)?;
+    let model = manifest.models.iter().find(|model| model.role == "vocoder")
+        .ok_or_else(|| VoiceError::new("R2_VOCODER_INVALID"))?;
+    let target = directory.join(&model.file).canonicalize()?;
+    if target.parent() != Some(directory) || target.metadata()?.len() != model.bytes as u64 {
+        return Err(VoiceError::new("R2_VOCODER_INVALID"));
+    }
+    Ok(target)
+}
+
 pub fn load_materialized_flat(manifest_path: &Path) -> Result<PreparedVoice> {
     let manifest_path = manifest_path.canonicalize()?;
     let directory = manifest_path.parent()

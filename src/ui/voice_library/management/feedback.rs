@@ -74,6 +74,15 @@ pub(super) fn diagnostics(app: &App, ui: &mut Ui, entry: &VoiceCatalogEntry) {
             );
         }
     }
+    let required = app.synthesis.library.settings.experiments.r2_vocoder
+        && entry.family.is_some_and(|family| family.requires_identity());
+    if required {
+        let active = app.synthesis.inventory(&entry.selection()).and_then(|v| v.preparation()).is_some_and(|v| v.uses_r2_vocoder());
+        text(ui, crate::i18n::t(if active { "R2_VOCODER_ACTIVE" } else { "R2_VOCODER_PENDING" }));
+    }
+}
+
+pub(super) fn scan_notices(app: &App, ui: &mut Ui) {
     if let Some(catalog) = app.synthesis.library.catalog()
         && !catalog.warnings.is_empty()
     {

@@ -74,7 +74,7 @@ enum Choice { Voice(VoiceSelection), Manage, Clear }
 pub fn popup(app: &mut App, anchor: &Response) {
     let selected = app.voice_selection();
     match voice_picker(anchor, app.synthesis.library.catalog(), selected.as_ref(), true,
-        app.has_voice(), app.synthesis.library.is_scanning(), app.synthesis.library.catalog_error().is_some())
+        app.has_voice(), app.synthesis.library.is_scanning(), app.synthesis.library.catalog_error().is_some(), false)
     {
         Some(Choice::Voice(voice)) => app.select_voice(voice),
         Some(Choice::Manage) => app.voice_manager = true,
@@ -86,13 +86,21 @@ pub fn popup(app: &mut App, anchor: &Response) {
 pub(crate) fn donor_picker(ui: &mut Ui, catalog: &VoiceCatalog, donor: &mut Option<VoiceSelection>) {
     let entry = donor.as_ref().and_then(|donor| catalog.entries.iter().find(|entry| entry.selection() == *donor));
     let anchor = selection_card(ui, entry, crate::i18n::t("选择歌声"));
-    if let Some(Choice::Voice(voice)) = voice_picker(&anchor, Some(catalog), donor.as_ref(), false, false, false, false) {
+    if let Some(Choice::Voice(voice)) = voice_picker(&anchor, Some(catalog), donor.as_ref(), false, false, false, false, false) {
+        *donor = Some(voice);
+    }
+}
+
+pub(crate) fn vocoder_picker(ui: &mut Ui, catalog: Option<&VoiceCatalog>, donor: &mut Option<VoiceSelection>, scanning: bool) {
+    let entry = donor.as_ref().and_then(|key| catalog?.entries.iter().find(|entry| entry.selection() == *key));
+    let anchor = selection_card(ui, entry, crate::i18n::t("选择歌声"));
+    if let Some(Choice::Voice(voice)) = voice_picker(&anchor, catalog, donor.as_ref(), false, false, scanning, false, true) {
         *donor = Some(voice);
     }
 }
 
 fn voice_picker(anchor: &Response, catalog: Option<&VoiceCatalog>, selected: Option<&VoiceSelection>,
-    track_actions: bool, can_clear: bool, scanning: bool, catalog_error: bool) -> Option<Choice>
+    track_actions: bool, can_clear: bool, scanning: bool, catalog_error: bool, r2_only: bool) -> Option<Choice>
 {
     let picker_height = crate::ui::resource_picker::height(&anchor.ctx);
     let mut choice = None;
@@ -109,7 +117,7 @@ fn voice_picker(anchor: &Response, catalog: Option<&VoiceCatalog>, selected: Opt
         });
     }
     let mut query = anchor.ctx.data(|data| data.get_temp::<String>(search_id)).unwrap_or_default();
-    let mut filter = anchor.ctx.data(|data| data.get_temp::<FamilyFilter>(filter_id)).unwrap_or_default();
+    let mut filter = if r2_only { FamilyFilter::r2_ai() } else { anchor.ctx.data(|data| data.get_temp::<FamilyFilter>(filter_id)).unwrap_or_default() };
     popup
         .width(288.0)
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
@@ -137,7 +145,7 @@ fn voice_picker(anchor: &Response, catalog: Option<&VoiceCatalog>, selected: Opt
             ui.ctx().data_mut(|data| {
                 data.insert_temp(search_id,query.clone());
             });
-            let filter_changed = filter.show(ui);
+            let filter_changed = if r2_only { FamilyFilter::show_r2_ai(ui); false } else { filter.show(ui) };
             ui.ctx().data_mut(|data| data.insert_temp(filter_id, filter));
             separator(ui);
             if track_actions {

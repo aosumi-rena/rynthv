@@ -91,6 +91,7 @@ fn show(app: &mut App, ctx: &Context, state: &mut State) {
                 });
                 ui.add_space(12.0);
             }
+            feedback::scan_notices(app, ui);
             if entries.is_empty() {
                 empty(app, ui, state);
             } else {

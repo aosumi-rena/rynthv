@@ -9,6 +9,10 @@ pub const CARD: Color32 = Color32::from_rgb(38, 38, 38);
 pub const ACCENT: Color32 = Color32::from_rgb(120, 214, 24);
 pub const INK: Color32 = Color32::from_rgb(242, 242, 242);
 pub const HEADER_HEIGHT: f32 = 68.;
+pub(crate) fn error_label(ui: &mut Ui, value: impl Into<String>) {
+    let value = crate::i18n::message(&value.into());
+    ui.add(Label::new(RichText::new(value).color(Color32::from_rgb(218, 142, 126))).selectable(false).wrap());
+}
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub enum Sort {
     #[default]
@@ -216,6 +220,13 @@ pub fn more(ui: &mut Ui, label: &str, content: impl FnOnce(&mut Ui)) {
     }
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, label));
     Popup::menu(&response).show(content);
+}
+pub fn details_action(ui: &mut Ui, expanded: &mut Option<String>, database_id: &str) {
+    let open = expanded.as_deref() == Some(database_id);
+    if ui.button(crate::i18n::t(if open { "收起详情" } else { "详情与诊断" })).clicked() {
+        *expanded = if open { None } else { Some(database_id.to_owned()) };
+        ui.close();
+    }
 }
 pub fn action_button(label: &str, enabled: bool, outline: bool) -> Button<'static> {
     Button::new(RichText::new(label).size(13.).color(if !enabled {

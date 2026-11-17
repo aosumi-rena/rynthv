@@ -1462,7 +1462,18 @@
     "ROCOFLEX_MORPHING": "ROCOFLEX_MORPHING",
     "Default initial track": "Default initial track",
     "Please drop one file at a time.": "Please drop one file at a time.",
-    "歌声音轨": "Voice track"
+    "歌声音轨": "Voice track",
+    "Instrument auxiliary model is not installed in the selected version directory": "Instrument auxiliary model is not installed in the selected version directory",
+    "R2_VOCODER": "R2_VOCODER",
+    "R2_VOCODER_ENABLE": "R2_VOCODER_ENABLE",
+    "R2_VOCODER_REQUIRED": "R2_VOCODER_REQUIRED",
+    "R2_VOCODER_CHECKING": "R2_VOCODER_CHECKING",
+    "R2_VOCODER_VALID": "R2_VOCODER_VALID",
+    "R2_VOCODER_INVALID": "R2_VOCODER_INVALID",
+    "R2_VOCODER_ACTIVE": "R2_VOCODER_ACTIVE",
+    "R2_VOCODER_PENDING": "R2_VOCODER_PENDING",
+    "R2_VOCODER_FILE": "Model file",
+    "R2_VOCODER_VOICE": "R2 voicebank"
   },
   "locales": {
     "de-de": {
@@ -2857,7 +2868,18 @@
       "ROCOFLEX_MORPHING": "Morphing…",
       "Default initial track": "Standardspur beim Start",
       "Please drop one file at a time.": "Bitte jeweils nur eine Datei ablegen.",
-      "Voice track": "Gesangsspur"
+      "Voice track": "Gesangsspur",
+      "Instrument auxiliary model is not installed in the selected version directory": "Das Hilfsmodell der gewählten Instrumentenversion fehlt. Installieren Sie das passende Hilfsmodell im selben Ordner und aktualisieren Sie die Liste.",
+      "R2_VOCODER": "R2-Vocoder verwenden",
+      "R2_VOCODER_ENABLE": "R2-Vocoder für alle R3-Stimmen verwenden",
+      "R2_VOCODER_REQUIRED": "Wähle ein R2-Vocoder-Modell.",
+      "R2_VOCODER_CHECKING": "Modell wird geprüft…",
+      "R2_VOCODER_VALID": "Gültiges R2-Vocoder-Modell",
+      "R2_VOCODER_INVALID": "Ungültiges oder nicht unterstütztes R2-Vocoder-Modell.",
+      "R2_VOCODER_ACTIVE": "R2-Vocoder-Override aktiv",
+      "R2_VOCODER_PENDING": "R2-Vocoder erforderlich — nicht geladen",
+      "R2_VOCODER_FILE": "Modelldatei",
+      "R2_VOCODER_VOICE": "R2-Stimmbank"
     },
     "es-la": {
       " · overlapping notes split into {} parts": " · notas superpuestas divididas en {0} partes",
@@ -4251,7 +4273,18 @@
       "ROCOFLEX_MORPHING": "Transformando…",
       "Default initial track": "Pista inicial predeterminada",
       "Please drop one file at a time.": "Arrastra un solo archivo a la vez.",
-      "Voice track": "Pista de voz"
+      "Voice track": "Pista de voz",
+      "Instrument auxiliary model is not installed in the selected version directory": "Falta el modelo auxiliar de la versión seleccionada del instrumento. Instala el modelo auxiliar correspondiente en la misma carpeta y actualiza la lista.",
+      "R2_VOCODER": "Reemplazo de vocoder R2",
+      "R2_VOCODER_ENABLE": "Usar vocoder R2 para todas las voces R3",
+      "R2_VOCODER_REQUIRED": "Selecciona un modelo de vocoder R2.",
+      "R2_VOCODER_CHECKING": "Validando modelo…",
+      "R2_VOCODER_VALID": "Modelo de vocoder R2 válido",
+      "R2_VOCODER_INVALID": "Modelo de vocoder R2 no válido o no compatible.",
+      "R2_VOCODER_ACTIVE": "Reemplazo por vocoder R2 activo",
+      "R2_VOCODER_PENDING": "Vocoder R2 obligatorio — no cargado",
+      "R2_VOCODER_FILE": "Archivo de modelo",
+      "R2_VOCODER_VOICE": "Banco de voz R2"
     },
     "fr-fr": {
       " · overlapping notes split into {} parts": " · notes superposées réparties en {0} parties",
@@ -5645,7 +5678,18 @@
       "ROCOFLEX_MORPHING": "Transformation…",
       "Default initial track": "Piste initiale par défaut",
       "Please drop one file at a time.": "Déposez un seul fichier à la fois.",
-      "Voice track": "Piste vocale"
+      "Voice track": "Piste vocale",
+      "Instrument auxiliary model is not installed in the selected version directory": "Le modèle auxiliaire de la version sélectionnée de l’instrument est absent. Installez le modèle auxiliaire correspondant dans le même dossier, puis actualisez la liste.",
+      "R2_VOCODER": "Remplacement du vocodeur par R2",
+      "R2_VOCODER_ENABLE": "Utiliser le vocodeur R2 pour toutes les voix R3",
+      "R2_VOCODER_REQUIRED": "Sélectionnez un modèle de vocodeur R2.",
+      "R2_VOCODER_CHECKING": "Validation du modèle…",
+      "R2_VOCODER_VALID": "Modèle de vocodeur R2 valide",
+      "R2_VOCODER_INVALID": "Modèle de vocodeur R2 invalide ou non pris en charge.",
+      "R2_VOCODER_ACTIVE": "Remplacement par le vocodeur R2 actif",
+      "R2_VOCODER_PENDING": "Vocodeur R2 requis — non chargé",
+      "R2_VOCODER_FILE": "Fichier du modèle",
+      "R2_VOCODER_VOICE": "Banque de voix R2"
     },
     "ja-jp": {
       " · overlapping notes split into {} parts": " · 重なったノートを {0} パートに分離",
@@ -7039,7 +7083,18 @@
       "ROCOFLEX_MORPHING": "モーフィング中…",
       "Default initial track": "初期トラック",
       "Please drop one file at a time.": "ファイルは一度に1つずつドロップしてください。",
-      "Voice track": "歌声トラック"
+      "Voice track": "歌声トラック",
+      "Instrument auxiliary model is not installed in the selected version directory": "選択した楽器バージョンの補助モデルがありません。対応する補助モデルを同じフォルダーに配置し、一覧を更新してください。",
+      "R2_VOCODER": "R2 ボコーダーへの置き換え",
+      "R2_VOCODER_ENABLE": "すべての R3 歌声に R2 ボコーダーを使用",
+      "R2_VOCODER_REQUIRED": "R2 ボコーダーモデルを選択してください。",
+      "R2_VOCODER_CHECKING": "モデルを検証中…",
+      "R2_VOCODER_VALID": "有効な R2 ボコーダーモデル",
+      "R2_VOCODER_INVALID": "R2 ボコーダーモデルが無効、または非対応です。",
+      "R2_VOCODER_ACTIVE": "R2 ボコーダーへの置き換えが有効",
+      "R2_VOCODER_PENDING": "R2 ボコーダーが必要 — 未読み込み",
+      "R2_VOCODER_FILE": "モデルファイル",
+      "R2_VOCODER_VOICE": "R2 音声データベース"
     },
     "ko-kr": {
       " · overlapping notes split into {} parts": " · 겹치는 음표를 {0}개 파트로 분리",
@@ -8433,7 +8488,18 @@
       "ROCOFLEX_MORPHING": "모핑 중…",
       "Default initial track": "기본 시작 트랙",
       "Please drop one file at a time.": "파일을 한 번에 하나씩 놓으세요.",
-      "Voice track": "보컬 트랙"
+      "Voice track": "보컬 트랙",
+      "Instrument auxiliary model is not installed in the selected version directory": "선택한 악기 버전의 보조 모델이 없습니다. 해당 보조 모델을 같은 폴더에 설치한 다음 목록을 새로 고치세요.",
+      "R2_VOCODER": "R2 보코더로 대체",
+      "R2_VOCODER_ENABLE": "모든 R3 음성에 R2 보코더 사용",
+      "R2_VOCODER_REQUIRED": "R2 보코더 모델을 선택하세요.",
+      "R2_VOCODER_CHECKING": "모델 확인 중…",
+      "R2_VOCODER_VALID": "유효한 R2 보코더 모델",
+      "R2_VOCODER_INVALID": "유효하지 않거나 지원되지 않는 R2 보코더 모델입니다.",
+      "R2_VOCODER_ACTIVE": "R2 보코더 대체 적용됨",
+      "R2_VOCODER_PENDING": "R2 보코더 필요 — 로드되지 않음",
+      "R2_VOCODER_FILE": "모델 파일",
+      "R2_VOCODER_VOICE": "R2 보이스뱅크"
     },
     "pt-br": {
       " · overlapping notes split into {} parts": " · notas sobrepostas divididas em {0} partes",
@@ -9827,7 +9893,18 @@
       "ROCOFLEX_MORPHING": "Transformando…",
       "Default initial track": "Faixa inicial padrão",
       "Please drop one file at a time.": "Arraste um arquivo de cada vez.",
-      "Voice track": "Faixa de voz"
+      "Voice track": "Faixa de voz",
+      "Instrument auxiliary model is not installed in the selected version directory": "O modelo auxiliar da versão selecionada do instrumento está ausente. Instale o modelo auxiliar correspondente na mesma pasta e atualize a lista.",
+      "R2_VOCODER": "Substituição por vocoder R2",
+      "R2_VOCODER_ENABLE": "Usar vocoder R2 para todas as vozes R3",
+      "R2_VOCODER_REQUIRED": "Selecione um modelo de vocoder R2.",
+      "R2_VOCODER_CHECKING": "Validando modelo…",
+      "R2_VOCODER_VALID": "Modelo de vocoder R2 válido",
+      "R2_VOCODER_INVALID": "Modelo de vocoder R2 inválido ou incompatível.",
+      "R2_VOCODER_ACTIVE": "Substituição por vocoder R2 ativa",
+      "R2_VOCODER_PENDING": "Vocoder R2 obrigatório — não carregado",
+      "R2_VOCODER_FILE": "Arquivo do modelo",
+      "R2_VOCODER_VOICE": "Banco de voz R2"
     },
     "ru-ru": {
       " · overlapping notes split into {} parts": " · пересекающиеся ноты разделены на {0} партий",
@@ -11221,7 +11298,18 @@
       "ROCOFLEX_MORPHING": "Морфинг…",
       "Default initial track": "Начальная дорожка",
       "Please drop one file at a time.": "Перетаскивайте по одному файлу.",
-      "Voice track": "Вокальная дорожка"
+      "Voice track": "Вокальная дорожка",
+      "Instrument auxiliary model is not installed in the selected version directory": "Отсутствует вспомогательная модель выбранной версии инструмента. Установите соответствующую модель в ту же папку и обновите список.",
+      "R2_VOCODER": "Замена вокодера на R2",
+      "R2_VOCODER_ENABLE": "Использовать вокодер R2 для всех голосов R3",
+      "R2_VOCODER_REQUIRED": "Выберите модель вокодера R2.",
+      "R2_VOCODER_CHECKING": "Проверка модели…",
+      "R2_VOCODER_VALID": "Допустимая модель вокодера R2",
+      "R2_VOCODER_INVALID": "Недопустимая или неподдерживаемая модель вокодера R2.",
+      "R2_VOCODER_ACTIVE": "Замена на вокодер R2 активна",
+      "R2_VOCODER_PENDING": "Требуется вокодер R2 — не загружен",
+      "R2_VOCODER_FILE": "Файл модели",
+      "R2_VOCODER_VOICE": "Голосовой банк R2"
     },
     "vi-vn": {
       " · overlapping notes split into {} parts": " · các nốt chồng nhau đã chia thành {0} bè",
@@ -12615,7 +12703,18 @@
       "ROCOFLEX_MORPHING": "Đang biến đổi…",
       "Default initial track": "Loại bản nhạc ban đầu",
       "Please drop one file at a time.": "Vui lòng kéo thả từng tệp một.",
-      "Voice track": "Bản nhạc giọng hát"
+      "Voice track": "Bản nhạc giọng hát",
+      "Instrument auxiliary model is not installed in the selected version directory": "Thiếu mô hình phụ trợ của phiên bản nhạc cụ đã chọn. Hãy cài mô hình phụ trợ tương ứng vào cùng thư mục rồi làm mới danh sách.",
+      "R2_VOCODER": "Thay bộ tổng hợp bằng R2",
+      "R2_VOCODER_ENABLE": "Dùng bộ tổng hợp R2 cho mọi giọng R3",
+      "R2_VOCODER_REQUIRED": "Chọn mô hình bộ tổng hợp R2.",
+      "R2_VOCODER_CHECKING": "Đang kiểm tra mô hình…",
+      "R2_VOCODER_VALID": "Mô hình bộ tổng hợp R2 hợp lệ",
+      "R2_VOCODER_INVALID": "Mô hình bộ tổng hợp R2 không hợp lệ hoặc không được hỗ trợ.",
+      "R2_VOCODER_ACTIVE": "Đang dùng bộ tổng hợp R2",
+      "R2_VOCODER_PENDING": "Yêu cầu bộ tổng hợp R2 — chưa tải",
+      "R2_VOCODER_FILE": "Tệp mô hình",
+      "R2_VOCODER_VOICE": "Ngân hàng giọng R2"
     },
     "zh-cn": {
       " · overlapping notes split into {} parts": " · 重叠音符拆出 {0} 条声部",
@@ -14009,7 +14108,18 @@
       "ROCOFLEX_MORPHING": "正在变声…",
       "Default initial track": "默认初始音轨",
       "Please drop one file at a time.": "请一次拖入一个文件。",
-      "Voice track": "歌声音轨"
+      "Voice track": "歌声音轨",
+      "Instrument auxiliary model is not installed in the selected version directory": "所选乐器版本缺少辅助模型。请将对应的辅助模型放入同一文件夹，然后刷新列表。",
+      "R2_VOCODER": "R2 声码器覆盖",
+      "R2_VOCODER_ENABLE": "为所有 R3 歌声使用 R2 声码器",
+      "R2_VOCODER_REQUIRED": "请选择 R2 声码器模型。",
+      "R2_VOCODER_CHECKING": "正在验证模型…",
+      "R2_VOCODER_VALID": "有效的 R2 声码器模型",
+      "R2_VOCODER_INVALID": "R2 声码器模型无效或不受支持。",
+      "R2_VOCODER_ACTIVE": "R2 声码器覆盖已生效",
+      "R2_VOCODER_PENDING": "必须使用 R2 声码器覆盖 — 尚未加载",
+      "R2_VOCODER_FILE": "模型文件",
+      "R2_VOCODER_VOICE": "R2 声库"
     },
     "zh-tw": {
       " · overlapping notes split into {} parts": " · 重疊音符拆出 {0} 條聲部",
@@ -15403,7 +15513,18 @@
       "ROCOFLEX_MORPHING": "正在變聲…",
       "Default initial track": "預設初始音軌",
       "Please drop one file at a time.": "請一次拖入一個檔案。",
-      "Voice track": "歌聲音軌"
+      "Voice track": "歌聲音軌",
+      "Instrument auxiliary model is not installed in the selected version directory": "所選樂器版本缺少輔助模型。請將對應的輔助模型放入同一資料夾，然後重新整理清單。",
+      "R2_VOCODER": "R2 聲碼器覆寫",
+      "R2_VOCODER_ENABLE": "為所有 R3 歌聲使用 R2 聲碼器",
+      "R2_VOCODER_REQUIRED": "請選擇 R2 聲碼器模型。",
+      "R2_VOCODER_CHECKING": "正在驗證模型…",
+      "R2_VOCODER_VALID": "有效的 R2 聲碼器模型",
+      "R2_VOCODER_INVALID": "R2 聲碼器模型無效或不受支援。",
+      "R2_VOCODER_ACTIVE": "R2 聲碼器覆寫已生效",
+      "R2_VOCODER_PENDING": "必須使用 R2 聲碼器覆寫 — 尚未載入",
+      "R2_VOCODER_FILE": "模型檔案",
+      "R2_VOCODER_VOICE": "R2 聲庫"
     },
     "en-us": {
       " · overlapping notes split into {} parts": " · overlapping notes split into {0} parts",
@@ -16797,7 +16918,18 @@
       "ROCOFLEX_MORPHING": "Morphing…",
       "Default initial track": "Default initial track",
       "Please drop one file at a time.": "Please drop one file at a time.",
-      "Voice track": "Voice track"
+      "Voice track": "Voice track",
+      "Instrument auxiliary model is not installed in the selected version directory": "The auxiliary model is missing from the selected instrument version. Install its matching auxiliary model in the same folder, then refresh.",
+      "R2_VOCODER": "R2 vocoder override",
+      "R2_VOCODER_ENABLE": "Use R2 vocoder for all R3 voices",
+      "R2_VOCODER_REQUIRED": "Select an R2 vocoder model.",
+      "R2_VOCODER_CHECKING": "Validating model…",
+      "R2_VOCODER_VALID": "Valid R2 vocoder model",
+      "R2_VOCODER_INVALID": "Invalid or unsupported R2 vocoder model.",
+      "R2_VOCODER_ACTIVE": "R2 vocoder override active",
+      "R2_VOCODER_PENDING": "R2 vocoder override required — not loaded",
+      "R2_VOCODER_FILE": "Model file",
+      "R2_VOCODER_VOICE": "R2 voicebank"
     }
   }
 }

@@ -39,6 +39,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
             });
         }
     }
+    if settings.enabled || settings.r2_vocoder { super::vocoder::show(app, ui, &mut settings); }
     if settings!=before {app.synthesis.set_experiments(settings);}
     if let Some(error)=app.synthesis.library.settings_error() {ui.colored_label(eframe::egui::Color32::LIGHT_RED,crate::i18n::message(error));}
 }

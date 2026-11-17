@@ -39,6 +39,8 @@ pub struct VoiceInventory {
     _models: Vec<LoadedModel>,
     #[serde(skip)]
     preparation: OnceLock<Result<Arc<PreparedVoice>>>,
+    #[serde(skip)]
+    vocoder_override: Option<Arc<super::vocoder_override::VocoderOverride>>,
 }
 
 enum LoadedModel {
@@ -96,7 +98,7 @@ impl VoiceInventory {
         let ready=OnceLock::new();let _=ready.set(Ok(Arc::new(voice)));
         Ok(Self {standard:None,database_id:super::nofs::database_id(path)?.replacen("sv1:","flat:",1),directory:path.to_owned(),
             display_name:configuration.name.clone(),source_identity:source_identity(path),resource_count:0,graph_count:4,tensor_count:0,
-            files:Vec::new(),configuration:Some(configuration),_models:Vec::new(),preparation:ready})
+            files:Vec::new(),configuration:Some(configuration),_models:Vec::new(),preparation:ready,vocoder_override:None})
     }
     pub fn prepare(&self) -> Result<Arc<PreparedVoice>> {
         if self.standard.is_some(){return Err(VoiceError::new("STD banks use their dedicated inference backend"));}
@@ -153,7 +155,8 @@ impl VoiceInventory {
                     configuration.family,
                     configuration.f0_enhancement,
                     configuration.speakers.clone(),
-                ).with_acoustic_version(&configuration.version)
+                ).with_vocoder_override(self.vocoder_override.clone())
+                .with_acoustic_version(&configuration.version)
                 .with_vocal_modes(Some(configuration.vocal_mode_names().to_vec()))?))
             })
             .clone()
@@ -168,6 +171,31 @@ impl VoiceInventory {
     }
 
     pub fn load(directory: &Path) -> Result<Self> {
+        let settings = crate::synthesis::settings::SynthesisSettings::load().map_err(VoiceError::new)?;
+        let source = if settings.experiments.r2_vocoder {
+            if let Some(voice) = &settings.r2_vocoder_voice {
+                if settings.r2_vocoder.is_some() { return Err(VoiceError::new("R2_VOCODER_INVALID")); }
+                let mut donor = settings.clone();
+                donor.selected_voice = Some(voice.clone());
+                Some(super::R2VocoderSource::Voice(donor.selected_directory().map_err(VoiceError::new)?))
+            } else { settings.r2_vocoder.clone().map(super::R2VocoderSource::File) }
+        } else { None };
+        Self::load_with_vocoder(directory, settings.experiments.r2_vocoder, source.as_ref())
+    }
+
+    pub(crate) fn load_with_vocoder(directory: &Path, required: bool, source: Option<&super::R2VocoderSource>) -> Result<Self> {
+        let mut inventory = Self::load_source(directory)?;
+        if required && inventory.configuration.as_ref().is_some_and(|c| c.family.requires_identity()) {
+            let source = source.ok_or_else(|| VoiceError::new("R2_VOCODER_REQUIRED"))?;
+            let model = super::vocoder_override::load(source)?;
+            inventory.source_identity.push_str(":r2-vocoder:");
+            inventory.source_identity.push_str(&model.identity);
+            inventory.vocoder_override = Some(model);
+        }
+        Ok(inventory)
+    }
+
+    fn load_source(directory: &Path) -> Result<Self> {
         let standard=if super::standard::is_profile(directory) {
             Some(super::standard::StdVoice::load(directory)?)
         }else{super::standard::native_voice(directory)?};
@@ -175,7 +203,7 @@ impl VoiceInventory {
             return Ok(Self {database_id:standard.database_id.clone(),directory:standard.profile.clone(),
                 display_name:standard.configuration.name.clone(),source_identity:source_identity(&standard.profile),
                 resource_count:0,graph_count:0,tensor_count:0,files:Vec::new(),configuration:Some(standard.configuration.clone()),
-                _models:Vec::new(),preparation:OnceLock::new(),standard:Some(standard)});
+                _models:Vec::new(),preparation:OnceLock::new(),vocoder_override:None,standard:Some(standard)});
         }
         if super::flat::is_profile(directory) {
             let (voice,configuration)=super::flat::load(directory)?;
@@ -213,7 +241,7 @@ impl VoiceInventory {
                     "目录同时包含 SV1 与 SV2 模型，请选择明确的声库文件或版本目录",
                 ));
             }
-            return Self::load(&nofs_files[0]);
+            return Self::load_source(&nofs_files[0]);
         }
         let context = FormatContext::dnni_v3();
         let mut paths = fs::read_dir(directory)?
@@ -250,6 +278,7 @@ impl VoiceInventory {
             tensor_count: 0,
             _models: Vec::new(),
             preparation: OnceLock::new(),
+            vocoder_override: None,
         };
         for path in paths {
             let archive = Arc::new(Archive::load(&path, &context)?);

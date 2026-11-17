@@ -37,7 +37,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
             let mut meta = child(
                 ui,
                 Rect::from_min_max(origin + vec2(0., 49.), pos2(end, origin.y + 73.)),
-                "instrument-revision",
+                ui.id().with("instrument-revision"),
             );
             ui.painter()
                 .with_clip_rect(
@@ -112,12 +112,12 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
             );
             let current = super::current(app).is_some_and(|e| e.selection == entry.selection);
             let available = entry.auxiliary.is_some();
-            let label = crate::i18n::t(if current {
+            let label = crate::i18n::t(if !available {
+                "加载失败"
+            } else if current {
                 "当前音轨"
-            } else if available {
-                "可加载"
             } else {
-                "不可用"
+                "可加载"
             });
             let status = if compact {
                 Rect::from_min_max(
@@ -143,56 +143,50 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
                 },
                 label,
                 FontId::proportional(11.),
-                if current { ACCENT } else { MUTED },
+                if !available { Color32::from_rgb(218, 142, 126) } else if current { ACCENT } else { MUTED },
             );
             let menu_rect = Rect::from_min_size(rect.right_top() - vec2(24., 2.), Vec2::splat(26.));
-            let mut menu = child(ui, menu_rect, "instrument-actions");
+            let mut menu = child(ui, menu_rect, ui.id().with("instrument-actions"));
             resource_manager::more(&mut menu, crate::i18n::t("Manage Instruments"), |ui| {
-                if ui
-                    .button(crate::i18n::t(
-                        if state.expanded.as_deref() == Some(&entry.selection.database_id) {
-                            "收起详情"
-                        } else {
-                            "详情与诊断"
-                        },
-                    ))
-                    .clicked()
-                {
-                    state.expanded =
-                        if state.expanded.as_deref() == Some(&entry.selection.database_id) {
-                            None
-                        } else {
-                            Some(entry.selection.database_id.clone())
-                        };
-                    ui.close();
-                }
+                resource_manager::details_action(ui, &mut state.expanded, &entry.selection.database_id);
             });
             let action_rect = Rect::from_min_max(rect.max - vec2(146., 36.), rect.max);
-            let mut action = child(ui, action_rect, "load-instrument");
-            let enabled =
-                available && !current && !changed && app.editor.current_track().is_instrument();
+            let mut action = child(ui, action_rect, ui.id().with("load-instrument"));
+            let enabled = !changed && (!available || (!current && app.editor.current_track().is_instrument()));
             let button = resource_manager::action_button(
-                crate::i18n::t(if current {
+                crate::i18n::t(if !available {
+                    "处理问题"
+                } else if current {
                     "当前音轨"
                 } else {
                     "用于当前音轨"
                 }),
                 enabled,
-                current,
+                current || !available,
             );
             if action
                 .add_enabled(
-                    available && !current && !changed && app.editor.current_track().is_instrument(),
+                    enabled,
                     button.min_size(vec2(146., 36.)),
                 )
                 .clicked()
             {
-                app.editor.select_instrument(entry);
+                if available {
+                    app.editor.select_instrument(entry);
+                } else {
+                    state.expanded = Some(entry.selection.database_id.clone());
+                }
             }
             if state.expanded.as_deref() == Some(&entry.selection.database_id) {
                 ui.add_space(16.);
                 ui.separator();
                 ui.add_space(10.);
+                if !available {
+                    resource_manager::error_label(ui, crate::i18n::t("合成环境准备失败"));
+                    ui.collapsing(crate::i18n::t("查看错误详情"), |ui| {
+                        resource_manager::error_label(ui, "Instrument auxiliary model is not installed in the selected version directory");
+                    });
+                }
                 ui.label(crate::i18n::t("Instrument Resources"))
                     .on_hover_text(entry.main.display().to_string());
                 if let Some([lo, hi]) = entry.pitch_range {

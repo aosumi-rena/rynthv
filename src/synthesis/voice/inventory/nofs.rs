@@ -74,6 +74,7 @@ pub(super) fn load(path: &Path) -> Result<VoiceInventory> {
         configuration: Some(description.configuration),
         _models: vec![LoadedModel::Nofs { trees }],
         preparation: OnceLock::new(),
+        vocoder_override: None,
     };
     let names = inventory.embedded_style_names()?;
     inventory.configuration.as_mut().expect("NOFS configuration")

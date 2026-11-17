@@ -98,6 +98,10 @@ impl Runtime {
             }
             let worker = (|| {
                 let entry = self.library.entry(&key).ok_or("声库不在当前目录中")?;
+                let r2_vocoder_source = if self.library.settings.experiments.r2_vocoder
+                    && entry.family.is_some_and(|family| family.requires_identity()) {
+                    Some(self.library.r2_vocoder_source()?.ok_or_else(|| crate::i18n::t("R2_VOCODER_REQUIRED").to_owned())?)
+                } else { None };
                 let dictionaries = self.library.settings.phoneme_directory(entry)
                     .filter(|p| p.is_dir())
                     .ok_or(crate::i18n::t("PHONEME_DATA_REQUIRED"))?;
@@ -106,6 +110,8 @@ impl Runtime {
                     dictionaries.to_owned(),
                     self.library.settings.converter_for(entry)?.map(ToOwned::to_owned),
                     self.library.settings.duration_key_override_for(&key),
+                    self.library.settings.experiments.r2_vocoder,
+                    r2_vocoder_source,
                     self.repaint.clone(),
                     self.render_wake.clone(),
                 )

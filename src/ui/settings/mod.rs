@@ -1,5 +1,6 @@
 mod pages;
 mod experiments;
+mod vocoder;
 mod preferences;
 mod shortcuts;
 mod widgets;

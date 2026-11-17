@@ -10,7 +10,7 @@ mod tuning;
 mod paths;
 mod duration_key;
 mod selector;
-pub(crate) use selector::donor_picker;
+pub(crate) use selector::{donor_picker, vocoder_picker};
 mod family_filter;
 mod widgets;
 mod vocal_modes;
@@ -21,6 +21,7 @@ mod mode_knob;
 mod mode_value;
 
 use super::theme::*;
+use super::resource_manager::error_label;
 use crate::{
     app::App,
     synthesis::voice::{VoiceCatalogEntry, VoiceFamily},
@@ -53,14 +54,6 @@ fn text(ui: &mut Ui, value: impl Into<WidgetText>) {
 
 fn weak(ui: &mut Ui, value: impl Into<String>) {
     text(ui, RichText::new(value).color(MUTED));
-}
-
-fn error_label(ui: &mut Ui, value: impl Into<String>) {
-    let value=crate::i18n::message(&value.into());
-    text(
-        ui,
-        RichText::new(value).color(Color32::from_rgb(218, 142, 126)),
-    );
 }
 
 fn language_name(language: &str) -> &str {

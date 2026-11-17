@@ -15,6 +15,7 @@ mod noise_cadence;
 mod phones;
 mod phonetic;
 mod preparation;
+pub(crate) mod vocoder_override;
 mod prepared;
 mod revision;
 #[cfg(windows)]
@@ -40,6 +41,12 @@ pub use prepared::{PreparedModule, PreparedNode, PreparedTree, PreparedTreeSumma
 pub use revision::VoiceRevision;
 pub use speakers::Speaker;
 pub use tensor::{TensorLayout, TensorStorage};
+
+pub use vocoder_override::R2VocoderSource;
+
+pub fn validate_r2_vocoder(source: &R2VocoderSource) -> Result<()> {
+    vocoder_override::load(source).map(|_| ())
+}
 
 use std::{fmt, ops::Range};
 

@@ -4,6 +4,7 @@ use std::sync::{Arc, OnceLock};
 
 pub struct PreparedVoice {
     files: Vec<PreparedFile>,
+    vocoder_override: Option<Arc<super::vocoder_override::VocoderOverride>>,
     pub family: VoiceFamily,
     pub f0_enhancement: Option<f32>,
     pub(crate) dds_half_precision_language: bool,
@@ -56,6 +57,7 @@ impl PreparedVoice {
     ) -> Self {
         let model = Self {
             files,
+            vocoder_override: None,
             family,
             f0_enhancement,
             dds_half_precision_language: false,
@@ -191,6 +193,7 @@ impl PreparedVoice {
             .ok_or_else(||VoiceError::new("Choir member vocal-mode catalogue has not been prepared"))?;
         Ok(Self {
             files: self.files.clone(),
+            vocoder_override: self.vocoder_override.clone(),
             family: self.family,
             f0_enhancement: self.f0_enhancement,
             dds_half_precision_language: self.dds_half_precision_language,
@@ -210,17 +213,34 @@ impl PreparedVoice {
         let tree=source.shared_model("vocoder")?;
         let mut files=self.files.clone();
         for model in files.iter_mut().flat_map(|f|&mut f.trees) {if model.role=="vocoder" {model.tree=Arc::clone(&tree);}}
-        Ok(Self {files,family:self.family,f0_enhancement:self.f0_enhancement,
+        Ok(Self {files,vocoder_override:self.vocoder_override.clone(),family:self.family,f0_enhancement:self.f0_enhancement,
             dds_half_precision_language:self.dds_half_precision_language,retained_acoustic_noise_only:self.retained_acoustic_noise_only,
             vocal_modes:self.vocal_modes.clone(),speakers:self.speakers.clone(),member_vocal_modes:Arc::clone(&self.member_vocal_modes),
             speaker:self.speaker,summary:OnceLock::new()})
     }
 
+    pub(super) fn with_vocoder_override(mut self, tree: Option<Arc<super::vocoder_override::VocoderOverride>>) -> Self {
+        self.vocoder_override = tree;
+        self.summary = OnceLock::new();
+        self
+    }
+
+    pub fn uses_r2_vocoder(&self) -> bool { self.vocoder_override.is_some() }
+
+    pub(crate) fn require_r2_vocoder(&self, required: bool) -> Result<()> {
+        if required && self.family.requires_identity() {
+            self.vocoder_override.as_ref().ok_or_else(|| VoiceError::new("R2_VOCODER_REQUIRED"))?.validate_current()?;
+        }
+        Ok(())
+    }
+
     pub fn model(&self, role: &str) -> Result<&PreparedTree> {
+        if role == "vocoder" && let Some(model) = &self.vocoder_override { model.validate_current()?; return Ok(&model.tree); }
         Ok(self.find_model(role)?.tree.as_ref())
     }
 
     pub(crate) fn shared_model(&self, role: &str) -> Result<Arc<PreparedTree>> {
+        if role == "vocoder" && let Some(model) = &self.vocoder_override { model.validate_current()?; return Ok(Arc::clone(&model.tree)); }
         Ok(Arc::clone(&self.find_model(role)?.tree))
     }
 

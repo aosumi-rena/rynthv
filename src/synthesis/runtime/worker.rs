@@ -110,6 +110,8 @@ impl Worker {
         dictionaries: PathBuf,
         phone_conversion: Option<PathBuf>,
         duration_key_override: Option<u64>,
+        r2_vocoder_required: bool,
+        r2_vocoder_source: Option<crate::synthesis::voice::R2VocoderSource>,
         repaint: eframe::egui::Context,
         wake: RenderWake,
     ) -> Result<Self, String> {
@@ -128,6 +130,8 @@ impl Worker {
                     dictionaries,
                     phone_conversion,
                     duration_key_override,
+                    r2_vocoder_required,
+                    r2_vocoder_source,
                     commands,
                     Events::new(events, wake),
                     running,

@@ -103,6 +103,18 @@ impl VoiceLibrary {
         library
     }
 
+    pub fn r2_vocoder_source(&self) -> Result<Option<crate::synthesis::voice::R2VocoderSource>, String> {
+        use crate::synthesis::voice::{R2VocoderSource, VoiceFamily};
+        if let Some(key) = &self.settings.r2_vocoder_voice {
+            if self.settings.r2_vocoder.is_some() { return Err(crate::i18n::t("R2_VOCODER_INVALID").into()); }
+            let entry = self.entry(key).filter(|entry| entry.family == Some(VoiceFamily::Sv1) && entry.availability.is_loadable())
+                .ok_or_else(|| crate::i18n::t("R2_VOCODER_INVALID").to_owned())?;
+            Ok(Some(R2VocoderSource::Voice(entry.directory.clone())))
+        } else {
+            Ok(self.settings.r2_vocoder.clone().map(R2VocoderSource::File))
+        }
+    }
+
     pub fn catalog(&self) -> Option<&VoiceCatalog> {
         self.catalog.as_ref()
     }
@@ -202,11 +214,12 @@ impl Runtime {
     }
     pub fn set_experiments(&mut self, experiments:crate::synthesis::experiments::ExperimentalSettings) {
         let mut settings=self.library.settings.clone();
-        let reload=settings.experiments.active(settings.experiments.phone_conversion)!=experiments.active(experiments.phone_conversion);
+        let reload=settings.experiments.active(settings.experiments.phone_conversion)!=experiments.active(experiments.phone_conversion)
+            || settings.experiments.r2_vocoder!=experiments.r2_vocoder;
         settings.experiments=experiments;
         if self.library.update(settings) {
             experiments.publish_ui();
-            if reload {self.rescan_voices();self.visuals.clear();self.phonemes.clear();return;}
+            if reload {crate::synthesis::voice::vocoder_override::clear();self.rescan_voices();self.visuals.clear();self.phonemes.clear();return;}
             self.request_serial=self.request_serial.wrapping_add(1);
             self.last_revision=None;
             self.export_owners.clear();
@@ -270,6 +283,26 @@ impl Runtime {
     pub fn set_phoneme_data(&mut self,version:crate::synthesis::settings::PhonemeVersion,path:Option<PathBuf>) {
         let mut settings=self.library.settings.clone();settings.phoneme_data.set(version,path);
         if settings!=self.library.settings && self.library.update(settings){self.rescan_voices();}
+    }
+    pub fn set_r2_vocoder(&mut self, path: Option<PathBuf>) {
+        let mut settings = self.library.settings.clone();
+        settings.r2_vocoder = path;
+        settings.r2_vocoder_voice = None;
+        self.update_vocoder(settings);
+    }
+    pub fn set_r2_vocoder_voice(&mut self, voice: Option<VoiceSelection>) {
+        let mut settings = self.library.settings.clone();
+        settings.r2_vocoder_voice = voice;
+        settings.r2_vocoder = None;
+        self.update_vocoder(settings);
+    }
+    fn update_vocoder(&mut self, settings: SynthesisSettings) {
+        if self.library.update(settings) {
+            crate::synthesis::voice::vocoder_override::clear();
+            if self.library.settings.experiments.r2_vocoder {
+                self.rescan_voices();self.visuals.clear();self.phonemes.clear();
+            }
+        }
     }
     pub fn set_phone_conversion(&mut self,path:Option<PathBuf>) {
         let error=path.as_deref().and_then(|path|crate::synthesis::phone_conversion::PhoneConversion::load(path).err()).map(|error|error.to_string());

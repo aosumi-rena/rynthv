@@ -51,11 +51,12 @@ pub fn needs_complete(input:&OwnerInput,family:VoiceFamily)->Result<bool> {
 
 pub fn synthesize(voice:&PreparedVoice,identity:Option<u64>,input:&OwnerInput,
     phrase:&PreparedPhrase,_lexicon:&LyricFrontend,mut checkpoint:impl FnMut(RenderStage)->Result<()>)->Result<RenderResult> {
+    voice.require_r2_vocoder(input.experiments.settings.r2_vocoder)?;
     let controls=ExperimentControls::effective(&input.voice.instance_options,input.experiments.settings)?;
     controls.validate()?;
     let dds_enabled=input.experiments.settings.active(input.experiments.settings.dds_controls);
     let speaker_vectors=dds_enabled && voice.family!=VoiceFamily::Sv2 && controls.dds.speaker_vectors;
-    let selected_vocoder=if dds_enabled {
+    let selected_vocoder=if dds_enabled && !voice.uses_r2_vocoder() {
         controls.dds.vocoder.as_ref().map(|key| {
             let source=input.experiments.sources.iter().find(|s|&s.voice==key).ok_or_else(||VoiceError::new("Selected vocoder voice is not loaded"))?;
             voice.with_vocoder(&source.prepared)

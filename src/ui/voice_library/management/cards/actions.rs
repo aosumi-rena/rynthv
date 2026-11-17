@@ -79,21 +79,7 @@ pub(super) fn menu(
     current: bool,
 ) {
     crate::ui::resource_manager::more(ui, crate::i18n::t("更多声库操作"), |ui| {
-        if ui
-            .button(if state.expanded.as_ref() == Some(&entry.database_id) {
-                crate::i18n::t("收起详情")
-            } else {
-                crate::i18n::t("详情与诊断")
-            })
-            .clicked()
-        {
-            if state.expanded.as_ref() == Some(&entry.database_id) {
-                state.expanded = None;
-            } else {
-                state.expanded = Some(entry.database_id.clone());
-            }
-            ui.close();
-        }
+        crate::ui::resource_manager::details_action(ui, &mut state.expanded, &entry.database_id);
         if !matches!(
             app.synthesis.voice_state(&entry.selection()),
             VoiceState::Unloaded

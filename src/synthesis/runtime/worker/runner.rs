@@ -27,6 +27,8 @@ pub(super) fn run(
     dictionaries: PathBuf,
     phone_conversion: Option<PathBuf>,
     duration_key_override: Option<u64>,
+    r2_vocoder_required: bool,
+    r2_vocoder_source: Option<crate::synthesis::voice::R2VocoderSource>,
     commands: Receiver<Command>,
     events: Events,
     alive: Arc<AtomicBool>,
@@ -43,7 +45,7 @@ pub(super) fn run(
         }
     };
     let started = Instant::now();
-    let inventory=match VoiceInventory::load(&path) {
+    let inventory=match VoiceInventory::load_with_vocoder(&path, r2_vocoder_required, r2_vocoder_source.as_ref()) {
         Ok(inventory)=>inventory,
         Err(error)=>{
             let _=events.send(Event::Voice {state:VoiceState::Failed(error.to_string()),elapsed:started.elapsed()});
@@ -57,6 +59,7 @@ pub(super) fn run(
     let loaded = Ok::<_,VoiceError>(inventory).and_then(|inventory| {
         loading_checkpoint()?;
         let prepared = inventory.prepare()?;
+        prepared.require_r2_vocoder(r2_vocoder_required)?;
         loading_checkpoint()?;
         let (name, version) = inventory
             .configuration
