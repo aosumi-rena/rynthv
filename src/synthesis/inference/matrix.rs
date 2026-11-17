@@ -58,9 +58,50 @@ pub struct DenseMatrix {
 
 #[derive(Clone)]
 struct IntegerMatrix {
+    // Input-major, each input's outputs padded with zeros to `stride`.
     weights: Arc<[i16]>,
+    stride: usize,
     factors: Arc<[f32]>,
     input_scale: f32,
+}
+
+impl IntegerMatrix {
+    fn frame(&self,input:&[f32],output:&mut[f32],accumulate:bool) {
+        let mut sums=vec![0_i16;self.stride];
+        for (&value,weights) in input.iter().zip(self.weights.chunks_exact(self.stride)) {
+            let value=quantize_input(value,self.input_scale);
+            for (sum,&weight) in sums.iter_mut().zip(weights) {
+                *sum=sum.saturating_add(rounded_product(weight,value));
+            }
+        }
+        self.scale(&sums,output,accumulate);
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2,fma")]
+    unsafe fn frame_avx2(&self,input:&[f32],output:&mut[f32],accumulate:bool) {
+        use std::arch::x86_64::*;
+        let mut sums=vec![0_i16;self.stride];
+        for (&value,weights) in input.iter().zip(self.weights.chunks_exact(self.stride)) {
+            let value=_mm256_set1_epi16(quantize_input(value,self.input_scale));
+            for (sum,weights) in sums.chunks_exact_mut(16).zip(weights.chunks_exact(16)) {
+                unsafe {
+                    let product=_mm256_mulhrs_epi16(_mm256_loadu_si256(weights.as_ptr().cast()),value);
+                    let total=_mm256_adds_epi16(_mm256_loadu_si256(sum.as_ptr().cast()),product);
+                    _mm256_storeu_si256(sum.as_mut_ptr().cast(),total);
+                }
+            }
+        }
+        self.scale(&sums,output,accumulate);
+    }
+
+    #[inline(always)]
+    fn scale(&self,sums:&[i16],output:&mut[f32],accumulate:bool) {
+        for ((target,&sum),&factor) in output.iter_mut().zip(sums).zip(self.factors.iter()) {
+            if accumulate {*target=(sum as f32).mul_add(factor,*target);}
+            else {*target=(sum as f32)*factor;}
+        }
+    }
 }
 
 impl DenseMatrix {
@@ -127,12 +168,13 @@ impl DenseMatrix {
         let integer=if integer_execution && bits==16 {
             if !(-30..=30).contains(&input_exponent) {return Err(MatrixError::InvalidScale);}
             let input_scale=2.0_f32.powi(input_exponent);
-            let mut weights=vec![0_i16;count];
+            let stride=rows.next_multiple_of(16);
+            let mut weights=vec![0_i16;columns.checked_mul(stride).ok_or(MatrixError::InvalidShape)?];
             for output in 0..rows {for input in 0..columns {
                 let index=(input*rows+output)*bytes;
-                weights[output*columns+input]=i16::from_le_bytes([values[index],values[index+1]]);
+                weights[input*stride+output]=i16::from_le_bytes([values[index],values[index+1]]);
             }}
-            Some(IntegerMatrix {weights:weights.into(),input_scale,
+            Some(IntegerMatrix {weights:weights.into(),stride,input_scale,
                 factors:scales.iter().map(|scale| scale/input_scale).collect()})
         } else {None};
         Ok(Self {
@@ -163,19 +205,12 @@ impl DenseMatrix {
 
     pub(super) fn integer_frame(&self,input:&[f32],output:&mut[f32],accumulate:bool)->bool {
         let Some(integer)=&self.integer else{return false};
-        let quantized:Vec<i16>=input.iter().map(|value| {
-            quantize_input(*value,integer.input_scale)
-        }).collect();
-        for (channel,target) in output.iter_mut().enumerate() {
-            let weights=&integer.weights[channel*self.columns..(channel+1)*self.columns];
-            let mut sum=0_i16;
-            for (&weight,&value) in weights.iter().zip(&quantized) {
-                sum=sum.saturating_add(rounded_product(weight,value));
-            }
-
-            if accumulate {*target=(sum as f32).mul_add(integer.factors[channel],*target);}
-            else {*target=(sum as f32)*integer.factors[channel];}
+        #[cfg(target_arch = "x86_64")]
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            unsafe {integer.frame_avx2(input,output,accumulate);}
+            return true;
         }
+        integer.frame(input,output,accumulate);
         true
     }
 
@@ -184,10 +219,12 @@ impl DenseMatrix {
     }
 }
 
+#[inline(always)]
 fn quantize_input(value:f32,scale:f32)->i16 {
     (value*scale).round_ties_even().clamp(-32768.0,32767.0) as i16
 }
 
+#[inline(always)]
 fn rounded_product(a:i16,b:i16)->i16 {
     ((i32::from(a)*i32::from(b)+0x4000)>>15) as i16
 }
