@@ -44,6 +44,7 @@ impl Pipeline {
     pub fn new(tree: Arc<PreparedTree>,effects:Option<crate::synthesis::stages::vocoder::effects::EffectTimeline>,compatible_dispatch:bool,native_dds:bool,seeds:Option<Arc<[u64]>>) -> Result<Self> {
         let cancellation = Cancellation::child(execution::current());
         let worker_cancellation = cancellation.clone();
+        let zero = execution::zero_gru_weights();
         let (input, inputs) = mpsc::sync_channel(MAX_OUTSTANDING);
 
         let (outputs, output) = mpsc::channel();
@@ -52,7 +53,7 @@ impl Pipeline {
         let worker = thread::Builder::new()
             .name("rynthv-vocoder".into())
             .spawn(move || {
-                execution::scope(worker_cancellation, || {
+                execution::render_scope(worker_cancellation, zero, || {
                     let result = run(
                         &tree,
                         &inputs,

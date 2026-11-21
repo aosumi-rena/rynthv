@@ -1,6 +1,8 @@
 mod pages;
 mod experiments;
+mod override_controls;
 mod vocoder;
+mod waveform;
 mod preferences;
 mod shortcuts;
 mod widgets;

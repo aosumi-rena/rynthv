@@ -6,6 +6,9 @@ use crate::{
 use eframe::egui::*;
 
 pub fn show(app: &mut App, ctx: &Context) {
+    if app.midi_import.as_ref().is_some_and(|import| import.mode == MidiImportMode::NewProject) {
+        return;
+    }
     let Some(mut import) = app.midi_import.take() else {
         return;
     };
@@ -131,18 +134,11 @@ pub fn show(app: &mut App, ctx: &Context) {
             ui.add_space(10.0);
             ui.horizontal(|ui| {
                 let size = vec2((ui.available_width() - 10.0) / 2.0, 34.0);
-                cancel = ui
-                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))
-                    .clicked();
+                cancel = ui.add_sized(size, Button::new(crate::i18n::t("取消"))).clicked();
                 ui.add_space(2.0);
-                submit = ui
-                    .add_enabled(
-                        can_import,
-                        Button::new(RichText::new(crate::i18n::t("导入")).color(CANVAS))
-                            .fill(crate::ui::theme::accent(ui))
-                            .min_size(size),
-                    )
-                    .clicked();
+                let accent = accent(ui);
+                let confirm = Button::new(RichText::new(crate::i18n::t("导入")).color(CANVAS));
+                submit = super::prompt::action_button(ui, confirm, size, can_import, accent).clicked();
             });
         });
     if modal.is_top_modal && !modal.any_popup_open {

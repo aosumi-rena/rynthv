@@ -1,6 +1,8 @@
 use crate::model::*;
 use serde_json::{Value, json};
 
+pub(super) const VERSION: i32 = 201;
+
 fn takes(value: &mut Value) {
     if let Some(rows) = value
         .get_mut("takes")
@@ -17,7 +19,7 @@ fn takes(value: &mut Value) {
 
 pub(super) fn decode(bytes: &[u8]) -> Result<Project, String> {
     let mut value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-    if value.get("version").and_then(Value::as_u64) != Some(201) {
+    if value.get("version").and_then(Value::as_i64) != Some(i64::from(VERSION)) {
         return Err("Unsupported Instrument X project version".into());
     }
     fn group(value: &mut Value) {
@@ -68,4 +70,21 @@ pub(super) fn decode(bytes: &[u8]) -> Result<Project, String> {
         }
     }
     serde_json::from_value(value).map_err(|e| format!("Instrument X project: {e}"))
+}
+
+pub(super) fn prepare_save(project: &mut Project) {
+    for track in &mut project.tracks {
+        let Some(instrument) = track.instrument.take() else {
+            continue;
+        };
+        let database = &mut track.main_ref.database;
+        if !database.is_object() {
+            *database = json!({});
+        }
+        database["backendType"] = json!("W");
+        if let Some(selection) = instrument.selection {
+            database["id"] = json!(selection.database_id);
+            database["version"] = json!(selection.revision);
+        }
+    }
 }

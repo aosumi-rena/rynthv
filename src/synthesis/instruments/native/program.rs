@@ -9,6 +9,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
+mod waveform;
 #[derive(Clone)]
 pub struct Node {
     pub kind: u8,
@@ -214,6 +215,7 @@ pub struct Program {
     bound: Vec<u32>,
     cancel: Arc<AtomicBool>,
     stable: Option<Vec<usize>>,
+    replacements: HashMap<usize, (Tensor, usize)>,
 }
 impl Program {
     pub(super) fn set_cancel(&mut self,cancel:Arc<AtomicBool>){self.cancel=cancel;}
@@ -233,6 +235,7 @@ impl Program {
             bound: Vec::new(),
             cancel,
             stable: None,
+            replacements: HashMap::new(),
         })
     }
     pub fn run_stable(&mut self, inputs: Vec<(u32,Tensor)>)->Result<(HashMap<u32,Tensor>,usize)> {
@@ -248,18 +251,30 @@ impl Program {
         inputs: Vec<(u32, Tensor)>,
         bound: &[u32],
     ) -> Result<HashMap<u32, Tensor>> {
-        self.inputs = inputs.into_iter().collect();
-        self.bound = bound.to_vec();
-        self.values.fill(None);
-        let outputs: Vec<(usize, u32)> = self
+        let outputs = self.outputs();
+        self.run_outputs(inputs, bound, &outputs)
+    }
+    fn outputs(&self) -> Vec<(usize, u32)> {
+        self
             .nodes
             .iter()
             .enumerate()
             .filter_map(|(i, n)| (n.flags & 2 != 0).then_some((i, n.tag)))
-            .collect();
-        self.uses=super::program_lifetime::counts(&self.nodes,&outputs,&self.bound)?;
+            .collect()
+    }
+    fn run_outputs(
+        &mut self,
+        inputs: Vec<(u32, Tensor)>,
+        bound: &[u32],
+        outputs: &[(usize, u32)],
+    ) -> Result<HashMap<u32, Tensor>> {
+        self.inputs = inputs.into_iter().collect();
+        self.bound = bound.to_vec();
+        self.values.fill(None);
+        self.uses=super::program_lifetime::counts(&self.nodes,outputs,&self.bound,
+            |index| self.replacements.contains_key(&index))?;
         let mut out = HashMap::new();
-        for (i, tag) in outputs {
+        for &(i, tag) in outputs {
             out.insert(tag, self.eval(i)?);
         }
         Ok(out)
@@ -305,7 +320,10 @@ impl Program {
             return fail("Instrument module used as tensor");
         }
         let mut ready=usize::MAX;
-        let y = if self.bound.contains(&n.tag) || (n.opcode == 0 && n.kind == 3) {
+        let y = if let Some((tensor, stable)) = self.replacements.get(&index) {
+            ready = *stable;
+            tensor.clone()
+        } else if self.bound.contains(&n.tag) || (n.opcode == 0 && n.kind == 3) {
             let t = self
                 .inputs
                 .get(&n.tag)

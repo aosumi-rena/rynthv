@@ -102,18 +102,12 @@ pub fn show(app: &mut App, ctx: &Context) {
             ui.add_space(8.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let size = vec2(106.0, 34.0);
-                submit = ui
-                    .add_enabled(
-                        !words.is_empty(),
-                        Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS))
-                            .fill(crate::ui::theme::accent(ui))
-                            .min_size(size),
-                    )
+                let accent = accent(ui);
+                let confirm = Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS));
+                submit = super::prompt::action_button(ui, confirm, size, !words.is_empty(), accent)
                     .on_hover_text(crate::ui::chrome::shortcut_text(crate::i18n::t("Ctrl+Enter 确定")))
                     .clicked();
-                cancel = ui
-                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))
-                    .clicked();
+                cancel = ui.add_sized(size, Button::new(crate::i18n::t("取消"))).clicked();
             });
         });
     if modal.is_top_modal && !modal.any_popup_open {

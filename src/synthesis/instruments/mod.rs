@@ -19,6 +19,11 @@ use serde::{Deserialize, Serialize};
 pub use settings::*;
 use std::path::PathBuf;
 
+pub fn validate_waveform(path: &std::path::Path) -> Result<(), String> {
+    runtime::WaveFile::read(path.to_path_buf())?;
+    native::open_waveform(path).map(|_| ())
+}
+
 #[derive(Clone, Debug, Serialize)]
 pub struct EffectiveNote {
     pub id: crate::model::EntityId,

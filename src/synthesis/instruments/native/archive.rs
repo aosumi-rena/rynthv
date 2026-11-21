@@ -146,6 +146,15 @@ impl Archive {
     }
     pub(super) fn read_file(path: &Path) -> Result<Arc<Self>> {
         let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        Self::parse(data, false).map(|(archive, _)| archive)
+    }
+
+    pub(super) fn open_waveform(path: &Path) -> Result<(Arc<Self>, bool)> {
+        let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        Self::parse(data, true)
+    }
+
+    fn parse(data: Vec<u8>, waveform: bool) -> Result<(Arc<Self>, bool)> {
         if data.len() < 140
             || data.len() >= 0x7fffffff
             || data[..8] != [255, 0, 202, 127, 4, 0, 0, 0]
@@ -159,12 +168,16 @@ impl Archive {
             .collect();
         let end = regions[3].0;
         let blocksize = u32at(&data, 128) as usize;
+        let unsigned = waveform && data.get(end.saturating_add(regions[3].1)..).is_some_and(|footer| {
+            footer.len() == 256 && footer.iter().all(|&byte| byte == 0)
+        });
         if blocksize == 0
             || end < 140
             || end > data.len()
             || regions[0].0 != 140
             || regions[0].1 < 20
             || regions[..3].iter().any(|(a, n)| *a > end || *n > end - a)
+            || (unsigned && (blocksize < 4096 || data.len() > 64 * 1024 * 1024))
         {
             return fail("Invalid DNNI-v4 regions");
         }
@@ -209,7 +222,9 @@ impl Archive {
         if at - end != regions[3].1 {
             return fail("DNNI-v4 digest extent");
         }
-        signature(&data, at, &level[0])?;
+        if !unsigned {
+            signature(&data, at, &level[0])?;
+        }
         let mask = block(&hex(SETUP), &data[20..32], 0);
         let mut material = [0; 32];
         for i in 0..32 {
@@ -224,7 +239,7 @@ impl Archive {
         let count = u32at(&index, 8) as usize;
         let g = u32at(&index, 12) as usize;
         let range = u32at(&index, 16) as usize;
-        if range < count || g == 0 {
+        if range < count || g == 0 || (unsigned && count > 4096) {
             return fail("Invalid DNNI-v4 index dimensions");
         }
         let start = 20 + g + (range - count) * 4;
@@ -258,13 +273,13 @@ impl Archive {
             }
             resources.push(r);
         }
-        Ok(Arc::new(Self {
+        Ok((Arc::new(Self {
             data,
             resources,
             keys,
             region1: regions[2],
             plain: OnceLock::new(),
-        }))
+        }), unsigned))
     }
     pub fn find(&self, id: &[u8; 16]) -> Result<&Resource> {
         let mut b = vec![1];

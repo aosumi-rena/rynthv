@@ -45,11 +45,13 @@ fn pitch_offsets(notes:&[Note],member:u32)->Result<Vec<f64>> {
 }
 
 pub fn prepare(settings:&InstrumentSettings,entry:&Entry,notes:Vec<serde_json::Value>,
-    ambient:u32,players:usize,cancel:Arc<AtomicBool>)->Result<EnsembleStream> {
+    ambient:u32,players:usize,cancel:Arc<AtomicBool>,
+    waveform:Option<&std::path::Path>)->Result<EnsembleStream> {
     if !(1..=128).contains(&players){return Err("Invalid instrument player count".into());}
     let notes=notes.into_iter().map(serde_json::from_value)
         .collect::<std::result::Result<Vec<Note>,_>>().map_err(|e|format!("Instrument score: {e}"))?;
     super::score::records(&notes)?;
+    let waveform = waveform.map(super::open_waveform).transpose()?.map(Arc::new);
     let mut members=Vec::with_capacity(players);
     let mut member_pitch=Vec::with_capacity(players);
     let mut controls=Vec::new();
@@ -67,7 +69,7 @@ pub fn prepare(settings:&InstrumentSettings,entry:&Entry,notes:Vec<serde_json::V
             }
         }
         let stream=render::prepare_member(settings,entry,input,
-            ambient.wrapping_add((member as u32).wrapping_mul(3)),players>1,cancel.clone())?;
+            ambient.wrapping_add((member as u32).wrapping_mul(3)),players>1,cancel.clone(),waveform.clone())?;
         if member==0 {controls=stream.controls.clone();}
         if member_pitch.first().is_some_and(|p:&Vec<f32>|p.len()!=stream.pitch.len()) {
             return Err("Instrument member frame clocks disagree".into());

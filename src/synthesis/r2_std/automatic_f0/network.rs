@@ -81,15 +81,26 @@ impl Network {
         }
         let mut hidden=vec![0.0;256];let mut feedback=0.0;let mut output=Vec::with_capacity(total);
         let smoothing=1.0-(0.5f32*0.5*std::f32::consts::PI*0.5).cos();
+        let zero = crate::synthesis::execution::zero_gru_weights();
         for(i,row)in shared.iter().enumerate(){
             if i%32==0{checkpoint(cancel)?;}
             let mut drive=self.feedback.apply(&[feedback])?;self.input.matrix.accumulate(row,&mut drive,true)?;
             let mut r=(0..256).map(|c|self.bias[0][c]+self.bias[3][c]).collect::<Vec<_>>();
-            self.gru[0].accumulate(&drive,&mut r,true)?;self.gru[3].accumulate(&hidden,&mut r,true)?;activate(&mut r,false);
+            if !zero {
+                self.gru[0].accumulate(&drive,&mut r,true)?;
+                self.gru[3].accumulate(&hidden,&mut r,true)?;
+            }
+            activate(&mut r,false);
             let mut z=(0..256).map(|c|self.bias[1][c]+self.bias[4][c]).collect::<Vec<_>>();
-            self.gru[1].accumulate(&drive,&mut z,true)?;self.gru[4].accumulate(&hidden,&mut z,true)?;activate(&mut z,false);
-            let mut candidate=self.bias[5].clone();self.gru[5].accumulate(&hidden,&mut candidate,true)?;
-            for c in 0..256{candidate[c]*=r[c];}self.gru[2].accumulate(&drive,&mut candidate,true)?;
+            if !zero {
+                self.gru[1].accumulate(&drive,&mut z,true)?;
+                self.gru[4].accumulate(&hidden,&mut z,true)?;
+            }
+            activate(&mut z,false);
+            let mut candidate=self.bias[5].clone();
+            if !zero {self.gru[5].accumulate(&hidden,&mut candidate,true)?;}
+            for c in 0..256{candidate[c]*=r[c];}
+            if !zero {self.gru[2].accumulate(&drive,&mut candidate,true)?;}
             for c in 0..256{candidate[c]+=self.bias[2][c];}activate(&mut candidate,true);
             for c in 0..256{hidden[c]=hidden[c]*z[c]+candidate[c]*(1.0-z[c]);}
             let mut features=self.feature_first.apply(&hidden)?;activate(&mut features,true);

@@ -1,9 +1,15 @@
 use super::App;
 use crate::model::{AudioClip, EntityId};
 use eframe::egui::Context;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub(super) const EXTENSIONS: &[&str] = &["wav", "mp3", "flac", "ogg", "aif", "aiff"];
+
+pub(super) fn supports(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| {
+        EXTENSIONS.iter().any(|candidate| extension.eq_ignore_ascii_case(candidate))
+    })
+}
 
 pub struct AudioImport {
     pub track: EntityId,
@@ -24,6 +30,10 @@ impl App {
     }
 
     pub(super) fn import_audio_path(&mut self, target: Option<EntityId>, path: PathBuf, ctx: &Context) {
+        if !supports(&path) {
+            self.error = Some("PROJECT_UNSUPPORTED_FORMAT".into());
+            return;
+        }
         self.commit_lyric();
         self.editor.finish();
         let track = target.unwrap_or_else(|| self.editor.add_instrumental_track());

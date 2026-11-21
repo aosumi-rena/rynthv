@@ -58,6 +58,37 @@ pub(super) fn artwork(ui: &Ui, art: Rect, entry: Option<&crate::synthesis::instr
 }
 
 pub fn popup(app: &mut App, anchor: &Response) {
+    let selected = super::current(app).map(|e| e.selection.clone());
+    if let Some(entry) = pick(app, anchor, selected.as_ref(), true) {
+        app.commit_lyric();
+        app.editor.select_instrument(&entry);
+    }
+}
+
+pub fn waveform_picker(
+    app: &mut App,
+    ui: &mut Ui,
+    selected: &mut Option<crate::model::InstrumentSelection>,
+) {
+    let entry = selected.as_ref().and_then(|selection| app.synthesis.instruments.entry(selection));
+    let label = crate::i18n::t("Select Instrument");
+    let hint = entry.map(|entry| format!("v{}", entry.selection.revision));
+    let anchor = crate::ui::resource_picker::selection_card(
+        ui, entry.map_or(label, |entry| crate::i18n::t(&entry.name)), hint.as_deref(),
+        entry.map(|entry| entry.main.display().to_string()), label,
+        |ui, rect| artwork(ui, rect, entry),
+    );
+    if let Some(entry) = pick(app, &anchor, selected.as_ref(), false) {
+        *selected = Some(entry.selection);
+    }
+}
+
+fn pick(
+    app: &mut App,
+    anchor: &Response,
+    selected: Option<&crate::model::InstrumentSelection>,
+    require_auxiliary: bool,
+) -> Option<crate::synthesis::instruments::Entry> {
     if anchor.clicked() {
         app.synthesis.instruments.ensure_scan(&anchor.ctx);
     }
@@ -74,7 +105,6 @@ pub fn popup(app: &mut App, anchor: &Response) {
         .ctx
         .data(|d| d.get_temp::<String>(id))
         .unwrap_or_default();
-    let selected = super::current(app).map(|e| e.selection.clone());
     let mut banks = std::collections::BTreeMap::new();
     for entry in &app.synthesis.instruments.catalog.entries {
         let current = banks
@@ -82,8 +112,8 @@ pub fn popup(app: &mut App, anchor: &Response) {
             .or_insert(entry);
         let rank = |e: &crate::synthesis::instruments::Entry| {
             (
-                selected.as_ref() == Some(&e.selection),
-                e.auxiliary.is_some(),
+                selected == Some(&e.selection),
+                !require_auxiliary || e.auxiliary.is_some(),
                 e.selection.revision.clone(),
             )
         };
@@ -126,18 +156,18 @@ pub fn popup(app: &mut App, anchor: &Response) {
             }
             ui.ctx().data_mut(|d| d.insert_temp(id, query.clone()));
             crate::ui::resource_picker::separator(ui);
-            if crate::ui::resource_picker::menu_row(
-                ui,
-                crate::i18n::t("Manage Instruments"),
-                Some(Icon::Cloud),
-                true,
-            )
-            .clicked()
-            {
-                app.instrument_manager = true;
-                ui.close();
+            if require_auxiliary {
+                if crate::ui::resource_picker::menu_row(
+                    ui,
+                    crate::i18n::t("Manage Instruments"),
+                    Some(Icon::Cloud),
+                    true,
+                ).clicked() {
+                    app.instrument_manager = true;
+                    ui.close();
+                }
+                crate::ui::resource_picker::separator(ui);
             }
-            crate::ui::resource_picker::separator(ui);
             if app.synthesis.instruments.is_scanning() {
                 ui.horizontal(|ui| {
                     ui.spinner();
@@ -164,10 +194,10 @@ pub fn popup(app: &mut App, anchor: &Response) {
                     {
                         continue;
                     }
-                    let available = entry.auxiliary.is_some();
+                    let available = !require_auxiliary || entry.auxiliary.is_some();
                     let (response, art, content) = crate::ui::resource_picker::card(
                         ui,
-                        selected.as_ref() == Some(&entry.selection),
+                        selected == Some(&entry.selection),
                         available,
                     );
                     artwork(ui, art, Some(entry));
@@ -199,7 +229,7 @@ pub fn popup(app: &mut App, anchor: &Response) {
                         .widget_info(|| WidgetInfo::labeled(WidgetType::Button, available, name));
                     if response
                         .on_hover_text(entry.main.display().to_string())
-                        .clicked()
+                        .clicked() && available
                     {
                         choose = Some(entry.clone());
                         ui.close();
@@ -207,8 +237,5 @@ pub fn popup(app: &mut App, anchor: &Response) {
                 }
             });
         });
-    if let Some(entry) = choose {
-        app.commit_lyric();
-        app.editor.select_instrument(&entry);
-    }
+    choose
 }

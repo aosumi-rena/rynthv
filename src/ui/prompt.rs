@@ -8,6 +8,30 @@ pub enum Choice {
     Save,
 }
 
+pub(super) fn action_button(
+    ui: &mut Ui,
+    button: Button<'_>,
+    size: Vec2,
+    enabled: bool,
+    fill: Color32,
+) -> Response {
+    ui.scope(|ui| {
+        let widgets = &mut ui.visuals_mut().widgets;
+        for (visuals, color) in [
+            (&mut widgets.inactive, fill),
+            (&mut widgets.hovered, fill.lerp_to_gamma(Color32::WHITE, 0.16)),
+            (&mut widgets.active, fill.lerp_to_gamma(Color32::BLACK, 0.16)),
+        ] {
+            visuals.bg_fill = color;
+            visuals.weak_bg_fill = color;
+        }
+        if !enabled {
+            ui.disable();
+        }
+        ui.add_sized(size, button)
+    }).inner
+}
+
 pub fn preset_name(ctx:&Context,id:&str,text:&mut String,focus:&mut bool)->Option<bool> {
     let mut answer=None;
     let response=Modal::new(Id::new(id))
@@ -28,7 +52,9 @@ pub fn preset_name(ctx:&Context,id:&str,text:&mut String,focus:&mut bool)->Optio
             ui.add_space(8.);
             let valid=!text.trim().is_empty()&&!text.chars().any(char::is_control);
             ui.with_layout(Layout::right_to_left(Align::Center),|ui|{
-                if ui.add_enabled(valid,Button::new(crate::i18n::t("确定")).fill(Color32::from_rgb(116,204,20)).min_size(vec2(80.,28.))).clicked(){answer=Some(true);}
+                let accent = accent(ui);
+                let confirm = Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS)).corner_radius(4);
+                if action_button(ui, confirm, vec2(80., 28.), valid, accent).clicked(){answer=Some(true);}
                 if ui.add_sized(vec2(80.,28.),Button::new(crate::i18n::t("取消"))).clicked(){answer=Some(false);}
             });
             if valid&&ui.input(|i|i.key_pressed(Key::Enter)){answer=Some(true);}
@@ -122,19 +148,12 @@ pub fn choices(
                     TEXT
                 };
                 let fill = if i == 2 {
-                    Color32::from_rgb(116, 204, 20)
+                    accent(&button)
                 } else {
                     BUTTON
                 };
-                if button
-                    .add_sized(
-                        rect.size(),
-                        Button::new(RichText::new(label).font(font.clone()).color(color))
-                            .fill(fill)
-                            .corner_radius(4),
-                    )
-                    .clicked()
-                {
+                let action = Button::new(RichText::new(label).font(font.clone()).color(color)).corner_radius(4);
+                if action_button(&mut button, action, rect.size(), true, fill).clicked() {
                     choice = Some(i);
                 }
             }
@@ -193,18 +212,13 @@ pub fn notice(ctx: &Context, title: &str, message: &str) -> bool {
             let rect =
                 Rect::from_min_size(pos2(r.left() + 296.0, r.bottom() - 56.0), vec2(100.0, 32.0));
             let mut button = super::child(ui, rect, "error-acknowledgement");
-            accepted = button
-                .add_sized(
-                    rect.size(),
-                    Button::new(
-                        RichText::new(crate::i18n::t("确定"))
-                            .font(FontId::new(14.0, FontFamily::Name("SectionTitle".into())))
-                            .color(Color32::from_rgb(30, 30, 30)),
-                    )
-                    .fill(Color32::from_rgb(116, 204, 20))
-                    .corner_radius(4),
-                )
-                .clicked();
+            let fill = accent(&button);
+            let action = Button::new(
+                RichText::new(crate::i18n::t("确定"))
+                    .font(FontId::new(14.0, FontFamily::Name("SectionTitle".into())))
+                    .color(CANVAS),
+            ).corner_radius(4);
+            accepted = action_button(&mut button, action, rect.size(), true, fill).clicked();
         });
     accepted || (response.is_top_modal && !response.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)))
 }

@@ -135,14 +135,14 @@ impl Runtime {
         {
             if self.instruments_changed {
                 self.instruments_changed=false;
-                self.instruments.sync(project,self.library.settings.instruments.clone(),&self.repaint);
+                self.instruments.sync(project,self.library.settings.instruments.clone(),self.library.settings.experiments.zero_gru_weights,&self.repaint);
                 self.prepare_recordings(project);
                 self.refresh_playback();
             }
             return;
         }
         self.instruments_changed=false;
-        self.instruments.sync(project,self.library.settings.instruments.clone(),&self.repaint);
+        self.instruments.sync(project,self.library.settings.instruments.clone(),self.library.settings.experiments.zero_gru_weights,&self.repaint);
         self.reconcile_voices(project);
         let identities: BTreeMap<_, _> = self
             .routes

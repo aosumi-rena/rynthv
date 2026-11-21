@@ -50,11 +50,8 @@ pub(super) fn primary(
         && !app.synthesis.library.is_scanning()
         && app.synthesis.library.settings_error().is_none();
     let outline = loaded || problem || missing_dictionary;
-    let button = crate::ui::resource_manager::action_button(label, enabled, outline);
-    if ui
-        .add_enabled(enabled, button.min_size(vec2(ui.available_width(), 36.0)))
-        .clicked()
-    {
+    let size = vec2(ui.available_width(), 36.0);
+    if crate::ui::resource_manager::action_button(ui, label, size, enabled, outline).clicked() {
         if problem {
             state.expanded = Some(entry.database_id.clone());
         } else if current && loaded {

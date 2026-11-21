@@ -228,8 +228,8 @@ pub fn details_action(ui: &mut Ui, expanded: &mut Option<String>, database_id: &
         ui.close();
     }
 }
-pub fn action_button(label: &str, enabled: bool, outline: bool) -> Button<'static> {
-    Button::new(RichText::new(label).size(13.).color(if !enabled {
+pub fn action_button(ui: &mut Ui, label: &str, size: Vec2, enabled: bool, outline: bool) -> Response {
+    let button = Button::new(RichText::new(label).size(13.).color(if !enabled {
         MUTED
     } else if outline {
         ACCENT
@@ -237,6 +237,7 @@ pub fn action_button(label: &str, enabled: bool, outline: bool) -> Button<'stati
         SURFACE
     }))
     .corner_radius(13)
-    .fill(if !enabled || outline { CARD } else { ACCENT })
-    .stroke(Stroke::new(0.8, if enabled { ACCENT } else { BORDER }))
+    .stroke(Stroke::new(0.8, if enabled { ACCENT } else { BORDER }));
+    let fill = if !enabled || outline { CARD } else { ACCENT };
+    super::prompt::action_button(ui, button, size, enabled, fill)
 }

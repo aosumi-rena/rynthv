@@ -74,7 +74,9 @@ impl Pending {
                     let yes_no=self.form.buttons=="YesNoCancel";
                     let label=crate::i18n::t(if yes_no{"是"}else{"确定"});
                     let width=(ui.available_width()-8.)/if yes_no{3.}else if self.form.buttons=="Ok"{1.}else{2.};
-                    if ui.add_sized(vec2(width,32.),Button::new(RichText::new(label).color(Color32::from_rgb(30,30,30))).fill(Color32::from_rgb(116,204,20))).clicked(){choice=Some(if yes_no{json!("yes")}else{json!(true)});}
+                    let accent = crate::ui::theme::accent(ui);
+                    let confirm = Button::new(RichText::new(label).color(crate::ui::theme::CANVAS));
+                    if crate::ui::prompt::action_button(ui, confirm, vec2(width, 32.), true, accent).clicked(){choice=Some(if yes_no{json!("yes")}else{json!(true)});}
                     if yes_no&&ui.add_sized(vec2(width,32.),Button::new(crate::i18n::t("否"))).clicked(){choice=Some(json!("no"));}
                     if self.form.buttons!="Ok"&&ui.add_sized(vec2(width,32.),Button::new(crate::i18n::t("取消"))).clicked(){choice=Some(if yes_no{json!("cancel")}else{json!(false)});}
                 });

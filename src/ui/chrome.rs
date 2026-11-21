@@ -50,7 +50,7 @@ pub fn menus(app: &mut App, ui: &mut Ui) {
             if item(ui, crate::i18n::t("保存"), "Ctrl+S", true) {
                 app.save_project(false);
             }
-            if item(ui, crate::i18n::t("另存为…"), "Ctrl+Shift+S", true) {
+            if item(ui, crate::i18n::t("另存为…"), "Ctrl+Shift+S", app.can_save_project_as()) {
                 app.save_project(true);
             }
             ui.separator();

@@ -126,15 +126,10 @@ pub fn show(app: &mut App, ctx: &Context) {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 let size = vec2((WIDTH - 8.0) / 2.0, 32.0);
-                cancel = ui
-                    .add_sized(size, Button::new(crate::i18n::t("取消")).fill(BUTTON_HOVER))
-                    .clicked();
-                submit |= ui
-                    .add_sized(
-                        size,
-                        Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS)).fill(crate::ui::theme::accent(ui)),
-                    )
-                    .clicked();
+                cancel = ui.add_sized(size, Button::new(crate::i18n::t("取消"))).clicked();
+                let accent = accent(ui);
+                let confirm = Button::new(RichText::new(crate::i18n::t("确定")).color(CANVAS));
+                submit |= super::prompt::action_button(ui, confirm, size, true, accent).clicked();
             });
         });
     cancel |= modal.is_top_modal

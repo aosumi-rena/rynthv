@@ -31,6 +31,7 @@ impl App {
         };
         let (mut converted,path)=match result {Ok(r)=>r,Err(e)=>{self.status.clear();self.error=Some(e);return;}};
         if matches!(import.mode,MidiImportMode::NewProject) && self.editor.revision!=import.revision {
+            self.status.clear();
             self.error=Some(crate::i18n::t("导入期间当前工程已更改，已保留当前工程。请保存后重新打开要导入的文件。").into());return;
         }
         if !converted.assets.is_empty() {
@@ -38,9 +39,13 @@ impl App {
                 self.status=crate::i18n::t("已取消导入").into();return;
             };
             let (tx,rx)=mpsc::channel();let wake=ctx.clone();
+            let new_project = import.mode == MidiImportMode::NewProject;
             match std::thread::Builder::new().name("project-audio-extract".into()).spawn(move||{
                 let result=(||{
                     let folder=converted.extract(&destination)?;
+                    if !new_project {
+                        return Ok((converted, None));
+                    }
                     let stem=converted.source.file_stem().unwrap_or_default();
                     let path=folder.join(format!("{}.rvp",stem.to_string_lossy()));
                     crate::storage::save(&path,&converted.project)?;
@@ -57,10 +62,11 @@ impl App {
             MidiImportMode::NewProject=>{
                 self.scripts.stop();
                 self.synthesis.reset_project();
+                self.rocoflex.clear();
                 self.editor=Editor::new(converted.project);
                 self.restore_transport_choices();
-                self.path=path;
-                if self.path.is_none(){self.editor.mark_imported();}
+                if path.is_none(){self.editor.mark_imported();}
+                self.path=path.or_else(|| Some(import.source.clone()));
                 self.gesture=None;self.group_gesture=None;self.audio_drag=None;self.audio_import=None;
                 self.piano_anchor=ui::piano::AnchorSelection::default();
                 self.view_pan=ui::view_pan::ViewPan::default();

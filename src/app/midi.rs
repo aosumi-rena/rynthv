@@ -23,6 +23,7 @@ pub struct MidiImport {
     pub mode: MidiImportMode,
     pub phase: MidiImportPhase,
     pub validation_error: Option<String>,
+    revision: u64,
 }
 
 impl App {
@@ -46,7 +47,7 @@ impl App {
             self.open_path(path);
             return;
         }
-        if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("rvp")) {
+        if crate::storage::ProjectFormat::from_path(&path) == Some(crate::storage::ProjectFormat::Rvp) {
             self.request_file(super::FileAction::OpenPath(path), ctx);
             return;
         }
@@ -54,9 +55,16 @@ impl App {
         ui::tempo_input::finish(self);
         self.commit_lyric();
         self.editor.finish();
-        if !path.extension().is_some_and(|e|e.eq_ignore_ascii_case("mid") || e.eq_ignore_ascii_case("midi")) {
-            self.begin_project_import(path,mode,ctx);return;
+        if rynthv::project_import::is_midi(&path) {
+            self.begin_midi_path(path, mode, ctx);
+        } else if rynthv::project_import::supports(&path) {
+            self.begin_project_import(path, mode, ctx);
+        } else {
+            self.error = Some("PROJECT_UNSUPPORTED_FORMAT".into());
         }
+    }
+
+    pub(super) fn begin_midi_path(&mut self, path: PathBuf, mode: MidiImportMode, ctx: &Context) {
         let (tx, rx) = mpsc::channel();
         let source = path.clone();
         let repaint = ctx.clone();
@@ -68,13 +76,21 @@ impl App {
             });
         let phase = match worker {
             Ok(_) => MidiImportPhase::Loading(rx),
+            Err(error) if mode == MidiImportMode::NewProject => {
+                self.error = Some(crate::lformat!("无法启动 MIDI 读取线程：{error}"));
+                return;
+            }
             Err(error) => MidiImportPhase::Failed(crate::lformat!("无法启动 MIDI 读取线程：{error}")),
         };
+        if mode == MidiImportMode::NewProject {
+            self.status = crate::i18n::t("正在导入工程…").into();
+        }
         self.midi_import = Some(MidiImport {
             path,
             mode,
             phase,
             validation_error: None,
+            revision: self.editor.revision,
         });
     }
 
@@ -101,6 +117,19 @@ impl App {
             }
             Err(error) => MidiImportPhase::Failed(error),
         };
+        if import.mode == MidiImportMode::NewProject {
+            let import = self.midi_import.take().unwrap();
+            if self.editor.revision != import.revision {
+                self.status.clear();
+                self.error = Some(crate::i18n::t("导入期间当前工程已更改，已保留当前工程。请保存后重新打开要导入的文件。").into());
+            } else if let Err(error) = match &import.phase {
+                MidiImportPhase::Failed(error) => Err(error.clone()),
+                _ => self.apply_midi_import(&import),
+            } {
+                self.status.clear();
+                self.error = Some(error);
+            }
+        }
     }
 
     pub fn apply_midi_import(&mut self, import: &MidiImport) -> Result<(), String> {
@@ -120,9 +149,10 @@ impl App {
 
                 let (editor, summary) = Editor::from_midi(file, &indices)?;
                 self.synthesis.reset_project();
+                self.rocoflex.clear();
                 self.editor = editor;
                 self.restore_transport_choices();
-                self.path = None;
+                self.path = Some(import.path.clone());
                 self.audio_import = None;
                 self.gesture = None;
                 self.piano_anchor = crate::ui::piano::AnchorSelection::default();

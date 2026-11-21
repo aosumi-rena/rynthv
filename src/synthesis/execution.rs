@@ -1,6 +1,6 @@
 use super::voice::{Result, VoiceError};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -40,6 +40,30 @@ impl Cancellation {
 
 thread_local! {
     static CURRENT: RefCell<Option<Cancellation>> = const { RefCell::new(None) };
+    static ZERO_GRU_WEIGHTS: Cell<bool> = const { Cell::new(false) };
+}
+
+pub(crate) fn zero_gru_weights() -> bool {
+    ZERO_GRU_WEIGHTS.get()
+}
+
+pub fn scope_gru_weights<T>(zero: bool, run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            ZERO_GRU_WEIGHTS.set(self.0);
+        }
+    }
+    let _restore = Restore(ZERO_GRU_WEIGHTS.replace(zero));
+    run()
+}
+
+pub(crate) fn render_scope<T>(
+    cancellation: Cancellation,
+    zero_gru_weights: bool,
+    run: impl FnOnce() -> T,
+) -> T {
+    scope_gru_weights(zero_gru_weights, || scope(cancellation, run))
 }
 
 pub fn current() -> Option<Cancellation> {

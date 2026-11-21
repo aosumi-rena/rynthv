@@ -66,7 +66,7 @@ pub(super) fn project(source: Value) -> Result<Project> {
                 let mut t = track_header(track, i, &origin)?;
                 if instrument {
                     t.instrument = Some(InstrumentTrack {
-                        selection: Some(InstrumentSelection {
+                        selection: (!bank.is_empty() && !revision.is_empty()).then(|| InstrumentSelection {
                             database_id: bank.into(),
                             revision: revision.into(),
                         }),
@@ -94,15 +94,16 @@ pub(super) fn project(source: Value) -> Result<Project> {
             if kind == "audio" {
                 let source_start = p.time.seconds_at(anchor);
                 let stop = p.time.seconds_at(anchor + end);
-                let clip = AudioClip {
-                    path: text(part, "path", "").into(),
+                let path = text(part, "path", "");
+                let clip = (!path.is_empty()).then(|| AudioClip {
+                    path: path.into(),
                     onset_seconds: source_start,
                     duration_seconds: (stop - source_start).max(1. / 48000.),
                     trim_begin_seconds: Some(p.time.seconds_at(anchor + start)),
                     trim_end_seconds: Some(stop),
-                };
+                });
                 let t = &mut p.tracks[index];
-                t.instrumental = Some(InstrumentalTrack { clip: Some(clip) });
+                t.instrumental = Some(InstrumentalTrack { clip });
                 t.main_ref.extra.insert(SOURCE.into(), part.clone());
                 t.main_ref
                     .extra

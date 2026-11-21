@@ -62,16 +62,23 @@ pub(super) fn project(p: &Project) -> Result<Value> {
             destinations.insert(key, i);
             i
         };
-        if let Some(clip) = t.audio_clip() {
+        if t.is_instrumental() {
             let mut part = object(t.main_ref.extra.get(SOURCE).unwrap_or(&Value::Null));
-            let anchor = p.time.position_at(clip.onset_seconds);
-            let (begin, end) = clip.window();
             part["type"] = json!("audio");
             part["name"] = part.get("name").cloned().unwrap_or(json!(t.name));
-            part["path"] = json!(clip.path);
-            part["pos"] = json!(tick(anchor));
-            part["startOffset"] = json!(tick(p.time.position_at(begin) - anchor));
-            part["endOffset"] = json!(tick(p.time.position_at(end) - anchor));
+            if let Some(clip) = t.audio_clip() {
+                let anchor = p.time.position_at(clip.onset_seconds);
+                let (begin, end) = clip.window();
+                part["path"] = json!(clip.path);
+                part["pos"] = json!(tick(anchor));
+                part["startOffset"] = json!(tick(p.time.position_at(begin) - anchor));
+                part["endOffset"] = json!(tick(p.time.position_at(end) - anchor));
+            } else {
+                part["path"] = json!("");
+                part["pos"] = json!(0);
+                part["startOffset"] = json!(0);
+                part["endOffset"] = json!(0);
+            }
             part["__rynthvOrder"] = t
                 .main_ref
                 .extra
@@ -84,7 +91,10 @@ pub(super) fn project(p: &Project) -> Result<Value> {
                 let g = p
                     .group(&r.group_id)
                     .ok_or("TuneLab export: missing group")?;
-                if g.notes.is_empty() && !g.extra.contains_key(SOURCE) {
+                let assigned = ["id", "name"].into_iter().any(|key| !text(&r.database, key, "").is_empty());
+                if r.id == t.main_ref.id && g.notes.is_empty() && !g.extra.contains_key(SOURCE)
+                    && !(t.groups.is_empty() && (t.is_instrument() || assigned))
+                {
                     continue;
                 }
                 let mut part = object(g.extra.get(SOURCE).unwrap_or(&Value::Null));
@@ -120,7 +130,7 @@ pub(super) fn project(p: &Project) -> Result<Value> {
                         .as_ref()
                         .map(|s| s.revision.as_str())
                         .unwrap_or(text(&r.database, "version", ""));
-                    part["voice"] = json!({"type":"Cordis","id":id,"kind":"instrument"});
+                    part["voice"] = json!({"type":"Cordis","id":id,"kind":"instrument","name":text(&r.database,"name","")});
                     part["properties"]["instrument_version"] = json!(rev);
                 } else {
                     if !part["voice"].is_object() {

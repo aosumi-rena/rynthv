@@ -154,6 +154,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
             let mut action = child(ui, action_rect, ui.id().with("load-instrument"));
             let enabled = !changed && (!available || (!current && app.editor.current_track().is_instrument()));
             let button = resource_manager::action_button(
+                &mut action,
                 crate::i18n::t(if !available {
                     "处理问题"
                 } else if current {
@@ -161,16 +162,11 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
                 } else {
                     "用于当前音轨"
                 }),
+                vec2(146., 36.),
                 enabled,
                 current || !available,
             );
-            if action
-                .add_enabled(
-                    enabled,
-                    button.min_size(vec2(146., 36.)),
-                )
-                .clicked()
-            {
+            if button.clicked() {
                 if available {
                     app.editor.select_instrument(entry);
                 } else {

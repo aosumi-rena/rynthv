@@ -19,7 +19,8 @@ pub(super) fn run(inventory:VoiceInventory,commands:Receiver<Command>,events:Eve
         let Some(job)=state.cache.take_owner(owner)else{continue;};
         let _active=control.register(&job,state.reset_generation);
         let _=events.send(Event::Progress {revision:state.revision,owner,stage:crate::i18n::t("正在合成歌声").into()});
-        let rendered=execution::scope(job.cancellation(),||{
+        let zero = job.request.input.experiments.settings.zero_gru_weights;
+        let rendered=execution::render_scope(job.cancellation(),zero,||{
             execution::checkpoint()?;
             let mut emit=|event| {
                 state.drain(&commands);

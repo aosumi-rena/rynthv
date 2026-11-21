@@ -155,7 +155,7 @@ impl Gru {
     pub fn step(&self, input: &[f32], state: &mut GruState) -> Result<(), RecurrentError> {
         check_length("GRU input", self.input_channels(), input.len())?;
         self.check_state(state)?;
-        self.step_validated(input, state)
+        self.step_validated(input, state, crate::synthesis::execution::zero_gru_weights())
     }
 
     pub fn execute_sequence(
@@ -176,11 +176,12 @@ impl Gru {
         check_length("GRU sequence input", inputs, input.len())?;
         check_length("GRU sequence output", outputs, output.len())?;
         self.check_state(state)?;
+        let zero = crate::synthesis::execution::zero_gru_weights();
         for (input, output) in input
             .chunks_exact(self.input_channels())
             .zip(output.chunks_exact_mut(self.output_channels()))
         {
-            self.step_validated(input, state)?;
+            self.step_validated(input, state, zero)?;
             output.copy_from_slice(&state.hidden);
         }
         Ok(())
@@ -194,20 +195,33 @@ impl Gru {
         )
     }
 
-    fn step_validated(&self, input: &[f32], state: &mut GruState) -> Result<(), RecurrentError> {
-        self.layers[0].execute(input, &mut state.scratch)?;
-        self.layers[3].execute_accumulate(&state.hidden, &mut state.scratch)?;
-        self.sigmoid(&state.scratch, &mut state.reset)?;
+    fn step_validated(&self, input: &[f32], state: &mut GruState, zero: bool) -> Result<(), RecurrentError> {
+        let bias = |index: usize| self.layers[index].bias().expect("GRU bias");
+        for (index, gate) in [&mut state.reset, &mut state.update].into_iter().enumerate() {
+            if zero {
+                state.scratch.copy_from_slice(bias(index));
+            } else {
+                self.layers[index].execute(input, &mut state.scratch)?;
+                self.layers[index + 3].execute_accumulate(&state.hidden, &mut state.scratch)?;
+            }
+            self.sigmoid(&state.scratch, gate)?;
+        }
 
-        self.layers[1].execute(input, &mut state.scratch)?;
-        self.layers[4].execute_accumulate(&state.hidden, &mut state.scratch)?;
-        self.sigmoid(&state.scratch, &mut state.update)?;
-
-        self.layers[5].execute(&state.hidden, &mut state.candidate)?;
+        if zero {
+            state.candidate.copy_from_slice(bias(5));
+        } else {
+            self.layers[5].execute(&state.hidden, &mut state.candidate)?;
+        }
         for (candidate, reset) in state.candidate.iter_mut().zip(&state.reset) {
             *candidate *= reset;
         }
-        self.layers[2].execute_accumulate(input, &mut state.candidate)?;
+        if zero {
+            for (candidate, bias) in state.candidate.iter_mut().zip(bias(2)) {
+                *candidate += bias;
+            }
+        } else {
+            self.layers[2].execute_accumulate(input, &mut state.candidate)?;
+        }
         if self.legacy_numeric {super::legacy_activation::tanh(&state.candidate,&mut state.scratch);}
         else {tanh::apply(&state.candidate, &mut state.scratch);}
 

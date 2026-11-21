@@ -23,50 +23,15 @@ pub(super) fn selected_card(app: &mut App, ui: &mut Ui) {
 }
 
 fn selection_card(ui: &mut Ui, entry: Option<&VoiceCatalogEntry>, name: &str) -> Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 60.0), Sense::click());
-    ui.painter().rect(
-        rect,
-        4,
-        if response.hovered() { BUTTON } else { BORDER },
-        Stroke::new(0.7, BUTTON),
-        StrokeKind::Inside,
-    );
-    let art = Rect::from_min_size(rect.min, Vec2::splat(60.0));
-    artwork::paint(ui, art, entry.and_then(|entry| entry.icon.as_ref()));
-    let label_rect = Rect::from_min_max(
-        pos2(art.right() + 8.0, rect.top()),
-        rect.max - vec2(26.0, 0.0),
-    );
-    ui.painter()
-        .with_clip_rect(label_rect.intersect(ui.clip_rect()))
-        .text(
-            label_rect.left_center() - vec2(0.0, if entry.is_some() { 9.0 } else { 0.0 }),
-            Align2::LEFT_CENTER,
-            entry.map_or(name, |entry| entry.localized_display_name()),
-            FontId::proportional(13.0),
-            TEXT,
-        );
-    if let Some(entry) = entry {
-        ui.painter()
-            .with_clip_rect(label_rect.intersect(ui.clip_rect()))
-            .text(
-                label_rect.left_center() + vec2(0.0, 12.0),
-                Align2::LEFT_CENTER,
-                source_hint(entry),
-                FontId::proportional(10.5),
-                MUTED,
-            );
-    }
-    Icon::ChevronDown.paint(
+    let hint = entry.map(source_hint);
+    crate::ui::resource_picker::selection_card(
         ui,
-        Rect::from_center_size(rect.right_center() - vec2(16.0, 0.0), Vec2::splat(12.0)),
-        MUTED,
-    );
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, crate::i18n::t("选择歌声")));
-    let response = if let Some(entry) = entry {
-        response.on_hover_text(entry.directory.display().to_string())
-    } else { response };
-    response.on_hover_cursor(CursorIcon::Default)
+        entry.map_or(name, |entry| entry.localized_display_name()),
+        hint.as_deref(),
+        entry.map(|entry| entry.directory.display().to_string()),
+        crate::i18n::t("选择歌声"),
+        |ui, rect| artwork::paint(ui, rect, entry.and_then(|entry| entry.icon.as_ref())),
+    )
 }
 
 enum Choice { Voice(VoiceSelection), Manage, Clear }

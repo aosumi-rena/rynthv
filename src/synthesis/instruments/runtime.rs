@@ -1,4 +1,4 @@
-use super::{Catalog, Entry, InstrumentSettings, backend};
+use super::{Catalog, Entry, InstrumentSettings, WaveformSource, backend};
 use crate::model::Project;
 use serde_json::{Value, json};
 use std::{
@@ -27,6 +27,27 @@ struct Request {
     players: usize,
     offset: i64,
     prepared: Option<Box<backend::EnsembleStream>>,
+    waveform: Result<Option<WaveFile>, String>,
+}
+
+#[derive(Clone, serde::Serialize)]
+pub(super) struct WaveFile {
+    path: std::path::PathBuf,
+    length: u64,
+    modified: std::time::SystemTime,
+}
+
+impl WaveFile {
+    pub(super) fn read(path: std::path::PathBuf) -> Result<Self, String> {
+        if !path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("dnni")) {
+            return Err("Select a DNNI waveform file".into());
+        }
+        let metadata = std::fs::metadata(&path).map_err(|e| e.to_string())?;
+        if !metadata.is_file() {
+            return Err("Select a DNNI waveform file".into());
+        }
+        Ok(Self { path, length: metadata.len(), modified: metadata.modified().map_err(|e| e.to_string())? })
+    }
 }
 enum Update { Prepared(Vec<f32>,Vec<Vec<f32>>,Vec<super::EffectiveNote>), Source(usize, Arc<[f32]>), Yield(Request), Complete }
 struct Job {
@@ -59,6 +80,7 @@ pub struct Instruments {
     pub mixer: super::mixing::Mixer,
     mix_errors: BTreeMap<u64,String>,
     settings: InstrumentSettings,
+    zero_gru_weights: bool,
     hashes: BTreeMap<u64, u64>,
     requests: BTreeMap<u64, Request>,
     scan: Option<Scan>,
@@ -68,6 +90,28 @@ pub struct Instruments {
 }
 
 impl Instruments {
+    pub fn waveform_override_path(
+        &self,
+        source: Option<&WaveformSource>,
+    ) -> Result<Option<std::path::PathBuf>, String> {
+        match source {
+            Some(WaveformSource::File(path)) => Ok(Some(path.clone())),
+            Some(WaveformSource::Instrument(selection)) => self.entry(selection)
+                .map(|entry| Some(entry.main.clone()))
+                .ok_or_else(|| "Instrument is not installed or selected".into()),
+            None => Ok(None),
+        }
+    }
+
+    fn waveform_source(&self) -> Result<Option<WaveFile>, String> {
+        if !self.settings.waveform_override_enabled {
+            return Ok(None);
+        }
+        let path = self.waveform_override_path(self.settings.waveform_override.as_ref())?
+            .ok_or("Select a waveform override source")?;
+        WaveFile::read(path).map(Some)
+    }
+
     pub fn deferred(settings: InstrumentSettings) -> Self {
         Self {
             settings,
@@ -154,10 +198,14 @@ impl Instruments {
     pub fn configure(&mut self, settings: InstrumentSettings, ctx: &eframe::egui::Context) {
         let scan =
             settings.sources != self.settings.sources;
+        let waveform = settings.waveform_override_enabled != self.settings.waveform_override_enabled
+            || settings.waveform_override != self.settings.waveform_override;
         if settings != self.settings {
             self.settings = settings;
             if scan {
                 self.rescan(ctx);
+            } else if waveform {
+                self.reset();
             }
         }
     }
@@ -215,15 +263,18 @@ impl Instruments {
         {
             let mut request=self.requests.remove(&reference).unwrap();
             let settings = self.settings.clone();
+            let zero = self.zero_gru_weights;
             let cancel = Arc::new(AtomicBool::new(false));
             let stop = Arc::clone(&cancel);
             let wake = ctx.clone();
             let (tx, rx) = mpsc::channel();
             let hash = request.hash;
             thread::spawn(move || {
-                let result=(||->Result<Update,String>{
+                let result=crate::synthesis::execution::scope_gru_weights(zero, || -> Result<Update,String> {
                     if request.prepared.is_none(){
-                        let prepared=backend::prepare(&settings,&request.entry,std::mem::take(&mut request.notes),request.ambient,request.players,stop.clone())?;
+                        let waveform = request.waveform.as_ref().map_err(Clone::clone)?
+                            .as_ref().map(|source| source.path.as_path());
+                        let prepared=backend::prepare(&settings,&request.entry,std::mem::take(&mut request.notes),request.ambient,request.players,stop.clone(),waveform)?;
                         tx.send(Ok(Update::Prepared(prepared.pitch.clone(),prepared.member_pitch.clone(),prepared.controls.clone()))).map_err(|_|"Instrument render cancelled")?;wake.request_repaint();
                         request.prepared=Some(Box::new(prepared));
                     }
@@ -233,7 +284,7 @@ impl Instruments {
                     })?;
                     if finished {Ok(Update::Complete)}
                     else {Ok(Update::Yield(request))}
-                })();
+                });
                 let _=tx.send(result);
                 wake.request_repaint();
             });
@@ -252,15 +303,21 @@ impl Instruments {
         &mut self,
         project: &Project,
         settings: InstrumentSettings,
+        zero_gru_weights: bool,
         ctx: &eframe::egui::Context,
     ) {
         self.configure(settings, ctx);
+        if self.zero_gru_weights != zero_gru_weights {
+            self.zero_gru_weights = zero_gru_weights;
+            self.reset();
+        }
         for (id,error) in std::mem::take(&mut self.mix_errors) {
             if self.errors.get(&id)==Some(&error){self.errors.remove(&id);}
         }
         if project.tracks.iter().any(|t| t.is_instrument()) {
             self.ensure_scan(ctx);
         }
+        let waveform = self.waveform_source();
         let mut retain = std::collections::BTreeSet::new();
         for track in &project.tracks {
             let Some(config) = &track.instrument else {
@@ -365,6 +422,8 @@ impl Instruments {
                     players,
                     self.settings.key(selected),
                     &entry.identity,
+                    &waveform,
+                    zero_gru_weights,
                     entry
                         .auxiliary
                         .as_ref()
@@ -413,6 +472,7 @@ impl Instruments {
                         players,
                         offset,
                         prepared:None,
+                        waveform: waveform.clone(),
                     },
                 );
             }

@@ -19,24 +19,24 @@ pub fn gru(b: &[u8], x: &Tensor, cancel: &AtomicBool) -> Result<Tensor> {
     {
         return fail("Instrument GRU dimensions");
     }
-    let a: Vec<f32> = b[8..]
+    let ni = 3 * h * input;
+    let nh = 3 * h * h;
+    let zero = crate::synthesis::execution::zero_gru_weights();
+    let skipped = if zero { ni + nh } else { 0 };
+    let a: Vec<f32> = b[8 + skipped * 4..]
         .chunks_exact(4)
         .map(|v| f32::from_bits(u32at(v, 0)))
         .collect();
-    let ni = 3 * h * input;
-    let nh = 3 * h * h;
-    let wi = &a[..ni];
-    let wh = &a[ni..ni + nh];
-    let bi = &a[ni + nh..ni + nh + 3 * h];
-    let bh = &a[ni + nh + 3 * h..];
-    let q = affine(
+    let (weights, biases) = a.split_at(ni + nh - skipped);
+    let (bi, bh) = biases.split_at(3 * h);
+    let projected = (!zero).then(|| affine(
         &x.dense(),
         x.shape[0] * x.shape[1],
         input,
-        wi,
+        &weights[..ni],
         3 * h,
         Some(bi),
-    );
+    ));
     let mut out = vec![0.; x.shape[0] * x.shape[1] * h];
     for batch in 0..x.shape[0] {
         let mut hidden = vec![0.; h];
@@ -44,12 +44,14 @@ pub fn gru(b: &[u8], x: &Tensor, cancel: &AtomicBool) -> Result<Tensor> {
             if t % 64 == 0 && cancel.load(Ordering::Relaxed) {
                 return fail("Instrument render cancelled");
             }
-            let r = affine(&hidden, 1, h, wh, 3 * h, Some(bh));
+            let recurrent = (!zero).then(|| affine(&hidden, 1, h, &weights[ni..], 3 * h, Some(bh)));
             let off = (batch * x.shape[1] + t) * 3 * h;
+            let q = projected.as_ref().map_or(bi, |v| &v[off..off + 3 * h]);
+            let r = recurrent.as_deref().unwrap_or(bh);
             for c in 0..h {
-                let reset = 1. / (1. + (-(q[off + c] + r[c])).exp());
-                let update = 1. / (1. + (-(q[off + h + c] + r[h + c])).exp());
-                let candidate = (q[off + 2 * h + c] + reset * r[2 * h + c]).tanh();
+                let reset = 1. / (1. + (-(q[c] + r[c])).exp());
+                let update = 1. / (1. + (-(q[h + c] + r[h + c])).exp());
+                let candidate = (q[2 * h + c] + reset * r[2 * h + c]).tanh();
                 hidden[c] = (1. - update) * candidate + update * hidden[c];
             }
             out[(batch * x.shape[1] + t) * h..(batch * x.shape[1] + t + 1) * h]

@@ -9,6 +9,15 @@ pub struct InstrumentSettings {
     pub key_override_enabled: bool,
     pub key_override_value: u64,
     pub overrides: Vec<InstrumentKeyOverride>,
+    pub waveform_override_enabled: bool,
+    pub waveform_override: Option<WaveformSource>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WaveformSource {
+    File(PathBuf),
+    Instrument(InstrumentSelection),
 }
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InstrumentKeyOverride {

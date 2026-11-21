@@ -10,14 +10,45 @@ mod tunelab;
 pub enum ProjectFormat { Rvp, Svp, Ixp, Tlp, Tlpx }
 
 impl ProjectFormat {
+    pub const ALL: [Self; 5] = [Self::Rvp, Self::Svp, Self::Ixp, Self::Tlp, Self::Tlpx];
+
+    pub fn extension(self) -> &'static str {
+        match self {
+            Self::Rvp => "rvp",
+            Self::Svp => "svp",
+            Self::Ixp => "ixp",
+            Self::Tlp => "tlp",
+            Self::Tlpx => "tlpx",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Rvp => "RynthV (*.rvp)",
+            Self::Svp => "Synthesizer V (*.svp)",
+            Self::Ixp => "Instrument X (*.ixp)",
+            Self::Tlp => "TuneLab JSON (*.tlp)",
+            Self::Tlpx => "TuneLab (*.tlpx)",
+        }
+    }
+
     pub fn from_path(path: &Path) -> Option<Self> {
         let extension = path.extension()?;
-        if extension.eq_ignore_ascii_case("rvp") { Some(Self::Rvp) }
-        else if extension.eq_ignore_ascii_case("svp") { Some(Self::Svp) }
-        else if extension.eq_ignore_ascii_case("ixp") { Some(Self::Ixp) }
-        else if extension.eq_ignore_ascii_case("tlp") { Some(Self::Tlp) }
-        else if extension.eq_ignore_ascii_case("tlpx") { Some(Self::Tlpx) }
-        else { None }
+        Self::ALL.into_iter().find(|format| extension.eq_ignore_ascii_case(format.extension()))
+    }
+
+    pub fn can_save(self, project: &Project) -> bool {
+        if self == Self::Rvp {
+            return true;
+        }
+        if project.tracks.iter().any(|track| track.rocoflex.is_some()) {
+            return false;
+        }
+        match self {
+            Self::Svp => !project.tracks.iter().any(Track::is_instrument),
+            Self::Ixp => project.tracks.iter().all(|track| track.is_instrument() || track.is_instrumental()),
+            Self::Rvp | Self::Tlp | Self::Tlpx => true,
+        }
     }
 }
 
@@ -80,16 +111,16 @@ fn decode_project(bytes: &[u8], path: &Path, format: ProjectFormat) -> Result<Pr
 
 pub fn save(path: &Path, project: &Project) -> Result<(), String> {
     let format = ProjectFormat::from_path(path).ok_or("PROJECT_UNSUPPORTED_FORMAT")?;
-    if format==ProjectFormat::Ixp{return Err("Save instrument tracks in a RynthV project (.rvp)".into())}
-    if format==ProjectFormat::Svp && project.tracks.iter().any(Track::is_instrument) {
-        return Err("Save instrument tracks in a RynthV project (.rvp)".into());
+    if !format.can_save(project) {
+        return Err(if project.tracks.iter().any(|track| track.rocoflex.is_some()) {
+            "RVP_SAVE_REQUIRED"
+        } else {
+            "PROJECT_FORMAT_INCOMPATIBLE"
+        }.into());
     }
     let mut ordered = project.clone();
     let base = std::path::absolute(path).map_err(|e| e.to_string())?;
     for track in &mut ordered.tracks {
-        if format == ProjectFormat::Svp {
-            track.rocoflex = None;
-        }
         if let Some(clip) = track.instrumental.as_mut().and_then(|t| t.clip.as_mut())
             && let Ok(relative) = clip.path.strip_prefix(base.parent().unwrap())
         {
@@ -97,7 +128,11 @@ pub fn save(path: &Path, project: &Project) -> Result<(), String> {
         }
     }
     validate(&ordered)?;
-    ordered.version = match format { ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx => RVP_VERSION, ProjectFormat::Svp => SVP_VERSION,ProjectFormat::Ixp=>unreachable!() };
+    ordered.version = match format {
+        ProjectFormat::Rvp | ProjectFormat::Tlp | ProjectFormat::Tlpx => RVP_VERSION,
+        ProjectFormat::Svp => SVP_VERSION,
+        ProjectFormat::Ixp => instrument::VERSION,
+    };
     audio::save(&mut ordered);
     for group in ordered
         .library
@@ -106,8 +141,14 @@ pub fn save(path: &Path, project: &Project) -> Result<(), String> {
     {
         group.notes.sort_by_key(|n| n.onset);
     }
-    let bytes = if matches!(format,ProjectFormat::Tlp|ProjectFormat::Tlpx) {tunelab::encode(&ordered,format==ProjectFormat::Tlpx)?}
-        else {serde_json::to_vec_pretty(&ordered).map_err(|e| e.to_string())?};
+    if format == ProjectFormat::Ixp {
+        instrument::prepare_save(&mut ordered);
+    }
+    let bytes = if matches!(format, ProjectFormat::Tlp | ProjectFormat::Tlpx) {
+        tunelab::encode(&ordered, format == ProjectFormat::Tlpx)?
+    } else {
+        serde_json::to_vec_pretty(&ordered).map_err(|e| e.to_string())?
+    };
     if bytes.len() > 64 * 1024 * 1024 {
         return Err("工程超过 64 MiB 读取上限".into());
     }

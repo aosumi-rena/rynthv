@@ -26,7 +26,7 @@ pub use mixer::dialog as mixer_dialog;
 pub use mixer::show as mixer_panel;
 pub use note::show as note_panel;
 pub use panel::show as track_panel;
-pub use selector::popup;
+pub use selector::{popup, waveform_picker};
 pub use settings::show as settings;
 
 pub fn label(column: Column) -> &'static str {

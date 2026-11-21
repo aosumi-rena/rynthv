@@ -3,6 +3,7 @@ mod clipboard;
 mod midi;
 mod project_import;
 mod project_drop;
+mod project_save;
 mod transport_preferences;
 mod voice;
 pub use midi::{MidiImport, MidiImportMode, MidiImportPhase};
@@ -194,16 +195,23 @@ impl App {
         app
     }
     pub fn open_path(&mut self, path: PathBuf) {
-        self.scripts.stop();
         self.project_import=None;
         if storage::ProjectFormat::from_path(&path).is_none() {
-            self.begin_project_import(path,MidiImportMode::NewProject,&self.context.clone());
+            let ctx = self.context.clone();
+            if rynthv::project_import::is_midi(&path) {
+                self.begin_midi_path(path, MidiImportMode::NewProject, &ctx);
+            } else if rynthv::project_import::supports(&path) {
+                self.begin_project_import(path, MidiImportMode::NewProject, &ctx);
+            } else {
+                self.error = Some("PROJECT_UNSUPPORTED_FORMAT".into());
+            }
             return;
         }
         ui::piano::cancel_audition(self);
         self.midi_import = None;
         match storage::load(&path) {
             Ok(project) => {
+                self.scripts.stop();
                 self.editor = Editor::new(project);
                 self.restore_transport_choices();
                 self.synthesis.reset_project();
@@ -240,49 +248,6 @@ impl App {
                 }
             }
             Err(e) => self.error = Some(e),
-        }
-    }
-    pub fn save_project(&mut self, save_as: bool) -> bool {
-        use storage::ProjectFormat;
-        ui::piano::cancel_audition(self);
-        ui::tempo_input::finish(self);
-        self.commit_lyric();
-        self.editor.finish();
-        let native = self.path.as_ref().filter(|path| matches!(ProjectFormat::from_path(path),Some(ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx)));
-        let path = if save_as || native.is_none() {
-            let name = self.path.as_ref().and_then(|p| p.file_stem()).and_then(|n| n.to_str())
-                .unwrap_or(crate::i18n::t("未命名"));
-            let mut dialog = rfd::FileDialog::new().add_filter("RynthV (*.rvp)", &["rvp"])
-                .add_filter("TuneLab (*.tlpx)", &["tlpx"]).add_filter("TuneLab JSON (*.tlp)", &["tlp"]);
-            if save_as && !self.editor.project.tracks.iter().any(|track|track.is_instrument()) {
-                dialog = dialog.add_filter("Synthesizer V (*.svp)", &["svp"]);
-            }
-            if let Some(parent) = self.path.as_deref().and_then(std::path::Path::parent) {
-                dialog = dialog.set_directory(parent);
-            }
-            dialog.set_file_name(name).save_file()
-        } else {
-            native.cloned()
-        };
-        let Some(mut path) = path else { return false; };
-        if path.extension().is_none() { path.set_extension("rvp"); }
-        if !save_as && !matches!(ProjectFormat::from_path(&path),Some(ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx)) {
-            self.error = Some(crate::i18n::t("RVP_SAVE_REQUIRED").into());
-            return false;
-        }
-        match storage::save(&path, &self.project_for_save()) {
-            Ok(()) => {
-                if matches!(ProjectFormat::from_path(&path),Some(ProjectFormat::Rvp|ProjectFormat::Tlp|ProjectFormat::Tlpx)) {
-                    self.editor.mark_saved();
-                    self.path = Some(path);
-                }
-                self.status = crate::i18n::t("工程已保存").into();
-                true
-            }
-            Err(e) => {
-                self.error = Some(e);
-                false
-            }
         }
     }
     pub fn request_file(&mut self, action: FileAction, ctx: &Context) {
@@ -326,9 +291,10 @@ impl App {
                 self.path = None;
             }
             FileAction::Open => {
+                let mut extensions = vec![storage::ProjectFormat::Rvp.extension()];
+                extensions.extend_from_slice(rynthv::project_import::EXTENSIONS);
                 if let Some(path) = rfd::FileDialog::new()
-                    .add_filter("RynthV", &["rvp"])
-                    .add_filter(crate::i18n::t("歌声工程"), rynthv::project_import::EXTENSIONS)
+                    .add_filter(crate::i18n::t("歌声工程"), &extensions)
                     .pick_file()
                 {
                     self.open_path(path);
@@ -455,14 +421,14 @@ impl eframe::App for App {
                 self.error=Some(crate::i18n::t("Please drop one file at a time.").into());
             } else if self.project_import.is_some() || self.dropped_project.is_some() || self.midi_import.is_some() || self.audio_import.is_some() || self.pending.is_some() {
                 self.error=Some(crate::i18n::t("已有工程正在导入。").into());
-            } else if let Some(extension)=path.extension().and_then(|e|e.to_str()) {
-                if extension.eq_ignore_ascii_case("rvp") {
-                    self.request_file(FileAction::OpenPath(path.clone()), &ctx);
-                } else if rynthv::project_import::EXTENSIONS.iter().any(|ext|extension.eq_ignore_ascii_case(ext)) {
-                    self.dropped_project=Some(path.clone());
-                } else if instrumental::EXTENSIONS.iter().any(|ext|extension.eq_ignore_ascii_case(ext)) {
-                    self.import_audio_path(None, path.clone(), &ctx);
-                }
+            } else if storage::ProjectFormat::from_path(path) == Some(storage::ProjectFormat::Rvp) {
+                self.request_file(FileAction::OpenPath(path.clone()), &ctx);
+            } else if rynthv::project_import::supports(path) {
+                self.dropped_project = Some(path.clone());
+            } else if instrumental::supports(path) {
+                self.import_audio_path(None, path.clone(), &ctx);
+            } else {
+                self.error = Some("PROJECT_UNSUPPORTED_FORMAT".into());
             }
         }
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close {

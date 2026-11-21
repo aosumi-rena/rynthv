@@ -18,6 +18,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
+pub(super) const WAVE_PROGRAM: &str = "b91417eb25d7f3796045f72ff65617cd";
 const PROGRAMS: [&str; 8] = [
     "6995abb671c2e5f5b08621023e47c736",
     "6d673c66a228e5d47c9a714619edef29",
@@ -26,7 +27,7 @@ const PROGRAMS: [&str; 8] = [
     "1ecb4be14e20de0bcb9a0e7651a12d71",
     "5eb9686f7ad39224759662e106fc3ecb",
     "df17b7b15e9945762a89f92323bde349",
-    "b91417eb25d7f3796045f72ff65617cd",
+    WAVE_PROGRAM,
 ];
 fn identity(p: &Path) -> Result<String> {
     let s = std::fs::metadata(p).map_err(|e| e.to_string())?;
@@ -189,6 +190,7 @@ pub(super) fn prepare_member(
     ambient: u32,
     ensemble: bool,
     cancel: Arc<AtomicBool>,
+    waveform: Option<Arc<super::WaveModel>>,
 ) -> Result<WaveStream> {
     let recs = score::records(&notes)?;
     let frames = notes.last().unwrap().start + notes.last().unwrap().length + 100;
@@ -280,7 +282,7 @@ pub(super) fn prepare_member(
         2,
     )?;
     let mut stream=WaveStream::new(entry.main.clone(), wave_input,
-        score::clock_seeds(&notes, frames, 9, 1), pitch.dense())?;
+        score::clock_seeds(&notes, frames, 9, 1), pitch.dense(), waveform, &notes)?;
     stream.controls=effective_controls;
     Ok(stream)
 }

@@ -147,7 +147,8 @@ pub(super) fn run(
         if !state.sessions.contains_key(&owner) {
             if let Some(job) = state.cache.take_owner(owner) {
                 let _active = control.register(&job, state.reset_generation);
-                let result = execution::scope(job.cancellation(), || {
+                let zero = job.request.input.experiments.settings.zero_gru_weights;
+                let result = execution::render_scope(job.cancellation(), zero, || {
                     execution::checkpoint()?;
                     score::validate_voice(&job.request.input, &name, &version, &database_id)?;
                     progressive::prepare(
@@ -204,7 +205,8 @@ fn advance<'network, 'tree>(
         return;
     };
     let _active = control.register(&session.job, state.reset_generation);
-    let result = execution::scope(session.job.cancellation(), || {
+    let zero = session.job.request.input.experiments.settings.zero_gru_weights;
+    let result = execution::render_scope(session.job.cancellation(), zero, || {
         execution::checkpoint()?;
         if session.seek_generation != state.seek_generation {
             session.seek_generation = state.seek_generation;

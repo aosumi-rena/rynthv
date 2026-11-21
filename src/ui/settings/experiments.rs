@@ -39,7 +39,18 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
             });
         }
     }
-    if settings.enabled || settings.r2_vocoder { super::vocoder::show(app, ui, &mut settings); }
+    if settings.enabled || settings.zero_gru_weights {
+        ui.push_id("gru-override", |ui| {
+            section(ui, crate::i18n::t("GRU_OVERRIDE"));
+            toggle(ui, crate::i18n::t("GRU_OVERRIDE_ENABLE"), &mut settings.zero_gru_weights);
+        });
+    }
+    if settings.enabled || settings.r2_vocoder {
+        ui.push_id("vocoder-override", |ui| super::vocoder::show(app, ui, &mut settings));
+    }
+    if settings.enabled || app.synthesis.library.settings.instruments.waveform_override_enabled {
+        ui.push_id("waveform-override", |ui| super::waveform::show(app, ui));
+    }
     if settings!=before {app.synthesis.set_experiments(settings);}
     if let Some(error)=app.synthesis.library.settings_error() {ui.colored_label(eframe::egui::Color32::LIGHT_RED,crate::i18n::message(error));}
 }

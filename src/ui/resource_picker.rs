@@ -10,6 +10,61 @@ pub fn frame(ctx: &Context) -> Frame {
         .corner_radius(5)
         .inner_margin(4)
 }
+pub(crate) fn selection_card(
+    ui: &mut Ui,
+    name: &str,
+    hint: Option<&str>,
+    tooltip: Option<String>,
+    label: &str,
+    artwork: impl FnOnce(&Ui, Rect),
+) -> Response {
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 60.0), Sense::click());
+    ui.painter().rect(
+        rect,
+        4,
+        if response.hovered() { BUTTON } else { BORDER },
+        Stroke::new(0.7, BUTTON),
+        StrokeKind::Inside,
+    );
+    let art = Rect::from_min_size(rect.min, Vec2::splat(60.0));
+    artwork(ui, art);
+    let label_rect = Rect::from_min_max(
+        pos2(art.right() + 8.0, rect.top()),
+        rect.max - vec2(26.0, 0.0),
+    );
+    let painter = ui
+        .painter()
+        .with_clip_rect(label_rect.intersect(ui.clip_rect()));
+    painter.text(
+        label_rect.left_center() - vec2(0.0, if hint.is_some() { 9.0 } else { 0.0 }),
+        Align2::LEFT_CENTER,
+        name,
+        FontId::proportional(13.0),
+        TEXT,
+    );
+    if let Some(hint) = hint {
+        painter.text(
+            label_rect.left_center() + vec2(0.0, 12.0),
+            Align2::LEFT_CENTER,
+            hint,
+            FontId::proportional(10.5),
+            MUTED,
+        );
+    }
+    Icon::ChevronDown.paint(
+        ui,
+        Rect::from_center_size(rect.right_center() - vec2(16.0, 0.0), Vec2::splat(12.0)),
+        MUTED,
+    );
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, label));
+    let response = if let Some(tooltip) = tooltip {
+        response.on_hover_text(tooltip)
+    } else {
+        response
+    };
+    response.on_hover_cursor(CursorIcon::Default)
+}
+
 pub fn card(ui: &mut Ui, selected: bool, enabled: bool) -> (Response, Rect, Rect) {
     let (rect, response) = ui.allocate_exact_size(
         vec2(ui.available_width(), 76.),

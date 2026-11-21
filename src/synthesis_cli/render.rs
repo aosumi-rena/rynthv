@@ -14,6 +14,18 @@ pub fn run(
     inventory: &VoiceInventory,
     voice: &PreparedVoice,
 ) -> Result<Value, String> {
+    let settings = SynthesisSettings::load()?;
+    rynthv::synthesis::execution::scope_gru_weights(settings.experiments.zero_gru_weights, || {
+        run_with_settings(args, inventory, voice, &settings)
+    })
+}
+
+fn run_with_settings(
+    args: &RenderArgs,
+    inventory: &VoiceInventory,
+    voice: &PreparedVoice,
+    settings: &SynthesisSettings,
+) -> Result<Value, String> {
     if fs::metadata(&args.input)
         .map_err(|error| error.to_string())?
         .len()
@@ -38,7 +50,6 @@ pub fn run(
     let mut identity_source = "not required";
     let identity = if voice.family.requires_identity() {
         let selection = VoiceSelection { database_id: inventory.database_id.clone(), revision: config.version.parse()? };
-        let settings = SynthesisSettings::load()?;
         let per_version = settings.voice_duration_key_override(&selection).filter(|entry| entry.enabled);
 
         let selected = if let Some(entry) = per_version {

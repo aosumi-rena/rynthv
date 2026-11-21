@@ -4,6 +4,18 @@ use crate::model::{Project,Track,InstrumentalTrack,AudioClip};
 mod data;
 
 pub const EXTENSIONS:&[&str]=&["svp","ixp","tlp","tlpx","vsqx","vpr","vsq","mid","midi","ust","ustx","ccs","xml","musicxml","s5p","dv","ppsf","tssln","ufdata","zip"];
+
+pub fn supports(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| {
+        EXTENSIONS.iter().any(|candidate| extension.eq_ignore_ascii_case(candidate))
+    })
+}
+
+pub fn is_midi(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| {
+        extension.eq_ignore_ascii_case("mid") || extension.eq_ignore_ascii_case("midi")
+    })
+}
 #[derive(Deserialize)]
 pub struct Asset {
     pub track_name:String,
@@ -33,6 +45,9 @@ fn helper(action:&str,path:&Path,destination:Option<&Path>)->Result<serde_json::
     serde_json::from_slice(&output.stdout).map_err(|e|format!("转换器返回无效结果：{e}"))
 }
 pub fn convert(path:&Path)->Result<Imported,String> {
+    if !supports(path) {
+        return Err("PROJECT_UNSUPPORTED_FORMAT".into());
+    }
     if crate::storage::ProjectFormat::from_path(path).is_some() {
         return Ok(Imported{project:crate::storage::load(path)?,assets:Vec::new(),source:path.into()});
     }
