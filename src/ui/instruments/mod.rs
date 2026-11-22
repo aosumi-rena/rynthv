@@ -52,6 +52,22 @@ fn current(app: &App) -> Option<&crate::synthesis::instruments::Entry> {
         .instruments
         .for_track(app.editor.current_track())
 }
+
+fn unavailable_versions(
+    ui: &mut eframe::egui::Ui,
+    instruments: &crate::synthesis::instruments::Instruments,
+    database_id: &str,
+) {
+    for failure in &instruments.catalog.unavailable {
+        if failure.selection.database_id == database_id
+            && instruments.entry(&failure.selection).is_none()
+        {
+            let label = format!("{} · {}", failure.selection.revision, crate::i18n::t("加载失败"));
+            ui.add_enabled(false, eframe::egui::Button::selectable(false, label))
+                .on_disabled_hover_text(failure.errors.join("\n"));
+        }
+    }
+}
 fn section(ui: &mut eframe::egui::Ui, title: &str, content: impl FnOnce(&mut eframe::egui::Ui)) {
     use eframe::egui::*;
     ui.painter().hline(

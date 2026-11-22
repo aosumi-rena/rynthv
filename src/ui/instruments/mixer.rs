@@ -60,21 +60,11 @@ pub fn dialog(app: &mut App, ctx: &Context) {
                     );
                     let player = plan.min + vec2(135.0, 85.0);
                     p.circle_stroke(player, 26.0, Stroke::new(2.0, crate::ui::theme::accent(ui)));
-                    if entry.name == "Orchestral Flute 1" {
-                        p.text(
-                            player,
-                            Align2::CENTER_CENTER,
-                            "Fl",
-                            FontId::proportional(10.0),
-                            crate::ui::theme::accent(ui),
-                        );
-                    } else {
-                        Icon::Instrument.paint(
-                            ui,
-                            Rect::from_center_size(player, vec2(24.0, 24.0)),
-                            crate::ui::theme::accent(ui),
-                        );
-                    }
+                    Icon::Instrument.paint(
+                        ui,
+                        Rect::from_center_size(player, vec2(24.0, 24.0)),
+                        crate::ui::theme::accent(ui),
+                    );
                     let active=config.mix(&entry.microphones);
                     for (x, y, name) in [
                         (135.0, 145.0, "Close"),

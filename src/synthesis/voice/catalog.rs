@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use rayon::prelude::*;
 use serde::Serialize;
 
 use super::{Result, VoiceFamily, VoiceRevision};
@@ -98,11 +99,15 @@ impl VoiceCatalog {
             bank_entry(root,&mut catalog)?;
             return Ok(catalog);
         }
-        if let Some(parent)=root.parent() && root.file_name().and_then(|n|n.to_str()).is_some_and(|n|n.parse::<VoiceRevision>().is_ok())
-            && let Some(id)=parent.file_name().and_then(|n|n.to_str()).and_then(|n|uuid::Uuid::parse_str(n).ok()) {
-            let metadata=MetadataIndex::load(parent.parent().unwrap_or(parent));
-            dnni::scan(parent,id,&mut catalog,&metadata)?;
-            catalog.entries.retain(|e|e.directory==root);return Ok(catalog);
+        if let Some(parent) = root.parent()
+            && let Some(version) = root.file_name().and_then(|name| name.to_str())
+                .and_then(|name| name.parse::<VoiceRevision>().ok())
+            && let Some(id) = parent.file_name().and_then(|name| name.to_str())
+                .and_then(|name| uuid::Uuid::parse_str(name).ok())
+        {
+            let metadata = MetadataIndex::load(parent.parent().unwrap_or(parent));
+            catalog.entries.push(dnni::revision(root.to_owned(), id, version, &metadata));
+            return Ok(catalog);
         }
         if let Some(id)=root.file_name().and_then(|n|n.to_str()).and_then(|n|uuid::Uuid::parse_str(n).ok()) {
             let metadata=MetadataIndex::load(root.parent().unwrap_or(root));
@@ -113,43 +118,19 @@ impl VoiceCatalog {
             bank_entry(&path,&mut catalog)?;
         }
         let metadata = MetadataIndex::load(root);
+        let mut databases = Vec::new();
         for database in fs::read_dir(root)? {
             let database = database?;
-            if !database.file_type()?.is_dir() {
-                continue;
+            if database.file_type()?.is_dir() {
+                databases.push(database.path());
             }
-            if super::standard::is_profile(&database.path()) {
-                match super::standard::StdVoice::load(&database.path()) {
-                    Ok(voice)=>catalog.entries.push(voice.catalog_entry()),
-                    Err(error)=>catalog.warnings.push(error.to_string()),
-                }
-                continue;
-            }
-            match super::standard::native_entry(&database.path()) {
-                Ok(Some((entry,warnings)))=>{catalog.entries.push(entry);catalog.warnings.extend(warnings);continue;},
-                Ok(None)=>{},
-                Err(error)=>{catalog.warnings.push(format!("{}: {error}",database.path().display()));continue;},
-            }
-            let manifest=database.path().join("manifest.json");
-            if super::materialized_flat::is_manifest(&manifest) {
-                match flat::entry(&manifest) {Ok(entry)=>catalog.entries.push(entry),Err(e)=>catalog.warnings.push(e.to_string())}
-                continue;
-            }
-            if let Ok(database_id) = uuid::Uuid::parse_str(&database.file_name().to_string_lossy())
-            {
-                dnni::scan(&database.path(), database_id, &mut catalog, &metadata)?;
-            }
-            match super::nofs::paths(&database.path()) {
-                Ok(paths) => {
-                    for path in paths {
-                        bank_entry(&path,&mut catalog)?;
-                    }
-                }
-                Err(error) => catalog.warnings.push(format!(
-                    "无法读取声库目录 {}：{error}",
-                    database.path().display()
-                )),
-            }
+        }
+        let results: Vec<_> = databases.par_iter().with_min_len(8)
+            .map(|path| scan_bank(path, &metadata)).collect();
+        for result in results {
+            let found = result?;
+            catalog.entries.extend(found.entries);
+            catalog.warnings.extend(found.warnings);
         }
         let mut counts = std::collections::BTreeMap::new();
         for entry in &catalog.entries {
@@ -173,6 +154,51 @@ impl VoiceCatalog {
         });
         Ok(catalog)
     }
+}
+
+fn scan_bank(path: &Path, metadata: &MetadataIndex) -> Result<VoiceCatalog> {
+    let mut catalog = VoiceCatalog::default();
+    if super::standard::is_profile(path) {
+        match super::standard::StdVoice::load(path) {
+            Ok(voice) => catalog.entries.push(voice.catalog_entry()),
+            Err(error) => catalog.warnings.push(error.to_string()),
+        }
+        return Ok(catalog);
+    }
+    match super::standard::native_entry(path) {
+        Ok(Some((entry, warnings))) => {
+            catalog.entries.push(entry);
+            catalog.warnings.extend(warnings);
+            return Ok(catalog);
+        }
+        Ok(None) => {}
+        Err(error) => {
+            catalog.warnings.push(format!("{}: {error}", path.display()));
+            return Ok(catalog);
+        }
+    }
+    let manifest = path.join("manifest.json");
+    if super::materialized_flat::is_manifest(&manifest) {
+        match flat::entry(&manifest) {
+            Ok(entry) => catalog.entries.push(entry),
+            Err(error) => catalog.warnings.push(error.to_string()),
+        }
+        return Ok(catalog);
+    }
+    if let Some(database_id) = path.file_name().and_then(|name| name.to_str())
+        .and_then(|name| uuid::Uuid::parse_str(name).ok())
+    {
+        dnni::scan(path, database_id, &mut catalog, metadata)?;
+    }
+    match super::nofs::paths(path) {
+        Ok(paths) => {
+            for path in paths {
+                bank_entry(&path, &mut catalog)?;
+            }
+        }
+        Err(error) => catalog.warnings.push(format!("???????? {}?{error}", path.display())),
+    }
+    Ok(catalog)
 }
 
 fn bank_entry(path:&Path,catalog:&mut VoiceCatalog)->Result<()> {

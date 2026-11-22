@@ -6,59 +6,72 @@ use super::{
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 pub use super::convolution::run as convolution;
-pub fn gru(b: &[u8], x: &Tensor, cancel: &AtomicBool) -> Result<Tensor> {
-    if b.len() < 8 {
-        return fail("GRU header");
-    }
-    let (h, input) = (u32at(b, 0) as usize, u32at(b, 4) as usize);
-    if h == 0
-        || h > 32768
-        || input == 0
-        || input != *x.shape.last().unwrap()
-        || b.len() != 8 + (3 * h * input + 3 * h * h + 6 * h) * 4
-    {
-        return fail("Instrument GRU dimensions");
-    }
-    let ni = 3 * h * input;
-    let nh = 3 * h * h;
-    let zero = crate::synthesis::execution::zero_gru_weights();
-    let skipped = if zero { ni + nh } else { 0 };
-    let a: Vec<f32> = b[8 + skipped * 4..]
-        .chunks_exact(4)
-        .map(|v| f32::from_bits(u32at(v, 0)))
-        .collect();
-    let (weights, biases) = a.split_at(ni + nh - skipped);
-    let (bi, bh) = biases.split_at(3 * h);
-    let projected = (!zero).then(|| affine(
-        &x.dense(),
-        x.shape[0] * x.shape[1],
-        input,
-        &weights[..ni],
-        3 * h,
-        Some(bi),
-    ));
-    let mut out = vec![0.; x.shape[0] * x.shape[1] * h];
-    for batch in 0..x.shape[0] {
-        let mut hidden = vec![0.; h];
-        for t in 0..x.shape[1] {
-            if t % 64 == 0 && cancel.load(Ordering::Relaxed) {
-                return fail("Instrument render cancelled");
-            }
-            let recurrent = (!zero).then(|| affine(&hidden, 1, h, &weights[ni..], 3 * h, Some(bh)));
-            let off = (batch * x.shape[1] + t) * 3 * h;
-            let q = projected.as_ref().map_or(bi, |v| &v[off..off + 3 * h]);
-            let r = recurrent.as_deref().unwrap_or(bh);
-            for c in 0..h {
-                let reset = 1. / (1. + (-(q[c] + r[c])).exp());
-                let update = 1. / (1. + (-(q[h + c] + r[h + c])).exp());
-                let candidate = (q[2 * h + c] + reset * r[2 * h + c]).tanh();
-                hidden[c] = (1. - update) * candidate + update * hidden[c];
-            }
-            out[(batch * x.shape[1] + t) * h..(batch * x.shape[1] + t + 1) * h]
-                .copy_from_slice(&hidden);
+pub(super) struct Gru {
+    hidden: usize,
+    input: usize,
+    weights_end: usize,
+    values: Vec<f32>,
+}
+
+impl Gru {
+    pub(super) fn parse(bytes: &[u8], zero: bool) -> Result<Self> {
+        if bytes.len() < 8 {
+            return fail("GRU header");
         }
+        let hidden = u32at(bytes, 0) as usize;
+        let input = u32at(bytes, 4) as usize;
+        if !(1..=32768).contains(&hidden) || input == 0 {
+            return fail("Instrument GRU dimensions");
+        }
+        let weights = 3u64 * hidden as u64 * (input as u64 + hidden as u64);
+        if bytes.len() as u64 != 8 + (weights + 6 * hidden as u64) * 4 {
+            return fail("Instrument GRU dimensions");
+        }
+        let start = if zero { 8 + weights as usize * 4 } else { 8 };
+        let values = bytes[start..].chunks_exact(4).map(|b| f32::from_bits(u32at(b, 0))).collect();
+        Ok(Self { hidden, input, weights_end: if zero { 0 } else { weights as usize }, values })
     }
-    Ok(Tensor::new(vec![x.shape[0], x.shape[1], h], out))
+
+    pub(super) fn run(&self, x: &Tensor, cancel: &AtomicBool) -> Result<Tensor> {
+        let (h, input) = (self.hidden, self.input);
+        if x.shape.len() != 3 || x.shape[2] != input {
+            return fail("Instrument GRU input dimensions");
+        }
+        let (weights, biases) = self.values.split_at(self.weights_end);
+        let zero = weights.is_empty();
+        let ni = 3 * h * input;
+        let (bi, bh) = biases.split_at(3 * h);
+        let projected = (!zero).then(|| affine(
+            &x.real_slice(),
+            x.shape[0] * x.shape[1],
+            input,
+            &weights[..ni],
+            3 * h,
+            Some(bi),
+        ));
+        let mut out = vec![0.; x.shape[0] * x.shape[1] * h];
+        for batch in 0..x.shape[0] {
+            let mut hidden = vec![0.; h];
+            for t in 0..x.shape[1] {
+                if t % 64 == 0 && cancel.load(Ordering::Relaxed) {
+                    return fail("Instrument render cancelled");
+                }
+                let recurrent = (!zero).then(|| affine(&hidden, 1, h, &weights[ni..], 3 * h, Some(bh)));
+                let off = (batch * x.shape[1] + t) * 3 * h;
+                let q = projected.as_ref().map_or(bi, |v| &v[off..off + 3 * h]);
+                let r = recurrent.as_deref().unwrap_or(bh);
+                for c in 0..h {
+                    let reset = 1. / (1. + (-(q[c] + r[c])).exp());
+                    let update = 1. / (1. + (-(q[h + c] + r[h + c])).exp());
+                    let candidate = (q[2 * h + c] + reset * r[2 * h + c]).tanh();
+                    hidden[c] = (1. - update) * candidate + update * hidden[c];
+                }
+                out[(batch * x.shape[1] + t) * h..(batch * x.shape[1] + t + 1) * h]
+                    .copy_from_slice(&hidden);
+            }
+        }
+        Ok(Tensor::new(vec![x.shape[0], x.shape[1], h], out))
+    }
 }
 pub fn execute(n: &Node, a: &[Tensor]) -> Result<Tensor> {
     let x = &a[0];

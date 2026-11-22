@@ -172,7 +172,7 @@ impl PreparedVoice {
                 super::DurationConfiguration::parse(
                     &duration.resource_bytes(duration.root_index())?,
                 )?;
-                super::speakers::vector(duration, root.children[1], self.speaker)?;
+                crate::synthesis::stages::duration::conditioning(duration, root.children[1], self.speaker)?;
                 F0Stage::prepare(self.model("f0")?, self.speaker)?;
                 TimbreNetwork::prepare(self.model("timbre")?, self.speaker, self.retained_acoustic_noise_only)?;
             }

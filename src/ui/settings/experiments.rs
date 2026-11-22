@@ -48,6 +48,17 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
     if settings.enabled || settings.r2_vocoder {
         ui.push_id("vocoder-override", |ui| super::vocoder::show(app, ui, &mut settings));
     }
+    let mut instruments = app.synthesis.library.settings.instruments.clone();
+    let accept_any_v4_signature = instruments.accept_any_v4_signature;
+    if settings.enabled || accept_any_v4_signature {
+        ui.push_id("dnni-v4-signatures", |ui| {
+            section(ui, crate::i18n::t("DNNI_V4_SIGNATURES"));
+            toggle(ui, crate::i18n::t("DNNI_V4_SIGNATURES_ACCEPT_ANY"), &mut instruments.accept_any_v4_signature);
+        });
+        if instruments.accept_any_v4_signature != accept_any_v4_signature {
+            app.synthesis.set_instrument_settings(instruments);
+        }
+    }
     if settings.enabled || app.synthesis.library.settings.instruments.waveform_override_enabled {
         ui.push_id("waveform-override", |ui| super::waveform::show(app, ui));
     }

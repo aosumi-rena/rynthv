@@ -134,10 +134,12 @@ fn signature(tree:&PreparedTree)->Result<[u8;32]> {
         for &child in &node.children {visit(tree,child,hash)?;}
         Ok(())
     }
-    let mut hash=Sha256::new();
-    let network=tree.node(tree.node(tree.root_index())?.children[0])?;
-    for (slot,&node) in network.children.iter().enumerate() {if slot!=1 {visit(tree,node,&mut hash)?;}}
-    Ok(hash.finalize().into())
+    tree.acoustic_signature.get_or_init(|| {
+        let mut hash=Sha256::new();
+        let network=tree.node(tree.node(tree.root_index())?.children[0])?;
+        for (slot,&node) in network.children.iter().enumerate() {if slot!=1 {visit(tree,node,&mut hash)?;}}
+        Ok(hash.finalize().into())
+    }).clone()
 }
 
 pub(super) fn synthesize(voice:&PreparedVoice,identity:Option<u64>,input:&OwnerInput,phrase:&PreparedPhrase,c:&DdsControls,mut checkpoint:&mut dyn FnMut(super::super::RenderStage)->Result<()>)->Result<super::RenderResult> {

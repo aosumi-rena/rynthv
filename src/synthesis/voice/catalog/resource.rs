@@ -7,7 +7,7 @@ use std::{
 
 use num_bigint::BigUint;
 use xxhash_rust::xxh3::{Xxh3, xxh3_128};
-use super::{VoiceArtwork,artwork::{ICON_ID,PORTRAIT_ID,PRERELEASE_ICON_ID,PRERELEASE_PORTRAIT_ID}};
+use super::{VoiceArtwork, artwork::ArtworkRole};
 mod payload;
 
 use super::super::{
@@ -213,9 +213,14 @@ fn read_metadata(
         }
         if id == CONFIGURATION_ID.0 {
             metadata.configuration=Some(payload::read(&mut file,record,&material,context,MAX_CONFIGURATION_BYTES)?);
-        } else if [ICON_ID,PORTRAIT_ID,PRERELEASE_ICON_ID,PRERELEASE_PORTRAIT_ID].contains(&id) {
-            let image=VoiceArtwork::embedded(payload::read(&mut file,record,&material,context,8*1024*1024)?)?;
-            if id==ICON_ID || id==PRERELEASE_ICON_ID {metadata.icon=Some(image);} else {metadata.portrait=Some(image);}
+        } else if let Some(role) = ArtworkRole::from_resource(id) {
+            let image = VoiceArtwork::embedded(payload::read(
+                &mut file, record, &material, context, 8 * 1024 * 1024,
+            )?)?;
+            match role {
+                ArtworkRole::Avatar => metadata.icon = Some(image),
+                ArtworkRole::Portrait => metadata.portrait = Some(image),
+            }
         }
         models.record(id);
     }

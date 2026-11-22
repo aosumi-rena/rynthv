@@ -11,16 +11,15 @@ pub(super) fn prepare(paths: &[PathBuf], external: bool) -> Result<(PreparedTree
     let mut selected = None;
     for path in paths {
         let bytes = super::source::read_file(path)?;
-        let identity = blake3::hash(&bytes).to_hex().to_string();
+        let bytes: Arc<[u8]> = bytes.into();
         let tree = if bytes.get(..8) == Some(&[0xff, 0, 0xca, 0x7f, 3, 0, 0, 0]) {
             let context = FormatContext::dnni_v3();
             let (archive, unsigned) = if external {
-                Archive::from_vocoder_file(bytes.into(), &context)?
+                Archive::from_vocoder_file(bytes.clone(), &context)?
             } else {
-                (Archive::from_bytes(bytes.into(), &context)?, false)
+                (Archive::from_bytes(bytes.clone(), &context)?, false)
             };
             let archive = Arc::new(archive);
-            archive.verify_all()?;
             let graph = if external {
                 let graph = external_graph(&archive)?;
                 if unsigned && graph.root().children.len() != COMPACT_CHILDREN {
@@ -38,9 +37,10 @@ pub(super) fn prepare(paths: &[PathBuf], external: bool) -> Result<(PreparedTree
         } else {
             PreparedTree::prepare_embedded_execution(&bytes, false)?
         };
-        if selected.replace((tree, identity)).is_some() {
+        if selected.is_some() {
             return Err(VoiceError::new("VOCODER_OVERRIDE_INVALID"));
         }
+        selected = Some((tree, blake3::hash(&bytes).to_hex().to_string()));
     }
     selected.ok_or_else(|| VoiceError::new("VOCODER_OVERRIDE_INVALID"))
 }

@@ -6,6 +6,7 @@ use std::path::PathBuf;
 #[serde(default)]
 pub struct InstrumentSettings {
     pub sources: Vec<PathBuf>,
+    pub accept_any_v4_signature: bool,
     pub key_override_enabled: bool,
     pub key_override_value: u64,
     pub overrides: Vec<InstrumentKeyOverride>,

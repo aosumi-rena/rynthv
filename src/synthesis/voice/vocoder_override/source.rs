@@ -63,8 +63,7 @@ impl ResolvedSource {
             }
         };
         let models = paths.iter().map(|path| Stamp::read(path)).collect::<Result<Vec<_>>>()?;
-        let resolved = Self { models, manifest, embedded, r3, external: matches!(source, VocoderSource::R3File(_)) };
-        resolved.validate()?; Ok(resolved)
+        Ok(Self { models, manifest, embedded, r3, external: matches!(source, VocoderSource::R3File(_)) })
     }
     pub fn validate(&self) -> Result<()> {
         for model in &self.models { model.validate()?; }
@@ -72,9 +71,8 @@ impl ResolvedSource {
         Ok(())
     }
     pub fn prepare(&self) -> Result<(super::super::PreparedTree, String)> {
-        self.validate()?;
-        let result = if self.r3 {
-            super::r3::prepare(&self.models.iter().map(|m| m.path.clone()).collect::<Vec<_>>(), self.external)?
+        if self.r3 {
+            super::r3::prepare(&self.models.iter().map(|m| m.path.clone()).collect::<Vec<_>>(), self.external)
         } else {
             let path = &self.models[0].path;
             let bytes = if self.embedded {
@@ -84,9 +82,8 @@ impl ResolvedSource {
                     .ok_or_else(|| VoiceError::new("VOCODER_OVERRIDE_INVALID"))?.0;
                 archive.read(index, nofs::MAX_MODEL_BYTES)?
             } else { read_file(path)? };
-            (super::super::PreparedTree::prepare_embedded_execution(&bytes, true)?, blake3::hash(&bytes).to_hex().to_string())
-        };
-        self.validate()?; Ok(result)
+            Ok((super::super::PreparedTree::prepare_embedded_execution(&bytes, true)?, blake3::hash(&bytes).to_hex().to_string()))
+        }
     }
 }
 
@@ -94,7 +91,7 @@ pub(super) fn read_file(path: &Path) -> Result<Vec<u8>> {
     let file = File::open(path)?;
     let length = file.metadata()?.len();
     if length == 0 || length > nofs::MAX_MODEL_BYTES as u64 { return Err(VoiceError::new("VOCODER_OVERRIDE_INVALID")); }
-    let mut bytes = Vec::new();
+    let mut bytes = Vec::with_capacity(length as usize);
     file.take(length + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 != length { return Err(VoiceError::new("VOCODER_OVERRIDE_INVALID")); }
     Ok(bytes)

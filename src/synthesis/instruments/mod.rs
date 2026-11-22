@@ -19,9 +19,42 @@ use serde::{Deserialize, Serialize};
 pub use settings::*;
 use std::path::PathBuf;
 
-pub fn validate_waveform(path: &std::path::Path) -> Result<(), String> {
+pub fn validate_waveform(path: &std::path::Path, accept_any_v4_signature: bool) -> Result<(), String> {
     runtime::WaveFile::read(path.to_path_buf())?;
-    native::open_waveform(path).map(|_| ())
+    native::open_waveform(path, accept_any_v4_signature).map(|_| ())
+}
+
+pub fn scan_directory(root: PathBuf, accept_any_v4_signature: bool) -> Result<Catalog, String> {
+    let settings = InstrumentSettings {sources:vec![root],accept_any_v4_signature,..Default::default()};
+    native::scan(&settings,std::sync::Arc::default())
+}
+
+pub fn preview(
+    entry: &Entry, notes: Vec<serde_json::Value>, accept_any_v4_signature: bool,
+) -> Result<Vec<f32>,String> {
+    let settings = InstrumentSettings {accept_any_v4_signature,..Default::default()};
+    let cancel: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+    let mut source = native::prepare(&settings,entry,notes,0,1,cancel.clone(),None)?;
+    let microphones = microphones::Configuration::read(None,&entry.microphones,entry.room.as_deref())?
+        .mix(&entry.microphones);
+    let mut microphones = native::Microphones::from_path(&entry.main,&microphones,accept_any_v4_signature)?;
+    let gain = 10f32.powf(0.45000001788139343);
+    let mut pcm = Vec::new();
+    let mut publish = |_:usize,block:Vec<f32>| {
+        pcm.extend(block);
+        Ok(())
+    };
+    loop {
+        let complete = source.advance(cancel.clone(),&mut |_,block| {
+            let mixed:Vec<[f32;4]> = block.chunks_exact(8).map(|v| std::array::from_fn(
+                |c|(v[c]+v[4+c])*gain
+            )).collect();
+            microphones.feed_mixed(&mixed,false,&cancel,&mut publish)
+        })?;
+        if complete {break;}
+    }
+    microphones.feed_mixed(&[],true,&cancel,&mut publish)?;
+    Ok(pcm)
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -45,12 +78,20 @@ pub struct Entry {
     #[serde(default)]
     pub room: Option<String>,
     #[serde(default)]
-    pub artwork: Option<Vec<u8>>,
+    pub artwork: Option<PathBuf>,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct UnavailableRevision {
+    pub selection: InstrumentSelection,
+    pub errors: Vec<String>,
+}
+
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct Catalog {
     pub entries: Vec<Entry>,
     pub warnings: Vec<String>,
+    pub unavailable: Vec<UnavailableRevision>,
 }
 pub mod articulation;
 mod vibrato;

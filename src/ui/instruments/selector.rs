@@ -38,17 +38,14 @@ pub(super) fn card(app: &mut App, ui: &mut Ui) {
 }
 
 pub(super) fn artwork(ui: &Ui, art: Rect, entry: Option<&crate::synthesis::instruments::Entry>) {
+    if !ui.is_rect_visible(art) {
+        return;
+    }
     if let Some(entry) = entry {
-        if let Some(svg) = &entry.artwork {
-            Image::from_bytes(
-                format!(
-                    "bytes://instrument/{:016x}.png",
-                    xxhash_rust::xxh3::xxh3_64(svg)
-                ),
-                svg.clone(),
-            )
-            .fit_to_exact_size(art.size())
-            .paint_at(ui, art);
+        if let Some(path) = &entry.artwork {
+            Image::from_uri(crate::ui::voice_library::artwork::file_uri(path))
+                .fit_to_exact_size(art.size())
+                .paint_at(ui, art);
         } else {
             Icon::Instrument.paint(ui, art.shrink(24.0), TEXT);
         }

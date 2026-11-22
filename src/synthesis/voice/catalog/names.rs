@@ -66,12 +66,16 @@ pub(super) fn localize(selected: &Path, catalog: &mut VoiceCatalog) {
 fn load(root: &Path, targets: &BTreeSet<String>, remaining: &mut u64,
     diagnostics: &mut Diagnostics<'_>) -> Translations {
     let mut result = Translations::new();
+    let directory = root.join("translations");
+    if !directory.is_dir() {
+        return result;
+    }
     // These are the app's eleven canonical cultures. Language keys already
     // use the reference convention: lower case, '-' rather than '_'. No
     // translated proper name or substitute culture is synthesized here.
     for language in crate::i18n::Language::ALL {
         let culture = language.key();
-        let path = root.join("translations").join(format!("{culture}.txt"));
+        let path = directory.join(format!("{culture}.txt"));
         let file = match File::open(&path) {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,

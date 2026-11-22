@@ -1,5 +1,7 @@
 mod archive;
 mod archive_cache;
+mod catalog;
+mod archive_file;
 mod auxiliary;
 pub(super) mod rewrite;
 mod attention;
@@ -22,8 +24,8 @@ mod render;
 pub(super) mod score;
 mod tensor;
 
-pub(super) use render::scan;
-pub(super) use wave_replacement::{WaveModel, open_waveform};
+pub(super) use catalog::scan;
+pub(super) use wave_replacement::open_waveform;
 pub(super) use ensemble::{prepare, EnsembleStream};
 pub(super) use microphone::Microphones;
 type Result<T> = std::result::Result<T, String>;

@@ -27,7 +27,7 @@ pub(crate) fn image(artwork:&VoiceArtwork) -> Image<'static> {
     }
 }
 
-fn file_uri(path: &Path) -> String {
+pub(crate) fn file_uri(path: &Path) -> String {
     #[cfg(windows)]
     {
         let raw=path.to_string_lossy();

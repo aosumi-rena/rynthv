@@ -2,14 +2,14 @@ use super::{Result,archive::Archive,id,program::Program,score::{self,Note,Record
 use super::super::{Entry,InstrumentSettings};
 use std::sync::{Arc,atomic::AtomicBool};
 
-pub fn open(entry:&Entry)->Result<Arc<Archive>> {
+pub fn open(entry:&Entry, accept_any_v4_signature: bool)->Result<Arc<Archive>> {
     let path=entry.auxiliary.as_ref().ok_or("Instrument auxiliary model is not installed")?;
     let main=entry.main.canonicalize().map_err(|e|e.to_string())?;
     let auxiliary=path.canonicalize().map_err(|e|e.to_string())?;
     if main.parent().is_none() || main.parent()!=auxiliary.parent() {
         return Err("Instrument main and auxiliary models must be in the same version directory".into());
     }
-    Archive::open(path)
+    Archive::open(path, accept_any_v4_signature)
 }
 
 pub fn execute(archive:&Arc<Archive>, program:&str, inputs:Vec<(u32,Tensor)>, output:u32,

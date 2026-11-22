@@ -48,6 +48,7 @@ pub struct Specification {
     pub hash: u64,
     pub references: Vec<u64>,
     pub entry: Entry,
+    pub accept_any_v4_signature: bool,
     pub microphones: Vec<super::microphones::Mix>,
     pub effects: Configuration,
     pub performance: Vec<super::performance::Performance>,
@@ -146,11 +147,12 @@ impl Mixer {
                 let mut state=track.state.take();
                 let main=track.spec.entry.main.clone();let mics=track.spec.microphones.clone();let settings=track.spec.effects.clone();
                 let performance=track.spec.performance.clone();
+                let accept_any_v4_signature = track.spec.accept_any_v4_signature;
                 let hash=track.spec.hash;let cancel=Arc::new(AtomicBool::new(false));let stop=cancel.clone();let wake=ctx.clone();
                 let (tx,rx)=mpsc::channel();let (pcm_tx,pcm)=mpsc::channel();
                 thread::spawn(move || {
                     let result=(|| -> Result<(State,bool),String> {
-                        let mut state=match state.take() {Some(s)=>s,None=>State {effects:Processor::new(&settings),microphones:Microphones::from_path(&main,&mics)?,origin,cursor:origin}};
+                        let mut state=match state.take() {Some(s)=>s,None=>State {effects:Processor::new(&settings),microphones:Microphones::from_path(&main,&mics,accept_any_v4_signature)?,origin,cursor:origin}};
                         let mut emit=|at:usize,mut samples:Vec<f32>|->Result<(),String> {
                             let position=state.origin+at as i64;
                             if position<0 {let skip=(position.unsigned_abs() as usize).saturating_mul(2).min(samples.len());samples.drain(..skip);}

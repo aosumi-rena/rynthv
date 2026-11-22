@@ -1474,6 +1474,8 @@
     "Valid waveform program": "Valid waveform program",
     "Invalid waveform program": "Invalid waveform program",
     "保存工程": "Save Project",
+    "DNNI_V4_SIGNATURES": "DNNI v4 signatures",
+    "DNNI_V4_SIGNATURES_ACCEPT_ANY": "Accept any DNNI v4 signature",
     "GRU_OVERRIDE": "GRU override",
     "GRU_OVERRIDE_ENABLE": "Override all GRU columns to zero",
     "PROJECT_FORMAT_INCOMPATIBLE": "This project cannot be saved in that format. Choose one of the available formats.",
@@ -1492,6 +1494,8 @@
   },
   "locales": {
     "de-de": {
+      "DNNI v4 signatures": "DNNI-v4-Signaturen",
+      "Accept any DNNI v4 signature": "Beliebige DNNI-v4-Signaturen akzeptieren",
       " · overlapping notes split into {} parts": " · überlappende Noten in {0} Stimmen aufgeteilt",
       " · unavailable": " · nicht verfügbar",
       "(default)": "(Standard)",
@@ -2912,6 +2916,8 @@
       "VOCODER_OVERRIDE_PENDING": "Vocoder-Überschreibung erforderlich — nicht geladen"
     },
     "es-la": {
+      "DNNI v4 signatures": "Firmas DNNI v4",
+      "Accept any DNNI v4 signature": "Aceptar cualquier firma DNNI v4",
       " · overlapping notes split into {} parts": " · notas superpuestas divididas en {0} partes",
       " · unavailable": " · no disponible",
       "(default)": "(predeterminado)",
@@ -4332,6 +4338,8 @@
       "VOCODER_OVERRIDE_PENDING": "Se requiere reemplazo de vocoder — sin cargar"
     },
     "fr-fr": {
+      "DNNI v4 signatures": "Signatures DNNI v4",
+      "Accept any DNNI v4 signature": "Accepter toute signature DNNI v4",
       " · overlapping notes split into {} parts": " · notes superposées réparties en {0} parties",
       " · unavailable": " · indisponible",
       "(default)": "(par défaut)",
@@ -5752,6 +5760,8 @@
       "VOCODER_OVERRIDE_PENDING": "Vocodeur de remplacement requis — non chargé"
     },
     "ja-jp": {
+      "DNNI v4 signatures": "DNNI v4 署名",
+      "Accept any DNNI v4 signature": "すべての DNNI v4 署名を許可",
       " · overlapping notes split into {} parts": " · 重なったノートを {0} パートに分離",
       " · unavailable": " · 利用不可",
       "(default)": "(デフォルト)",
@@ -7172,6 +7182,8 @@
       "VOCODER_OVERRIDE_PENDING": "置き換えボコーダーが必要 — 未読み込み"
     },
     "ko-kr": {
+      "DNNI v4 signatures": "DNNI v4 서명",
+      "Accept any DNNI v4 signature": "모든 DNNI v4 서명 허용",
       " · overlapping notes split into {} parts": " · 겹치는 음표를 {0}개 파트로 분리",
       " · unavailable": " · 사용 불가",
       "(default)": "(기본설정)",
@@ -8592,6 +8604,8 @@
       "VOCODER_OVERRIDE_PENDING": "보코더 재정의 필요 — 로드되지 않음"
     },
     "pt-br": {
+      "DNNI v4 signatures": "Assinaturas DNNI v4",
+      "Accept any DNNI v4 signature": "Aceitar qualquer assinatura DNNI v4",
       " · overlapping notes split into {} parts": " · notas sobrepostas divididas em {0} partes",
       " · unavailable": " · indisponível",
       "(default)": "(padrão)",
@@ -10012,6 +10026,8 @@
       "VOCODER_OVERRIDE_PENDING": "Vocoder substituto necessário — não carregado"
     },
     "ru-ru": {
+      "DNNI v4 signatures": "Подписи DNNI v4",
+      "Accept any DNNI v4 signature": "Принимать любые подписи DNNI v4",
       " · overlapping notes split into {} parts": " · пересекающиеся ноты разделены на {0} партий",
       " · unavailable": " · недоступно",
       "(default)": "(по умолчанию)",
@@ -11432,6 +11448,8 @@
       "VOCODER_OVERRIDE_PENDING": "Требуется замена вокодера — не загружен"
     },
     "vi-vn": {
+      "DNNI v4 signatures": "Chữ ký DNNI v4",
+      "Accept any DNNI v4 signature": "Chấp nhận mọi chữ ký DNNI v4",
       " · overlapping notes split into {} parts": " · các nốt chồng nhau đã chia thành {0} bè",
       " · unavailable": " · không khả dụng",
       "(default)": "(mặc định)",
@@ -14245,6 +14263,8 @@
       "Please drop one file at a time.": "请一次拖入一个文件。",
       "Voice track": "歌声音轨",
       "Instrument auxiliary model is not installed in the selected version directory": "所选乐器版本缺少辅助模型。请将对应的辅助模型放入同一文件夹，然后刷新列表。",
+      "DNNI v4 signatures": "DNNI v4 签名",
+      "Accept any DNNI v4 signature": "接受任意 DNNI v4 签名",
       "Waveform program override": "波形程序覆盖",
       "Override instrument waveform programs": "覆盖乐器的波形程序",
       "Waveform model file": "波形模型文件",
@@ -15665,6 +15685,8 @@
       "Please drop one file at a time.": "請一次拖入一個檔案。",
       "Voice track": "歌聲音軌",
       "Instrument auxiliary model is not installed in the selected version directory": "所選樂器版本缺少輔助模型。請將對應的輔助模型放入同一資料夾，然後重新整理清單。",
+      "DNNI v4 signatures": "DNNI v4 簽章",
+      "Accept any DNNI v4 signature": "接受任何 DNNI v4 簽章",
       "Waveform program override": "波形程式覆寫",
       "Override instrument waveform programs": "覆寫樂器的波形程式",
       "Waveform model file": "波形模型檔案",

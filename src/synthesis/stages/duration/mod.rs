@@ -15,6 +15,15 @@ use serde::Serialize;
 
 pub use frontend::{DurationNote, DurationRecord, ExplicitPhone, PhoneDuration, PhoneFeatures};
 
+pub(crate) fn conditioning(tree: &PreparedTree, node: usize, speaker: Option<usize>) -> Result<&[f32]> {
+    let selected = match (speaker, tree.tensor(node)?) {
+        (None, crate::synthesis::voice::TensorStorage::FloatMatrix { .. }) => Some(0),
+        (selected, _) => selected,
+    };
+    crate::synthesis::voice::speakers::vector(tree, node, selected)
+        .map_err(|error| VoiceError::new(format!("Duration model: {error}")))
+}
+
 pub struct DurationStage<'a> {
     tree: &'a PreparedTree,
     children: [usize; 14],
@@ -59,8 +68,7 @@ impl<'a> DurationStage<'a> {
         let PreparedModule::Affine(input) = &tree.node(children[5])?.module else {
             return Err(VoiceError::new("Duration input projection is not prepared"));
         };
-        let constant_width =
-            crate::synthesis::voice::speakers::vector(tree, children[1], speaker)?.len();
+        let constant_width = conditioning(tree, children[1], speaker)?.len();
         configuration.validate_input_projection(
             input.output_features,
             input.input_features,
@@ -133,8 +141,7 @@ impl<'a> DurationStage<'a> {
                 impulse_positions: Vec::new(),
             });
         }
-        let constant =
-            crate::synthesis::voice::speakers::vector(self.tree, self.children[1], self.speaker)?;
+        let constant = conditioning(self.tree, self.children[1], self.speaker)?;
         let features = encoding::encode(
             self.tree,
             &self.children,

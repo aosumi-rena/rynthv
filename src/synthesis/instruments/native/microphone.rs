@@ -17,8 +17,9 @@ pub struct Microphones {
     pub emitted: usize,
 }
 impl Microphones {
-    pub fn from_path(path: &std::path::Path, selected: &[super::super::microphones::Mix]) -> Result<Self> {
-        let archive=Archive::open(path)?;
+    pub fn from_path(path: &std::path::Path, selected: &[super::super::microphones::Mix],
+        accept_any_v4_signature: bool) -> Result<Self> {
+        let archive=Archive::open(path, accept_any_v4_signature)?;
         Self::new(&archive, selected)
     }
     pub fn new(a: &Archive, selected: &[super::super::microphones::Mix]) -> Result<Self> {

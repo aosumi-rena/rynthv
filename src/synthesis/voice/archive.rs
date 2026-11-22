@@ -141,13 +141,6 @@ impl Archive {
         self.indices.get(&id).copied()
     }
 
-    pub fn verify_all(&self) -> Result<()> {
-        for index in 0..self.resources.len() {
-            self.verify(index)?;
-        }
-        Ok(())
-    }
-
     pub fn read(&self, index: usize, expected_length: Option<u32>) -> Result<Cow<'_, [u8]>> {
         let resource = self.verify(index)?;
         if expected_length.is_some_and(|len| len as usize != resource.range.len()) {

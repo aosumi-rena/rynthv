@@ -23,6 +23,8 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
     if settings.waveform_override_enabled {
         let id = ui.id().with("waveform-validation");
         let mode_id = id.with("instrument-source");
+        let accept_any_v4_signature = settings.accept_any_v4_signature;
+        let id = id.with(accept_any_v4_signature);
         let mut choice = match &settings.waveform_override {
             Some(WaveformSource::File(_)) => 0,
             Some(WaveformSource::Instrument(_)) => 1,
@@ -78,7 +80,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
                 "Valid waveform program",
                 "Invalid waveform program",
             ],
-            |path| validate_waveform(&path),
+            move |path| validate_waveform(&path, accept_any_v4_signature),
         );
     }
     if settings != before {

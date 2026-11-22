@@ -47,6 +47,7 @@ use super::{
 
 pub struct PreparedTree {
     phone_tables: OnceLock<Result<phones::PhoneTables>>,
+    pub(crate) acoustic_signature: OnceLock<Result<[u8; 32]>>,
     legacy_numeric: bool,
     nodes: Vec<PreparedNode>,
     root: usize,
@@ -213,6 +214,7 @@ impl PreparedTree {
         };
         Ok(Self {
             phone_tables: OnceLock::new(),
+            acoustic_signature: OnceLock::new(),
             legacy_numeric,
             nodes,
             root,

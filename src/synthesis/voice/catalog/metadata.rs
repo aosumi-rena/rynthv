@@ -64,6 +64,12 @@ impl MetadataIndex {
         matches.max_by_key(|entry| entry.display.genres.len()+entry.display.languages.len()
             +usize::from(entry.display.pitch_range.is_some())).map(|entry| &entry.display)
     }
+
+    pub(crate) fn lookup_unique_name(&self, name: &str) -> Option<&DisplayMetadata> {
+        let mut matches = self.entries.iter().filter(|entry| entry.name == name);
+        let entry = matches.next()?;
+        matches.next().is_none().then_some(&entry.display)
+    }
 }
 
 fn read_entry(path: &Path) -> Option<Entry> {

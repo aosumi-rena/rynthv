@@ -1,8 +1,12 @@
-use super::{Result, fail, hex, u32at, u64at};
+use super::{Result, archive_file, program::{self, Node}, fail, hex, u32at, u64at};
+use crate::synthesis::voice::{V3_HEADER_INITIALIZER, V3_SIGNING_MODULUS_LE};
 use num_bigint::BigUint;
 use std::{
+    collections::HashMap,
+    fs::File,
+    io::Read,
     path::Path,
-    sync::{Arc, OnceLock},
+    sync::{Arc, Mutex},
 };
 
 const SETUP: &str = "498badb601cf788470fd352598d0bd49f5d410438c173fd1ca7cc7c52c8c6448";
@@ -14,20 +18,109 @@ const DOMAINS: [&str; 5] = [
     "9d76cfe84f3b54bc29135e44a28832ba",
     "10dd93ca42ce634bdc39e8bc77983719",
 ];
+
+#[derive(Clone, Copy)]
+pub(super) enum ArchiveProfile {
+    Current,
+    Early,
+}
+
+impl ArchiveProfile {
+    const ALL: [Self; 2] = [Self::Current, Self::Early];
+
+    fn index_keys(self, header: &[u8]) -> [[u8; 32]; 5] {
+        // Early v4 archives retained the v3 initializer and signing key.
+        // Their index and resource encoding are otherwise v4.
+        let mask = match self {
+            Self::Current => block(&hex(SETUP), &header[20..32], 0),
+            Self::Early => block(&V3_HEADER_INITIALIZER, &header[20..32], 0),
+        };
+        let material = std::array::from_fn(|i| header[32 + i] ^ mask[i]);
+        DOMAINS.map(|domain| keyed(&material, &hex(domain)))
+    }
+}
 #[derive(Clone)]
-pub struct Resource {
-    pub hash: [u8; 16],
+struct Resource {
     pub region: usize,
     pub offset: usize,
     pub size: usize,
     pub digest: [u8; 16],
 }
 pub struct Archive {
-    data: Vec<u8>,
-    pub resources: Vec<Resource>,
+    file: Mutex<File>,
+    resources: HashMap<[u8; 16], Resource>,
+    programs: Mutex<HashMap<[u8; 16], Arc<[Node]>>>,
     keys: [[u8; 32]; 5],
-    region1: (usize, usize),
-    plain: OnceLock<Vec<u8>>,
+    region1_offset: usize,
+}
+
+const HEADER_SIZE: usize = 140;
+
+#[derive(Clone, Copy)]
+pub(super) struct Layout {
+    regions: [(usize, usize); 3],
+    pub(super) end: usize,
+    pub(super) digest_bytes: usize,
+    pub(super) block_size: usize,
+    pub(super) leaves: usize,
+}
+
+impl Layout {
+    fn parse(header: &[u8], length: usize) -> Result<Self> {
+        if header.len() != HEADER_SIZE
+            || length >= 0x7fffffff
+            || header[..8] != [255, 0, 202, 127, 4, 0, 0, 0]
+            || u32at(header, 8) as usize != HEADER_SIZE
+        {
+            return fail("Invalid DNNI-v4 header");
+        }
+        let mut regions = [(0, 0); 3];
+        let to_usize =
+            |offset| usize::try_from(u64at(header, offset)).map_err(|_| "Invalid DNNI-v4 regions");
+        for (i, region) in regions.iter_mut().enumerate() {
+            *region = (to_usize(64 + 16 * i)?, to_usize(72 + 16 * i)?);
+        }
+        let end = to_usize(112)?;
+        let digest_bytes = to_usize(120)?;
+        let block_size = u32at(header, 128) as usize;
+        if block_size == 0
+            || !(HEADER_SIZE..=length).contains(&end)
+            || regions[0].0 != HEADER_SIZE
+            || regions[0].1 < 20
+            || regions
+                .iter()
+                .any(|&(offset, size)| offset > end || size > end - offset)
+        {
+            return fail("Invalid DNNI-v4 regions");
+        }
+        if end
+            .checked_add(digest_bytes)
+            .and_then(|at| at.checked_add(256))
+            != Some(length)
+        {
+            return fail("DNNI-v4 signature extent");
+        }
+        let leaves = end.div_ceil(block_size);
+        if leaves != u32at(header, 132) as usize || leaves > digest_bytes / 32 {
+            return fail("DNNI-v4 digest count");
+        }
+        let mut nodes = leaves;
+        let mut level = leaves;
+        while level > 1 {
+            level = level.div_ceil(2);
+            nodes += level;
+        }
+        if nodes.checked_mul(32) != Some(digest_bytes) {
+            return fail("DNNI-v4 digest extent");
+        }
+        Ok(Self {
+            regions,
+            end,
+            digest_bytes,
+            block_size,
+            leaves,
+        })
+    }
 }
 fn keyed(key: &[u8; 32], b: &[u8]) -> [u8; 32] {
     *blake3::keyed_hash(key, b).as_bytes()
@@ -70,15 +163,20 @@ fn block(key: &[u8], nonce: &[u8], index: u64) -> [u8; 64] {
     }
     out
 }
-fn decode(b: &[u8], key: &[u8], nonce: &[u8]) -> Vec<u8> {
-    let mut out = b.to_vec();
-    for (i, v) in out.chunks_mut(64).enumerate() {
-        let mask = block(key, nonce, i as u64);
-        for (a, b) in v.iter_mut().zip(mask) {
-            *a ^= b;
+fn decode_at(mut bytes: &mut [u8], key: &[u8], nonce: &[u8], offset: usize) {
+    let mut index = offset / 64;
+    let mut skip = offset % 64;
+    while !bytes.is_empty() {
+        let mask = block(key, nonce, index as u64);
+        let count = bytes.len().min(64 - skip);
+        let (part, rest) = bytes.split_at_mut(count);
+        for (value, mask) in part.iter_mut().zip(&mask[skip..]) {
+            *value ^= mask;
         }
+        bytes = rest;
+        index += 1;
+        skip = 0;
     }
-    out
 }
 fn poly1305(message: &[u8], key: &[u8]) -> [u8; 16] {
     let mut r = key[..16].to_vec();
@@ -102,12 +200,17 @@ fn poly1305(message: &[u8], key: &[u8]) -> [u8; 16] {
     out[..n].copy_from_slice(&b[..n]);
     out
 }
-fn signature(data: &[u8], at: usize, root: &[u8]) -> Result<()> {
-    if data.len() != at + 256 {
-        return fail("DNNI-v4 signature extent");
+pub(super) fn signature(bytes: &[u8], root: &[u8]) -> Result<ArchiveProfile> {
+    match verify_signature(bytes, root, BigUint::from_bytes_le(&hex(MODULUS))) {
+        Ok(()) => Ok(ArchiveProfile::Current),
+        Err(error) => verify_signature(bytes, root, BigUint::from_bytes_le(&V3_SIGNING_MODULUS_LE))
+            .map(|()| ArchiveProfile::Early)
+            .map_err(|_| error),
     }
-    let n = BigUint::from_bytes_le(&hex(MODULUS));
-    let sig = BigUint::from_bytes_be(&data[at..]);
+}
+
+fn verify_signature(bytes: &[u8], root: &[u8], n: BigUint) -> Result<()> {
+    let sig = BigUint::from_bytes_be(bytes);
     if sig >= n {
         return fail("DNNI-v4 signature range");
     }
@@ -141,169 +244,174 @@ fn signature(data: &[u8], at: usize, root: &[u8]) -> Result<()> {
     Ok(())
 }
 impl Archive {
-    pub fn open(path: &Path) -> Result<Arc<Self>> {
-        super::archive_cache::open(path)
-    }
-    pub(super) fn read_file(path: &Path) -> Result<Arc<Self>> {
-        let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        Self::parse(data, false).map(|(archive, _)| archive)
+    pub fn open(path: &Path, accept_any_v4_signature: bool) -> Result<Arc<Self>> {
+        super::archive_cache::open(path, accept_any_v4_signature)
     }
 
-    pub(super) fn open_waveform(path: &Path) -> Result<(Arc<Self>, bool)> {
-        let data = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        Self::parse(data, true)
+    pub(super) fn read_file(path: &Path, accept_any_v4_signature: bool) -> Result<Arc<Self>> {
+        Self::from_file(path, accept_any_v4_signature).map(Arc::new)
     }
 
-    fn parse(data: Vec<u8>, waveform: bool) -> Result<(Arc<Self>, bool)> {
-        if data.len() < 140
-            || data.len() >= 0x7fffffff
-            || data[..8] != [255, 0, 202, 127, 4, 0, 0, 0]
-            || u32at(&data, 8) != 140
-        {
-            return fail("Invalid DNNI-v4 header");
+    fn from_file(path: &Path, accept_any_v4_signature: bool) -> Result<Self> {
+        const MAX_INDEX_SIZE: usize = 16 * 1024 * 1024;
+        let mut file = File::open(path).map_err(|e| e.to_string())?;
+        let length = usize::try_from(file.metadata().map_err(|e| e.to_string())?.len())
+            .map_err(|_| "Invalid DNNI-v4 length")?;
+        let mut header = [0; HEADER_SIZE];
+        file.read_exact(&mut header).map_err(|e| e.to_string())?;
+        let layout = Layout::parse(&header, length)?;
+        let (offset, size) = layout.regions[0];
+        if size > MAX_INDEX_SIZE {
+            return fail("DNNI-v4 resource index exceeds read limit");
         }
-        let regions: Vec<(usize, usize)> = (64..128)
-            .step_by(16)
-            .map(|a| (u64at(&data, a) as usize, u64at(&data, a + 8) as usize))
-            .collect();
-        let end = regions[3].0;
-        let blocksize = u32at(&data, 128) as usize;
-        let unsigned = waveform && data.get(end.saturating_add(regions[3].1)..).is_some_and(|footer| {
-            footer.len() == 256 && footer.iter().all(|&byte| byte == 0)
-        });
-        if blocksize == 0
-            || end < 140
-            || end > data.len()
-            || regions[0].0 != 140
-            || regions[0].1 < 20
-            || regions[..3].iter().any(|(a, n)| *a > end || *n > end - a)
-            || (unsigned && (blocksize < 4096 || data.len() > 64 * 1024 * 1024))
-        {
-            return fail("Invalid DNNI-v4 regions");
+        let (mut index, signed_profile) = archive_file::read_index(
+            &mut file, layout, offset + size, !accept_any_v4_signature,
+        )?;
+        if index[..offset] != header {
+            return fail("DNNI-v4 header changed during index read");
         }
-        let mut level: Vec<[u8; 32]> = data[..end]
-            .chunks(blocksize)
-            .map(|b| {
-                let mut h = blake3::Hasher::new();
-                h.update(&[0]);
-                h.update(b);
-                *h.finalize().as_bytes()
-            })
-            .collect();
-        if level.len() != u32at(&data, 132) as usize {
-            return fail("DNNI-v4 digest count");
-        }
-        let mut at = end;
-        loop {
-            for h in &level {
-                if data.get(at..at + 32) != Some(h.as_slice()) {
-                    return fail("DNNI-v4 digest mismatch");
+        let (keys, resources) =
+            Self::read_index(&header, &mut index[offset..], &layout, signed_profile)?;
+        Ok(Self {
+            file: Mutex::new(file),
+            resources,
+            programs: Mutex::new(HashMap::new()),
+            keys,
+            region1_offset: layout.regions[2].0,
+        })
+    }
+
+    fn read_index(
+        header: &[u8],
+        index: &mut [u8],
+        layout: &Layout,
+        signed_profile: Option<ArchiveProfile>,
+    ) -> Result<([[u8; 32]; 5], HashMap<[u8; 16], Resource>)> {
+        let profiles = signed_profile
+            .as_ref()
+            .map_or(ArchiveProfile::ALL.as_slice(), std::slice::from_ref);
+        let mut first_shape_error = None;
+        let mut record_error = None;
+        for &profile in profiles {
+            let keys = profile.index_keys(header);
+            let mut prefix = [0; 20];
+            prefix.copy_from_slice(&index[..20]);
+            decode_at(&mut prefix, &keys[0], &keys[3][..12], 0);
+            let start = match Self::record_start(&prefix, index.len()) {
+                Ok(start) => start,
+                Err(error) => {
+                    first_shape_error.get_or_insert(error);
+                    continue;
                 }
-                at += 32;
+            };
+            decode_at(index, &keys[0], &keys[3][..12], 0);
+            match Self::read_resources(&index[start..], layout, &keys[1]) {
+                Ok(resources) => return Ok((keys, resources)),
+                Err(error) if signed_profile.is_some() => return Err(error),
+                Err(error) => record_error = Some(error),
             }
-            if level.len() == 1 {
-                break;
-            }
-            level = level
-                .chunks(2)
-                .map(|pair| {
-                    if pair.len() == 1 {
-                        pair[0]
-                    } else {
-                        let mut h = blake3::Hasher::new();
-                        h.update(&[1]);
-                        h.update(&pair[0]);
-                        h.update(&pair[1]);
-                        *h.finalize().as_bytes()
-                    }
-                })
-                .collect();
+            // Restore the ciphertext before trying another initializer.
+            decode_at(index, &keys[0], &keys[3][..12], 0);
         }
-        if at - end != regions[3].1 {
-            return fail("DNNI-v4 digest extent");
-        }
-        if !unsigned {
-            signature(&data, at, &level[0])?;
-        }
-        let mask = block(&hex(SETUP), &data[20..32], 0);
-        let mut material = [0; 32];
-        for i in 0..32 {
-            material[i] = data[32 + i] ^ mask[i];
-        }
-        let keys = DOMAINS.map(|s| keyed(&material, &hex(s)));
-        let (a, n) = regions[0];
-        let index = decode(&data[a..a + n], &keys[0], &keys[3][..12]);
-        if index.len() < 20 {
-            return fail("Truncated DNNI-v4 index");
-        }
-        let count = u32at(&index, 8) as usize;
-        let g = u32at(&index, 12) as usize;
-        let range = u32at(&index, 16) as usize;
-        if range < count || g == 0 || (unsigned && count > 4096) {
+        Err(record_error
+            .or(first_shape_error)
+            .unwrap_or_else(|| "Invalid DNNI-v4 index".into()))
+    }
+
+    fn record_start(prefix: &[u8; 20], index_size: usize) -> Result<usize> {
+        let count = u32at(prefix, 8) as usize;
+        let g = u32at(prefix, 12) as usize;
+        let range = u32at(prefix, 16) as usize;
+        if range < count || g == 0 {
             return fail("Invalid DNNI-v4 index dimensions");
         }
-        let start = 20 + g + (range - count) * 4;
-        if start.checked_add(count * 69) != Some(index.len()) {
+        let start = (range - count)
+            .checked_mul(4)
+            .and_then(|remap| remap.checked_add(g))
+            .and_then(|offset| offset.checked_add(20))
+            .ok_or("Invalid DNNI-v4 index length")?;
+        if count
+            .checked_mul(69)
+            .and_then(|bytes| start.checked_add(bytes))
+            != Some(index_size)
+        {
             return fail("Invalid DNNI-v4 index length");
         }
-        let mut resources = Vec::new();
-        for b in index[start..].chunks_exact(69) {
-            let mut m = hex("f4a440");
-            m.extend(&b[..16]);
-            m.extend(&b[21..37]);
-            let ot = keyed(&keys[1], &m);
+        Ok(start)
+    }
+
+    fn read_resources(
+        records: &[u8],
+        layout: &Layout,
+        authentication_key: &[u8; 32],
+    ) -> Result<HashMap<[u8; 16], Resource>> {
+        let mut resources = HashMap::with_capacity(records.len() / 69);
+        for b in records.chunks_exact(69) {
+            let mut m = [0u8; 35];
+            m[..3].copy_from_slice(&[0xf4, 0xa4, 0x40]);
+            m[3..19].copy_from_slice(&b[..16]);
+            m[19..].copy_from_slice(&b[21..37]);
+            let ot = keyed(authentication_key, &m);
             if poly1305(&b[..53], &ot) != b[53..69] {
                 return fail("DNNI-v4 resource authentication");
             }
             let r = Resource {
-                hash: b[..16].try_into().unwrap(),
                 region: b[20] as usize,
                 offset: u64at(b, 21) as usize,
                 size: u64at(b, 29) as usize,
                 digest: b[37..53].try_into().unwrap(),
             };
             if r.region > 1
-                || r.offset < regions[r.region + 1].0
-                || r.offset
-                    .checked_add(r.size)
-                    .is_none_or(|e| e > regions[r.region + 1].0 + regions[r.region + 1].1)
-                || resources.iter().any(|v: &Resource| v.hash == r.hash)
+                || r.offset < layout.regions[r.region + 1].0
+                || r.offset.checked_add(r.size).is_none_or(|e| {
+                    e > layout.regions[r.region + 1].0 + layout.regions[r.region + 1].1
+                })
+                || resources.insert(b[..16].try_into().unwrap(), r).is_some()
             {
                 return fail("DNNI-v4 resource extent/duplicate");
             }
-            resources.push(r);
         }
-        Ok((Arc::new(Self {
-            data,
-            resources,
-            keys,
-            region1: regions[2],
-            plain: OnceLock::new(),
-        }), unsigned))
+        Ok(resources)
     }
-    pub fn find(&self, id: &[u8; 16]) -> Result<&Resource> {
-        let mut b = vec![1];
-        b.extend(id);
-        let h = keyed(&self.keys[2], &b);
-        self.resources
-            .iter()
-            .find(|r| r.hash == h[..16])
-            .ok_or_else(|| "Resource absent from instrument model".into())
+    fn resource(&self, id: &[u8; 16]) -> Option<&Resource> {
+        let mut key = [1; 17];
+        key[1..].copy_from_slice(id);
+        let hash = keyed(&self.keys[2], &key);
+        self.resources.get(&hash[..16])
     }
+
+    pub fn contains(&self, id: &[u8; 16]) -> bool {
+        self.resource(id).is_some()
+    }
+
+    pub(super) fn program(&self, id: [u8; 16]) -> Result<Arc<[Node]>> {
+        let mut programs = self.programs.lock().map_err(|_| "Instrument program cache unavailable")?;
+        if let Some(nodes) = programs.get(&id) {
+            return Ok(nodes.clone());
+        }
+        let nodes: Arc<[Node]> = program::parse(&self.read(&id)?)?.into();
+        programs.insert(id, nodes.clone());
+        Ok(nodes)
+    }
+
     pub fn read(&self, id: &[u8; 16]) -> Result<Vec<u8>> {
-        let r = self.find(id)?;
-        let b = if r.region == 0 {
-            &self.data[r.offset..r.offset + r.size]
-        } else {
-            let (a, n) = self.region1;
-            let p = self
-                .plain
-                .get_or_init(|| decode(&self.data[a..a + n], &self.keys[0], &self.keys[4][..12]));
-            &p[r.offset - a..r.offset - a + r.size]
-        };
-        if blake3::hash(b).as_bytes()[..16] != r.digest {
+        let r = self.resource(id).ok_or("Resource absent from instrument model")?;
+        let mut bytes = vec![0; r.size];
+        {
+            let mut file = self.file.lock().map_err(|_| "Instrument archive reader stopped")?;
+            archive_file::read_at(&mut file, r.offset, &mut bytes)?;
+        }
+        if r.region == 1 {
+            decode_at(
+                &mut bytes,
+                &self.keys[0],
+                &self.keys[4][..12],
+                r.offset - self.region1_offset,
+            );
+        }
+        if blake3::hash(&bytes).as_bytes()[..16] != r.digest {
             return fail("Instrument resource plaintext digest");
         }
-        Ok(b.to_vec())
+        Ok(bytes)
     }
 }

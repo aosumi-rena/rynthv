@@ -5,7 +5,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         super::selector::card(app, ui);
         let current = super::current(app).cloned();
         ui.label(crate::i18n::t("Version"));
-        let mut selected = current.as_ref().map(|e| e.selection.clone());
+        let previous = current.as_ref().map(|e| e.selection.clone()).or_else(|| {
+            app.synthesis.instruments.requested_selection(app.editor.current_track())
+        });
+        let mut selected = previous.clone();
         ComboBox::from_id_salt("instrument-version")
             .width(ui.available_width())
             .selected_text(
@@ -15,9 +18,9 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                     .unwrap_or("—"),
             )
             .show_ui(ui, |ui| {
-                if let Some(current) = &current {
+                if let Some(previous) = &previous {
                     for entry in &app.synthesis.instruments.catalog.entries {
-                        if entry.selection.database_id == current.selection.database_id {
+                        if entry.selection.database_id == previous.database_id {
                             ui.selectable_value(
                                 &mut selected,
                                 Some(entry.selection.clone()),
@@ -25,9 +28,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                             );
                         }
                     }
+                    super::unavailable_versions(ui, &app.synthesis.instruments, &previous.database_id);
                 }
             });
-        if selected != current.as_ref().map(|e| e.selection.clone())
+        if selected != previous
             && let Some(selected) = selected
             && let Some(entry) = app.synthesis.instruments.entry(&selected).cloned()
         {

@@ -5,6 +5,7 @@ use std::sync::{Arc,atomic::{AtomicBool,Ordering},mpsc::{self,Receiver}};
 pub struct Job {
     track:u64,reference:u64,revision:u64,selection:InstrumentSelection,identity:String,key:u64,
     zero_gru_weights: bool,
+    accept_any_v4_signature: bool,
     rx:Receiver<Result<Vec<Edit>,String>>,cancel:Arc<AtomicBool>,
 }
 impl Drop for Job {fn drop(&mut self){self.cancel.store(true,Ordering::Release);}}
@@ -25,7 +26,8 @@ pub fn start(app:&mut App,ctx:&Context,kind:Kind) {
     let zero_gru_weights=app.synthesis.library.settings.experiments.zero_gru_weights;
     let (tx,rx)=mpsc::channel();let cancel=Arc::new(AtomicBool::new(false));let stop=cancel.clone();
     app.instrument_rewrite=Some(Job {track:app.editor.track,reference:reference.id,revision:app.editor.revision,
-        key:settings.key(&entry.selection),selection:entry.selection,identity:entry.identity,zero_gru_weights,rx,cancel});
+        key:settings.key(&entry.selection),selection:entry.selection,identity:entry.identity,zero_gru_weights,
+        accept_any_v4_signature:settings.accept_any_v4_signature,rx,cancel});
     let ctx=ctx.clone();
     std::thread::spawn(move || {
         let result=crate::synthesis::execution::scope_gru_weights(zero_gru_weights, || rewrite::execute(&settings,request,stop));
@@ -37,6 +39,7 @@ pub fn poll(app:&mut App,ctx:&Context) {
     let Some(job)=app.instrument_rewrite.as_ref()else{return;};
     if app.editor.track!=job.track||app.editor.reference!=Some(job.reference)||app.editor.revision!=job.revision
         ||app.synthesis.library.settings.instruments.key(&job.selection)!=job.key
+        ||app.synthesis.library.settings.instruments.accept_any_v4_signature!=job.accept_any_v4_signature
         ||app.synthesis.library.settings.experiments.zero_gru_weights!=job.zero_gru_weights
         ||!super::current(app).is_some_and(|e|e.selection==job.selection&&e.identity==job.identity) {
         app.instrument_rewrite=None;return;

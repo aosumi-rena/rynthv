@@ -283,7 +283,6 @@ impl VoiceInventory {
         };
         for path in paths {
             let archive = Arc::new(Archive::load(&path, &context)?);
-            archive.verify_all()?;
             let (file, trees) = inspect::file(&path, &archive)?;
             if let Some(index) = archive.index(CONFIGURATION_ID) {
                 if inventory.configuration.is_some() {

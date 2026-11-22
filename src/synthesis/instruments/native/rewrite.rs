@@ -41,14 +41,13 @@ fn name(id:u32)->Result<&'static str> {
     })
 }
 
-pub(super) fn articulate(entry:&Entry,aux:&Arc<Archive>,notes:&mut [Note],records:&[Record],
+pub(super) fn articulate(main:&Archive,aux:&Arc<Archive>,notes:&mut [Note],records:&[Record],
     embedded:&Tensor,selected:&[bool],cancel:Arc<AtomicBool>)->Result<()> {
     let seeds=score::record_seeds(notes,records,0);
     let output=auxiliary::execute(aux,"707be5f834616c3a08bedbeaec271d29",
         vec![(600,embedded.clone()),(610,seeds)],620,cancel)?;
     if output.shape!=[1,records.len(),16]{return Err("Instrument articulation output shape".into());}
-    let main=Archive::open(&entry.main)?;
-    let (root,_)=metadata::description(&main)?;
+    let (root,_)=metadata::description(main)?;
     let table=catalogue(&root)?;
     for (row,record) in records.iter().enumerate() {
         let Some(index)=record.note.filter(|i|selected[*i]) else{continue};
@@ -67,10 +66,11 @@ pub fn predict(settings:&InstrumentSettings,entry:&Entry,mut notes:Vec<Note>,
     selected:&[bool],articulation:bool,dynamics:bool,cancel:Arc<AtomicBool>)->Result<Vec<Prediction>> {
     if selected.len()!=notes.len()||!selected.iter().any(|v|*v)||!(articulation||dynamics){return Err("No instrument notes selected for rewrite".into());}
     let records=score::records(&notes)?;
-    let aux=auxiliary::open(entry)?;
+    let aux=auxiliary::open(entry, settings.accept_any_v4_signature)?;
     let embedded=auxiliary::embedding(settings,entry,&aux,&notes,&records,cancel.clone())?;
     if articulation {
-        articulate(entry,&aux,&mut notes,&records,&embedded,selected,cancel.clone())?;
+        let main = Archive::open(&entry.main, settings.accept_any_v4_signature)?;
+        articulate(&main,&aux,&mut notes,&records,&embedded,selected,cancel.clone())?;
     }
     let timing=if dynamics {
         let input=auxiliary::timing_input(&notes,&records,&embedded)?;

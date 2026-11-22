@@ -150,6 +150,30 @@ impl Instruments {
             .filter(|entry| entry.name == name && entry.selection.revision == revision)
             .min_by_key(|entry| entry.auxiliary.is_none())
     }
+
+    pub fn requested_selection(&self, track: &crate::model::Track) -> Option<crate::model::InstrumentSelection> {
+        if let Some(selection) = &track.instrument.as_ref()?.selection {
+            return Some(selection.clone());
+        }
+        let name = track.main_ref.database.get("name")?.as_str()?;
+        let revision = track.main_ref.database.get("version")?.as_str()?;
+        let mut ids = self.catalog.entries.iter().filter(|entry| entry.name == name)
+            .map(|entry| &entry.selection.database_id);
+        let database_id = ids.next()?;
+        ids.all(|id| id == database_id).then(|| crate::model::InstrumentSelection {
+            database_id: database_id.clone(), revision: revision.into(),
+        })
+    }
+
+    fn load_error(&self, selection: &crate::model::InstrumentSelection) -> Option<String> {
+        let mut errors: Vec<_> = self.catalog.unavailable.iter()
+            .filter(|failure| &failure.selection == selection)
+            .flat_map(|failure| failure.errors.iter().map(String::as_str))
+            .collect();
+        errors.sort_unstable();
+        errors.dedup();
+        (!errors.is_empty()).then(|| errors.join("\n"))
+    }
     pub fn is_scanning(&self) -> bool {
         self.scan.is_some()
     }
@@ -196,8 +220,8 @@ impl Instruments {
         self.scan = Some(Scan { rx, cancel });
     }
     pub fn configure(&mut self, settings: InstrumentSettings, ctx: &eframe::egui::Context) {
-        let scan =
-            settings.sources != self.settings.sources;
+        let scan = settings.sources != self.settings.sources
+            || settings.accept_any_v4_signature != self.settings.accept_any_v4_signature;
         let waveform = settings.waveform_override_enabled != self.settings.waveform_override_enabled
             || settings.waveform_override != self.settings.waveform_override;
         if settings != self.settings {
@@ -324,6 +348,8 @@ impl Instruments {
                 continue;
             };
             let Some(entry) = self.for_track(track).cloned() else {
+                let load_error = self.requested_selection(track).as_ref()
+                    .and_then(|selection| self.load_error(selection));
                 for reference in track.references() {
                     self.outputs.remove(&reference.id);
                     self.hashes.remove(&reference.id);
@@ -348,7 +374,8 @@ impl Instruments {
                         self.pending.remove(&reference.id);
                         self.errors.insert(
                             reference.id,
-                            self.scan_error.clone().unwrap_or_else(|| {
+                            load_error.clone()
+                                .or_else(|| self.scan_error.clone()).unwrap_or_else(|| {
                                 "Instrument is not installed or selected".into()
                             }),
                         );
@@ -406,7 +433,9 @@ impl Instruments {
                 retain.insert(id);
                 if entry.auxiliary.is_none(){
                     self.outputs.remove(&id);self.pending.remove(&id);self.requests.remove(&id);
-                    self.errors.insert(id,"Instrument auxiliary model is not installed in the selected version directory".into());
+                    let error = self.load_error(selected).unwrap_or_else(||
+                        "Instrument auxiliary model is not installed in the selected version directory".into());
+                    self.errors.insert(id, error);
                     continue;
                 }
                 let first = notes[0]["start"].as_i64().unwrap();
@@ -509,7 +538,8 @@ impl Instruments {
             let microphones=match microphones {Ok(v)=>v.mix(&entry.microphones),Err(e)=>{for id in references {self.errors.insert(id,e.clone());self.mix_errors.insert(id,e.clone());}continue;}};
             let inputs:Vec<_>=references.iter().map(|id|(id,self.hashes.get(id))).collect();
             let hash=xxhash_rust::xxh3::xxh3_64(&serde_json::to_vec(&(&inputs,&microphones,track.mixer.get("fxParams"),&performance)).unwrap());
-            specifications.push(super::mixing::Specification {id:track.id,hash,references,entry,microphones,effects,performance});
+            specifications.push(super::mixing::Specification {id:track.id,hash,references,entry,microphones,effects,performance,
+                accept_any_v4_signature: self.settings.accept_any_v4_signature});
         }
         self.mixer.sync(specifications,&self.outputs);
     }

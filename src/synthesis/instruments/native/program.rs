@@ -9,7 +9,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
-mod waveform;
 #[derive(Clone)]
 pub struct Node {
     pub kind: u8,
@@ -78,7 +77,7 @@ fn bytecode(b: &[u8]) -> Result<(usize, Vec<u8>)> {
     }
     Ok((nodes, out))
 }
-fn parse(b: &[u8]) -> Result<Vec<Node>> {
+pub(super) fn parse(b: &[u8]) -> Result<Vec<Node>> {
     let (count, b) = bytecode(b)?;
     let mut at = 0;
     let mut nodes: Vec<Node> = Vec::new();
@@ -206,7 +205,7 @@ fn parse(b: &[u8]) -> Result<Vec<Node>> {
 }
 pub struct Program {
     archive: Arc<Archive>,
-    nodes: Vec<Node>,
+    nodes: Arc<[Node]>,
     values: Vec<Option<Tensor>>,
     uses: Vec<usize>,
     tensors: HashMap<([u8; 16], u8), Tensor>,
@@ -215,13 +214,13 @@ pub struct Program {
     bound: Vec<u32>,
     cancel: Arc<AtomicBool>,
     stable: Option<Vec<usize>>,
-    replacements: HashMap<usize, (Tensor, usize)>,
+    gru_weights: HashMap<([u8; 16], bool), kernels::Gru>,
 }
 impl Program {
     pub(super) fn set_cancel(&mut self,cancel:Arc<AtomicBool>){self.cancel=cancel;}
     pub(super) fn release_inputs(&mut self){self.inputs.clear();self.values.fill(None);}
     pub fn new(archive: Arc<Archive>, id: [u8; 16], cancel: Arc<AtomicBool>) -> Result<Self> {
-        let nodes = parse(&archive.read(&id)?)?;
+        let nodes = archive.program(id)?;
         let values = vec![None; nodes.len()];
         let uses=vec![0;nodes.len()];
         Ok(Self {
@@ -235,7 +234,7 @@ impl Program {
             bound: Vec::new(),
             cancel,
             stable: None,
-            replacements: HashMap::new(),
+            gru_weights: HashMap::new(),
         })
     }
     pub fn run_stable(&mut self, inputs: Vec<(u32,Tensor)>)->Result<(HashMap<u32,Tensor>,usize)> {
@@ -271,8 +270,7 @@ impl Program {
         self.inputs = inputs.into_iter().collect();
         self.bound = bound.to_vec();
         self.values.fill(None);
-        self.uses=super::program_lifetime::counts(&self.nodes,outputs,&self.bound,
-            |index| self.replacements.contains_key(&index))?;
+        self.uses=super::program_lifetime::counts(&self.nodes,outputs,&self.bound)?;
         let mut out = HashMap::new();
         for &(i, tag) in outputs {
             out.insert(tag, self.eval(i)?);
@@ -320,10 +318,7 @@ impl Program {
             return fail("Instrument module used as tensor");
         }
         let mut ready=usize::MAX;
-        let y = if let Some((tensor, stable)) = self.replacements.get(&index) {
-            ready = *stable;
-            tensor.clone()
-        } else if self.bound.contains(&n.tag) || (n.opcode == 0 && n.kind == 3) {
+        let y = if self.bound.contains(&n.tag) || (n.opcode == 0 && n.kind == 3) {
             let t = self
                 .inputs
                 .get(&n.tag)
@@ -374,18 +369,12 @@ impl Program {
                 )?,
                 0x800 | 0x801 => {
                     let (_, m) = module.ok_or("Convolution module")?;
-                    let w = self
-                        .tensor(*m.resources.get(&1).ok_or("Convolution weights")?, m.dtype)?
-                        .dense();
-                    let b = if let Some(id) = m.resources.get(&2) {
-                        Some(self.tensor(*id, 2)?.dense())
-                    } else {
-                        None
-                    };
+                    let weights = self.tensor(*m.resources.get(&1).ok_or("Convolution weights")?, m.dtype)?;
+                    let bias = m.resources.get(&2).map(|id| self.tensor(*id, 2)).transpose()?;
                     kernels::convolution(
                         &args[0],
-                        &w,
-                        b.as_deref(),
+                        &weights.real_slice(),
+                        bias.as_ref().map(Tensor::real_slice).as_deref(),
                         &m.shape,
                         m.p(0),
                         m.p(1),
@@ -416,10 +405,13 @@ impl Program {
                 }
                 0x807 => {
                     let (_, m) = module.ok_or("GRU module")?;
-                    let b = self
-                        .archive
-                        .read(m.resources.get(&1).ok_or("GRU weights")?)?;
-                    kernels::gru(&b, &args[0], &self.cancel)?
+                    let id = *m.resources.get(&1).ok_or("GRU weights")?;
+                    let zero = crate::synthesis::execution::zero_gru_weights();
+                    let gru = match self.gru_weights.entry((id, zero)) {
+                        std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                        std::collections::hash_map::Entry::Vacant(entry) => entry.insert(kernels::Gru::parse(&self.archive.read(&id)?, zero)?),
+                    };
+                    gru.run(&args[0], &self.cancel)?
                 }
                 _ => kernels::execute(&n, &args)?,
             };

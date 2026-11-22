@@ -69,6 +69,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
                             );
                         }
                     }
+                    super::unavailable_versions(ui, &app.synthesis.instruments, &entry.selection.database_id);
                 });
             let changed = revision != entry.selection.revision;
             if changed {

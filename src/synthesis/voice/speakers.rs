@@ -61,7 +61,8 @@ impl Speaker {
 }
 
 pub(crate) fn vector(tree: &PreparedTree, node: usize, speaker: Option<usize>) -> Result<&[f32]> {
-    match (tree.tensor(node)?, speaker) {
+    let tensor = tree.tensor(node)?;
+    match (tensor, speaker) {
         (TensorStorage::FloatVector { values }, None) => Ok(values),
         (
             TensorStorage::FloatMatrix {
@@ -72,9 +73,14 @@ pub(crate) fn vector(tree: &PreparedTree, node: usize, speaker: Option<usize>) -
             },
             Some(index),
         ) if index < *rows => Ok(&values[index * columns..(index + 1) * columns]),
-        _ => Err(VoiceError::new(
-            "Speaker conditioning shape or selected speaker is invalid",
-        )),
+        _ => {
+            let layout = tensor.layout();
+            let selection = speaker.map_or_else(|| "single voice".to_owned(), |id| format!("speaker {id}"));
+            Err(VoiceError::new(format!(
+                "Conditioning node {node} has {} {}×{} storage for {selection}",
+                layout.storage, layout.rows, layout.columns,
+            )))
+        }
     }
 }
 

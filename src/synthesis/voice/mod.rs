@@ -6,6 +6,9 @@ mod duration_frontend;
 pub(crate) mod embedded;
 mod family;
 mod format;
+pub(super) use format::{
+    HEADER_INITIALIZER as V3_HEADER_INITIALIZER, SIGNATURE_MODULUS_LE as V3_SIGNING_MODULUS_LE,
+};
 mod inventory;
 mod materialized_flat;
 mod flat;
