@@ -10,6 +10,7 @@ pub mod instruments;
 mod lane_tabs;
 mod graph_surface;
 mod knob;
+pub(crate) mod slider;
 pub mod lanes;
 pub mod midi_import;
 pub mod panels;

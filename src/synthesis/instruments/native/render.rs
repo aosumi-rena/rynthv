@@ -36,12 +36,13 @@ pub(super) fn prepare_member(
     entry: &Entry,
     mut notes: Vec<Note>,
     ambient: u32,
-    ensemble: bool,
+    players: usize,
     cancel: Arc<AtomicBool>,
     main: &Arc<Archive>,
     aux: &Arc<Archive>,
     wave_archive: Arc<Archive>,
 ) -> Result<WaveStream> {
+    let protocol = super::protocol::Protocol::from_main(main)?;
     let recs = score::records(&notes)?;
     let frames = notes.last().unwrap().start + notes.last().unwrap().length + 100;
     let stage = |i: usize,
@@ -65,28 +66,40 @@ pub(super) fn prepare_member(
             aux,
             vec![
                 (800, timing_input),
-                (810, score::record_seeds(&notes, &recs, 1)),
+                (810, score::timing_seeds(&notes, &recs, protocol.explicit_vibrato())),
             ],
             &[],
         )?,
         820,
     )?;
-    if timing.shape!=[1,recs.len(),2]{return fail("Instrument timing output shape");}
+    let timing_width = if protocol.explicit_vibrato() { 5 } else { 2 };
+    if timing.shape!=[1,recs.len(),timing_width]{return fail("Instrument timing output shape");}
     let mut effective_controls:Vec<_>=notes.iter().map(|note|super::super::EffectiveNote {
         id:note.id,dynamic:note.dynamic,articulations:note.articulations.clone(),
+        vibrato_hz: None, vibrato_phase: None,
     }).collect();
     for (row,record) in recs.iter().enumerate() {
         if let Some(index)=record.note && notes[index].automatic_dynamics {
-            let value=timing.get(row*2);
+            let value=timing.get(row*timing_width);
             if !value.is_finite() || !(0.0..=1.0).contains(&value) {return fail("Invalid instrument dynamics prediction");}
             effective_controls[index].dynamic=value;
         }
     }
-    if ensemble {
+    if protocol.explicit_vibrato() {
+        for (row, record) in recs.iter().enumerate() {
+            if let Some(index) = record.note {
+                if let Some((hz, phase)) = super::features::vibrato(&timing, row, &notes[index]) {
+                    effective_controls[index].vibrato_hz = Some(hz);
+                    effective_controls[index].vibrato_phase = Some(phase);
+                }
+            }
+        }
+    }
+    if players > 1 {
         let values=Arc::make_mut(&mut timing.data);
         for (row,record) in recs.iter().enumerate() {
             if let Some(index)=record.note {
-                let value=&mut values[row*2+1];
+                let value=&mut values[row*timing_width+1];
                 if value.is_nan(){*value=0.;}
                 *value*=notes[index].time_dispersion;
             }
@@ -95,42 +108,49 @@ pub(super) fn prepare_member(
     let basic = score::basic(&recs, 29, &notes);
     let pitch_encoded = take(stage(2, main, vec![(100, basic.clone())], &[])?, 110)?;
     let latent_encoded = take(stage(3, main, vec![(300, basic)], &[])?, 310)?;
-    let (pf, ps) = score::pitch_features(&notes, &recs, &pitch_encoded, &timing);
+    let (pf, ps) = if protocol.explicit_vibrato() {
+        super::features::pitch(&notes, &recs, &pitch_encoded, &timing, settings.trill_vibrato, players)
+    } else {
+        score::pitch_features(&notes, &recs, &pitch_encoded, &timing, settings.trill_vibrato, players)
+    };
     let raw = take(stage(4, main, vec![(200, pf), (201, ps)], &[])?, 210)?;
-    let ambient = [ambient, ambient.wrapping_add(1), ambient.wrapping_add(2)];
-    let pitch = score::assemble(&raw, &notes, frames, ambient[0]);
-    let (lf, ls, controls) =
-        score::latent_features(&notes, &recs, &latent_encoded, &timing, &pitch, frames);
+    let pitch = score::assemble(&raw, &notes, frames);
+    let (lf, ls, mut controls) =
+        score::latent_features(&notes, &recs, &latent_encoded, &timing, &pitch, frames, players);
+    if protocol.explicit_vibrato() {
+        controls = Tensor::concat(&[&controls, &Tensor::new(vec![1, frames / 4, 1], vec![0.; frames / 4])], 2)?;
+    }
     let mut latent = stage(
         5,
         main,
         vec![(400, lf), (411, ls), (410, controls)],
         &[410],
     )?;
-    let pitch1 = score::assemble(&raw, &notes, frames, ambient[1]);
+    let pitch1 = pitch.clone();
+    let latent420 = latent.remove(&420).ok_or("Latent 420")?;
     let physical_input = Tensor::concat(
         &[
-            &latent.remove(&420).ok_or("Latent 420")?,
+            &latent420,
             &latent.remove(&430).ok_or("Latent 430")?,
             &pitch1,
         ],
         2,
     )?;
     let mut physical = stage(6, main, vec![(500, physical_input)], &[])?;
-    let pitch2 = score::assemble(&raw, &notes, frames, ambient[2]);
+    let pitch2 = pitch.clone();
     let clock = Tensor::new(vec![1, frames, 1], (0..frames).map(|v| v as f32).collect());
-    let wave_input = Tensor::concat(
-        &[
-            &physical.remove(&520).ok_or("Physical 520")?,
-            &physical.remove(&540).ok_or("Physical 540")?,
-            &pitch2,
-            &physical.remove(&530).ok_or("Physical 530")?,
-            &clock,
-        ],
-        2,
-    )?;
+    let physical520 = physical.remove(&520).ok_or("Physical 520")?;
+    let physical540 = physical.remove(&540).ok_or("Physical 540")?;
+    let physical530 = physical.remove(&530).ok_or("Physical 530")?;
+    let wave_input = if super::protocol::Protocol::waveform(&wave_archive)?.explicit_vibrato() {
+        let phase = super::features::phase(&pitch2, ambient);
+        let resonance = Tensor::new(vec![1, frames, 64], vec![0.; frames * 64]);
+        Tensor::concat(&[&physical520, &resonance, &physical540, &pitch2, &physical530, &clock, &phase], 2)?
+    } else {
+        Tensor::concat(&[&physical520, &physical540, &pitch2, &physical530, &clock], 2)?
+    };
     let mut stream=WaveStream::new(wave_archive, wave_input,
-        score::clock_seeds(&notes, frames, 9, 1), pitch.dense());
+        score::wave_seeds(&notes, frames, ambient), pitch.dense());
     stream.controls=effective_controls;
     Ok(stream)
 }

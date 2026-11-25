@@ -29,7 +29,7 @@ pub fn prepare(project:&Project,reference:&GroupRef,entry:Entry,selected:&BTreeS
         let length=(project.time.seconds_at(end)*200.0).round() as i64-start;
         let chosen=selected.contains(&note.id);
         let seed=||uuid::Uuid::new_v4().as_u128() as u32;
-        let input=json!({"start":start,"length":length.max(1),
+        let input=json!({"start":start,"length":length.max(1),"linked_before":false,"linked_after":false,
             "pitch":(note.pitch+reference.pitch_offset) as f64+note.extra.get("detune").and_then(Value::as_f64).unwrap_or(0.)/100.+transpose,
             "direction":reference.extra.get("voice").and_then(|v|v.get("performanceDirection")).cloned().unwrap_or(json!("")),
             "articulations":note.attributes.get("articulations").cloned().unwrap_or(json!([])),

@@ -74,7 +74,7 @@ impl Gru {
     }
 }
 pub fn execute(n: &Node, a: &[Tensor]) -> Result<Tensor> {
-    let x = &a[0];
+    let x = a.first().ok_or_else(|| format!("Instrument operation {:04x} has no tensor input", n.opcode))?;
     if (0x300..=0x303).contains(&n.opcode) && a.iter().any(|x| x.imag.is_some()) {
         return Tensor::complex_binary(x, &a[1], n.opcode);
     }
@@ -142,7 +142,10 @@ pub fn execute(n: &Node, a: &[Tensor]) -> Result<Tensor> {
         0x900 => fourier::rfft(x, n.p(0) != 0)?,
         0x902 => fourier::stft(x, &a[1], *n.shape.last().unwrap(), n.p(0))?,
         0x903 => fourier::istft(x, &a[1], n.p(0))?,
-        0xb00 => fourier::harmonics(x, n.p(0), n.p(1))?,
+        0xb00 => if let Some(phase) = a.get(1) {
+            super::oscillators::harmonics(x, phase, n.p(0), n.p(1))?
+        } else { fourier::harmonics(x, n.p(0), n.p(1))? },
+        0xb02 => super::oscillators::bank(x, &a[1], &a[2], n.p(0), n.p(1), n.p(2) != 0)?,
         0xa00 => {
             if x.shape.len() != 4 || x.shape[3] % 2 != 0 {
                 return fail("Rotary position shape");

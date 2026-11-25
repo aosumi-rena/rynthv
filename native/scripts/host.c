@@ -1,17 +1,12 @@
-#include "quickjs/quickjs.h"
+#include "host.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
-typedef const char *(*request_fn)(void *, const char *);
-typedef int (*cancel_fn)(void *);
-typedef struct {
-    JSRuntime *runtime;
-    JSContext *context;
-    request_fn request;
-    cancel_fn cancel;
-    void *opaque;
-    char *result;
-} ScriptHost;
+/* The UI validates a single conversion before calling this formatter. */
+int rynthv_script_format_number(const char *format,double value,int integer,char *output,size_t size) {
+    return integer?snprintf(output,size,format,(int)value):snprintf(output,size,format,value);
+}
 
 static int interrupted(JSContext *context, void *opaque) {
     ScriptHost *host=opaque;
@@ -46,9 +41,8 @@ ScriptHost *rynthv_script_create(request_fn request_callback,cancel_fn cancel_ca
     JS_FreeValue(host->context,global);
     return host;
 }
-int rynthv_script_eval(ScriptHost *host,const char *source,size_t length,const char *name) {
+int script_result(ScriptHost *host,JSValue value) {
     free(host->result);host->result=NULL;
-    JSValue value=JS_Eval(host->context,source,length,name,JS_EVAL_TYPE_GLOBAL);
     int failed=JS_IsException(value);
     if(failed) {
         value=JS_GetException(host->context);
@@ -66,8 +60,20 @@ int rynthv_script_eval(ScriptHost *host,const char *source,size_t length,const c
     JS_FreeValue(host->context,value);
     return failed;
 }
+int rynthv_script_eval(ScriptHost *host,const char *source,size_t length,const char *name) {
+    int failed=script_result(host,JS_Eval(host->context,source,length,name,JS_EVAL_TYPE_GLOBAL));
+    if(failed)return failed;
+    JSContext *job=NULL;int status;
+    while((status=JS_ExecutePendingJob(host->runtime,&job))>0){}
+    if(status<0){JSValue error=JS_GetException(job?job:host->context);JS_Throw(host->context,error);return script_result(host,JS_EXCEPTION);}
+    return 0;
+}
+int rynthv_script_load_lua(ScriptHost *host,const char *source,size_t length,const char *name) {
+    return script_lua_load(host,source,length,name);
+}
 const char *rynthv_script_result(ScriptHost *host){return host->result?host->result:"Script allocation failed";}
 void rynthv_script_destroy(ScriptHost *host) {
     if(!host)return;
+    script_lua_destroy(host);
     JS_FreeContext(host->context);JS_FreeRuntime(host->runtime);free(host->result);free(host);
 }

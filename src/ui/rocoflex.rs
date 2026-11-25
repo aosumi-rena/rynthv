@@ -70,6 +70,11 @@ impl Integration {
         self.tracks.values().any(|window| window.editor.owns_keyboard(ctx))
     }
 
+    pub fn text_edit_focused(&self, ctx: &Context) -> bool {
+        self.lab.text_edit_focused(ctx)
+            || self.tracks.values().any(|window| window.editor.text_edit_focused(ctx))
+    }
+
     pub fn owns_drop(&self, ctx: &Context) -> bool {
         self.tracks.values().any(|window| window.editor.at_pointer(ctx, false))
     }

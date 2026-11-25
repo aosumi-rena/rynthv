@@ -173,7 +173,21 @@ pub fn name(root: &Value, nonce: u64) -> Result<String> {
     }
     Ok(names.remove(0))
 }
-pub fn microphones(root: &Value) -> Result<BTreeMap<String, [u8; 16]>> {
+pub(super) fn placements(extra: &BTreeMap<String, Value>) -> Result<BTreeMap<String, crate::synthesis::instruments::MicrophonePlacement>> {
+    let mut result = BTreeMap::new();
+    for (name, value) in extra {
+        let Value::Map(fields) = value else {continue};
+        let (Some(Value::Array(pos)), Some(Value::String(kind))) = (fields.get("pos"), fields.get("type")) else {continue};
+        if pos.len() != 3 {return fail("Invalid microphone position dimensions");}
+        let position = pos.iter().map(|v| match v {
+            Value::Float(v) => Ok(*v as f32), Value::Int(v) => Ok(*v as f32), _ => Err("Invalid microphone position".to_owned()),
+        }).collect::<Result<Vec<_>>>()?;
+        if position.iter().any(|v| !v.is_finite()) {return fail("Invalid microphone position");}
+        result.insert(name.clone(), crate::synthesis::instruments::MicrophonePlacement {position:position.try_into().unwrap(),kind:kind.clone()});
+    }
+    Ok(result)
+}
+pub(super) fn microphone_order(root: &Value) -> Result<Vec<(String, [u8; 16])>> {
     let mut candidates = Vec::new();
     if let Value::Map(m) = root {
         for v in m.values() {
@@ -181,7 +195,7 @@ pub fn microphones(root: &Value) -> Result<BTreeMap<String, [u8; 16]>> {
                 if a.is_empty() {
                     continue;
                 }
-                let mut rows = BTreeMap::new();
+                let mut rows = Vec::new();
                 for v in a {
                     let Value::Map(m) = v else { break };
                     if m.len() != 4 {
@@ -199,7 +213,8 @@ pub fn microphones(root: &Value) -> Result<BTreeMap<String, [u8; 16]>> {
                         }
                     }
                     if let (Some(n), Some(i), 2) = (name, id, ints) {
-                        rows.insert(n, i);
+                        if rows.iter().any(|(name, _)| name == &n) { break; }
+                        rows.push((n, i));
                     } else {
                         break;
                     }

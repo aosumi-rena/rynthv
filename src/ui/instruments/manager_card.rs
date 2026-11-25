@@ -55,7 +55,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
             meta.visuals_mut().widgets.inactive.corner_radius = CornerRadius::same(10);
             meta.visuals_mut().widgets.inactive.bg_fill = BUTTON;
             meta.visuals_mut().widgets.inactive.weak_bg_fill = BUTTON;
-            let mut revision = entry.selection.revision.clone();
+            let mut revision = entry.selection.revision;
             ComboBox::from_id_salt("version")
                 .width(90.)
                 .selected_text(format!("v{}", revision))
@@ -64,7 +64,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui, entry: &Entry, state: &mut State)
                         if e.selection.database_id == entry.selection.database_id {
                             ui.selectable_value(
                                 &mut revision,
-                                e.selection.revision.clone(),
+                                e.selection.revision,
                                 format!("v{}", e.selection.revision),
                             );
                         }

@@ -171,6 +171,10 @@ impl Surface {
         self.input.focused && self.at_pointer(ctx, true)
     }
 
+    pub fn text_edit_focused(&self, ctx: &Context) -> bool {
+        self.picture.ime.is_some() && self.owns_keyboard(ctx)
+    }
+
     pub fn at_pointer(&self, ctx: &Context, keyboard: bool) -> bool {
         self.rect.is_some_and(|(rect, layer, viewport)| {
             if viewport != ctx.viewport_id() { return false; }

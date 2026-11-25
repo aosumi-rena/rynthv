@@ -66,10 +66,14 @@ pub(super) fn project(source: Value) -> Result<Project> {
                 let mut t = track_header(track, i, &origin)?;
                 if instrument {
                     t.instrument = Some(InstrumentTrack {
-                        selection: (!bank.is_empty() && !revision.is_empty()).then(|| InstrumentSelection {
-                            database_id: bank.into(),
-                            revision: revision.into(),
-                        }),
+                        selection: if bank.is_empty() || revision.is_empty() || revision == "-2" {
+                            None
+                        } else {
+                            Some(InstrumentSelection {
+                                database_id: bank.into(),
+                                revision: revision.parse()?,
+                            })
+                        },
                         ambient_seed: 0,
                     });
                 }

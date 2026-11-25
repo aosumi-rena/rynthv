@@ -44,6 +44,9 @@ impl Transport {
         self.start_position = 0;
         self.last = None;
     }
+    pub fn script_stop(&mut self) {
+        self.playing=false;self.position=self.start_position;self.last=None;
+    }
 
     pub fn constrain_to_loop(&mut self) {
         if self.looping && !self.loop_region.contains(self.position) {

@@ -1,4 +1,4 @@
-use super::{Entry, native::Microphones};
+use super::{Entry, native::room_stream::RoomStream};
 use crate::synthesis::{audio::{ChannelLayout, RenderedAudio}, effects::{Configuration, Processor}};
 use std::{collections::BTreeMap, sync::{Arc, atomic::{AtomicBool, Ordering}, mpsc}, thread};
 
@@ -22,7 +22,7 @@ impl Source {
         self.chunks.push(samples);
         Ok(())
     }
-    fn add(&self, origin: i64, output: &mut [[f32;4]], performance: &super::performance::Performance) {
+    fn add(&self, origin: i64, output: &mut [[f32;4]], performance: &super::performance::Performance,member:Option<usize>) {
         let mut position = self.origin;
         let end = origin + output.len() as i64;
         let width=8*self.players.max(1);
@@ -33,9 +33,11 @@ impl Source {
             if stop > begin {
                 let input = ((begin-position) as usize)*width;
                 let destination = (begin-origin) as usize;
-                performance.add(self.origin, self.control_frames, self.players.max(1), (begin-self.origin) as usize,
-                    &chunk[input..input+(stop-begin) as usize*width],
-                    &mut output[destination..destination+(stop-begin) as usize]);
+                let samples=&chunk[input..input+(stop-begin) as usize*width];
+                let target=&mut output[destination..destination+(stop-begin) as usize];
+                if let Some(member)=member {
+                    performance.add_member(self.origin,self.control_frames,self.players.max(1),(begin-self.origin) as usize,samples,target,member);
+                }else{performance.add(self.origin,self.control_frames,self.players.max(1),(begin-self.origin) as usize,samples,target);}
             }
             position = chunk_end;
             if position >= end { break; }
@@ -50,6 +52,8 @@ pub struct Specification {
     pub entry: Entry,
     pub accept_any_v4_signature: bool,
     pub microphones: Vec<super::microphones::Mix>,
+    pub room: String,
+    pub room_pack: Option<std::path::PathBuf>,
     pub effects: Configuration,
     pub performance: Vec<super::performance::Performance>,
 }
@@ -63,8 +67,9 @@ pub struct Track {
     pub complete: bool,
 }
 struct State {
-    effects: Processor,
-    microphones: Microphones,
+    effects: Vec<Processor>,
+    microphones: RoomStream,
+    layout: Vec<Vec<(usize,usize)>>,
     origin: i64,
     cursor: i64,
 }
@@ -146,13 +151,20 @@ impl Mixer {
                 let track=self.tracks.get_mut(&id).unwrap();
                 let mut state=track.state.take();
                 let main=track.spec.entry.main.clone();let mics=track.spec.microphones.clone();let settings=track.spec.effects.clone();
+                let room=track.spec.room.clone();let room_pack=track.spec.room_pack.clone();
                 let performance=track.spec.performance.clone();
                 let accept_any_v4_signature = track.spec.accept_any_v4_signature;
                 let hash=track.spec.hash;let cancel=Arc::new(AtomicBool::new(false));let stop=cancel.clone();let wake=ctx.clone();
                 let (tx,rx)=mpsc::channel();let (pcm_tx,pcm)=mpsc::channel();
                 thread::spawn(move || {
                     let result=(|| -> Result<(State,bool),String> {
-                        let mut state=match state.take() {Some(s)=>s,None=>State {effects:Processor::new(&settings),microphones:Microphones::from_path(&main,&mics,accept_any_v4_signature)?,origin,cursor:origin}};
+                        let groups:Vec<_>=input.iter().map(|s|s.players.max(1)).collect();
+                        let mut state=match state.take() {Some(s)=>s,None=> {
+                            let microphones=RoomStream::new(&main,&mics,&room,room_pack.as_deref(),accept_any_v4_signature,&groups)?;
+                            let layout=microphones.layout();
+                            let lanes=layout.len().max(1);
+                            State{effects:(0..lanes).map(|_|Processor::new(&settings)).collect(),microphones,layout,origin,cursor:origin}
+                        }};
                         let mut emit=|at:usize,mut samples:Vec<f32>|->Result<(),String> {
                             let position=state.origin+at as i64;
                             if position<0 {let skip=(position.unsigned_abs() as usize).saturating_mul(2).min(samples.len());samples.drain(..skip);}
@@ -164,13 +176,20 @@ impl Mixer {
                         while state.cursor<until {
                             if stop.load(Ordering::Acquire) {return Err("Instrument mix cancelled".into());}
                             let count=(until-state.cursor).min(4096) as usize;
-                            let mut block=vec![[0.;4];count];
-                            for (source, controls) in input.iter().zip(&performance) {source.add(state.cursor,&mut block,controls);}
-                            state.effects.process(&mut block);
-                            state.microphones.feed_mixed(&block,false,&stop,&mut emit)?;
+                            let spatial=state.microphones.spatial();
+                            let mut block=vec![vec![[0.;4];count];state.effects.len()];
+                            for (lane,frames) in block.iter_mut().enumerate() {
+                                if spatial {
+                                    for &(source,member) in &state.layout[lane] {
+                                        input[source].add(state.cursor,frames,&performance[source],Some(member));
+                                    }
+                                }else{for (source,controls) in input.iter().zip(&performance) {source.add(state.cursor,frames,controls,None);}}
+                                state.effects[lane].process(frames);
+                            }
+                            state.microphones.feed(&block,count,false,&stop,&mut emit)?;
                             state.cursor+=count as i64;
                         }
-                        if done {state.microphones.feed_mixed(&[],true,&stop,&mut emit)?;}
+                        if done {state.microphones.feed(&vec![Vec::new();state.effects.len()],0,true,&stop,&mut emit)?;}
                         Ok((state,done))
                     })();
                     let _=tx.send(result);wake.request_repaint();

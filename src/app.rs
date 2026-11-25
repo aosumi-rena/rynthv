@@ -446,6 +446,7 @@ impl eframe::App for App {
         if self.editor.transport.playing {
             ctx.request_repaint_after(Duration::from_millis(16));
         }
+        ui::transport::shortcuts(self, &ctx);
         if self.pending.is_none()
             && self.dropped_project.is_none()
             && !self.rocoflex.owns_keyboard(&ctx)

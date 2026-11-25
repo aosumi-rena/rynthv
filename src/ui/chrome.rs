@@ -316,14 +316,6 @@ pub fn shortcuts(app: &mut App, ctx: &Context) {
         app.show_pitch = true;
         app.status.clear();
     }
-    if command(Key::Space, ctrl) {
-        app.editor.transport.stop();
-    } else if command(Key::Space, Modifiers::NONE) {
-        app.editor.transport.toggle();
-    }
-    if command(Key::End, ctrl) {
-        app.editor.transport.position = app.editor.project.end();
-    }
     if super::lanes::parameter_keyboard(app,ctx) {return;}
     for (key, direction) in [(Key::ArrowLeft, -1), (Key::ArrowRight, 1)] {
         if command(key, Modifiers::NONE) {

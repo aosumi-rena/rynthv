@@ -318,7 +318,7 @@ impl Program {
             return fail("Instrument module used as tensor");
         }
         let mut ready=usize::MAX;
-        let y = if self.bound.contains(&n.tag) || (n.opcode == 0 && n.kind == 3) {
+        let y = if self.bound.contains(&n.tag) || (n.opcode == 0 && matches!(n.kind, 0 | 3)) {
             let t = self
                 .inputs
                 .get(&n.tag)

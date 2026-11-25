@@ -1,5 +1,5 @@
 use super::DIVIDER;
-use crate::ui::{child, icons::Icon, theme::*};
+use crate::ui::{child, theme::*};
 use eframe::egui::*;
 
 pub(super) fn row(ui: &mut Ui, label: &str, content: impl FnOnce(&mut Ui)) {
@@ -36,70 +36,16 @@ pub(super) fn row(ui: &mut Ui, label: &str, content: impl FnOnce(&mut Ui)) {
 
 pub(super) fn toggle(ui: &mut Ui, label: &str, value: &mut bool) {
     row(ui, label, |ui| {
-        let (rect, mut response) = ui.allocate_exact_size(Vec2::splat(28.0), Sense::click());
-        if response.clicked() {
-            *value = !*value;
-            response.mark_changed();
-        }
-        response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, true, *value, label));
-        ui.painter().rect(
-            rect,
-            4,
-            if response.hovered() {
-                BUTTON_ACTIVE
-            } else {
-                Color32::from_rgb(75, 73, 77)
-            },
-            Stroke::new(
-                0.7,
-                if response.has_focus() {
-                    TEXT
-                } else {
-                    BUTTON_ACTIVE
-                },
-            ),
-            StrokeKind::Inside,
-        );
-        if *value {
-            ui.painter().add(Shape::line(
-                vec![
-                    rect.center() + vec2(-5.0, 0.0),
-                    rect.center() + vec2(-1.0, 4.0),
-                    rect.center() + vec2(6.0, -4.0),
-                ],
-                Stroke::new(1.4, TEXT),
-            ));
-        }
+        let response = ui.checkbox(value, "");
+        response.widget_info(|| {
+            WidgetInfo::selected(WidgetType::Checkbox, ui.is_enabled(), *value, label)
+        });
     });
 }
 
 pub(super) fn fixed(ui: &mut Ui, label: &str, value: &str, reason: &str) {
     row(ui, label, |ui| {
-        let (rect, response) =
-            ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
-        ui.painter().rect(
-            rect,
-            4,
-            Color32::from_rgb(75, 73, 77),
-            Stroke::new(0.6, BUTTON_ACTIVE),
-            StrokeKind::Inside,
-        );
-        ui.painter()
-            .with_clip_rect(rect.shrink2(vec2(8.0, 0.0)).intersect(ui.clip_rect()))
-            .text(
-                rect.left_center() + vec2(10.0, 0.0),
-                Align2::LEFT_CENTER,
-                value,
-                FontId::proportional(12.0),
-                MUTED,
-            );
-        Icon::ChevronDown.paint(
-            ui,
-            Rect::from_center_size(rect.right_center() - vec2(15.0, 0.0), Vec2::splat(12.0)),
-            MUTED,
-        );
-        response.widget_info(|| WidgetInfo::labeled(WidgetType::ComboBox, false, label));
-        response.on_hover_text(reason);
+        crate::ui::panels::controls::disabled_field(ui, value, true, reason);
     });
 }
 

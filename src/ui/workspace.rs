@@ -13,14 +13,18 @@ pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
         pos2(rect.right() - super::tool_rail::WIDTH, rect.top()),
         rect.max,
     );
-    super::tool_rail::show(app, &mut child(ui, rail, "tool-rail"));
     let main = Rect::from_min_max(rect.min, pos2(rail.left() - 5.0, rect.bottom()));
-    let columns:Vec<_>=app.view.columns.iter().copied().filter(|c|!app.editor.current_track().is_instrument()||*c!=Column::Dictionary).collect();
+    let mut columns:Vec<_>=app.view.columns.iter().copied().filter(|c|!app.editor.current_track().is_instrument()||*c!=Column::Dictionary).collect();
+    let panel_width = app.view.panel_width.clamp(140.0, 420.0);
+    let capacity = ((main.width() - 330.0).max(0.0) / (panel_width + 5.0)).floor() as usize;
+    app.view.auto_hidden.clear();
+    while columns.len().saturating_sub(1) > capacity {
+        let remove = columns.iter().position(|c| *c != Column::Editor && Some(*c) != app.view.focused_panel)
+            .or_else(|| columns.iter().position(|c| *c != Column::Editor)).unwrap();
+        app.view.auto_hidden.insert(columns.remove(remove));
+    }
+    super::tool_rail::show(app, &mut child(ui, rail, "tool-rail"));
     let panels = columns.len() - 1;
-    let panel_width = app
-        .view
-        .panel_width
-        .min(((main.width() - 330.0) / panels.max(1) as f32 - 5.0).max(72.0));
     let editor_width = (main.width() - panels as f32 * (panel_width + 5.0)).max(200.0);
     let mut x = main.left();
     let mut drop = None;
@@ -48,7 +52,8 @@ pub fn show(app: &mut App, ui: &mut Ui, seeked: bool) {
                     .vline(target, r.y_range(), Stroke::new(3.0, crate::ui::theme::accent(ui)));
                 if ui.input(|i|i.pointer.any_released()) {
                     DragAndDrop::take_payload::<DragPayload>(ui.ctx());
-                    drop = Some((source, index + usize::from(!before)));
+                    let target = app.view.columns.iter().position(|c| c == column).unwrap();
+                    drop = Some((source, target + usize::from(!before)));
                 }
             }
         }

@@ -14,8 +14,8 @@ pub fn show(app: &mut App, ui: &mut Ui) {
             .selected_text(
                 selected
                     .as_ref()
-                    .map(|s| s.revision.as_str())
-                    .unwrap_or("—"),
+                    .map(|s| s.revision.to_string())
+                    .unwrap_or_else(|| "—".into()),
             )
             .show_ui(ui, |ui| {
                 if let Some(previous) = &previous {
@@ -24,7 +24,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
                             ui.selectable_value(
                                 &mut selected,
                                 Some(entry.selection.clone()),
-                                &entry.selection.revision,
+                                entry.selection.revision.to_string(),
                             );
                         }
                     }

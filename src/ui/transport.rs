@@ -1,4 +1,6 @@
 mod toggle;
+mod keyboard;
+pub use keyboard::shortcuts;
 
 use super::{
     child,

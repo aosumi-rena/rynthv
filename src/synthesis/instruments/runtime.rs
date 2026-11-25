@@ -143,7 +143,7 @@ impl Instruments {
             return self.entry(selected);
         }
         let name = track.main_ref.database.get("name")?.as_str()?;
-        let revision = track.main_ref.database.get("version")?.as_str()?;
+        let revision = track.main_ref.database.get("version")?.as_str()?.parse().ok()?;
         self.catalog
             .entries
             .iter()
@@ -156,12 +156,12 @@ impl Instruments {
             return Some(selection.clone());
         }
         let name = track.main_ref.database.get("name")?.as_str()?;
-        let revision = track.main_ref.database.get("version")?.as_str()?;
+        let revision = track.main_ref.database.get("version")?.as_str()?.parse().ok()?;
         let mut ids = self.catalog.entries.iter().filter(|entry| entry.name == name)
             .map(|entry| &entry.selection.database_id);
         let database_id = ids.next()?;
         ids.all(|id| id == database_id).then(|| crate::model::InstrumentSelection {
-            database_id: database_id.clone(), revision: revision.into(),
+            database_id: database_id.clone(), revision,
         })
     }
 
@@ -401,6 +401,8 @@ impl Instruments {
                         self.errors.insert(id,error);continue;
                     }
                 };
+                let onsets:std::collections::BTreeSet<_>=group.notes.iter().filter(|n|!n.muted()).map(|n|n.onset).collect();
+                let ends:std::collections::BTreeSet<_>=group.notes.iter().filter(|n|!n.muted()).map(|n|n.onset+n.duration).collect();
                 let mut notes:Vec<_>=group.notes.iter().filter(|n|!n.muted()).filter_map(|n|{
                     let onset=n.onset+reference.blick_offset;let end=onset+n.duration;
                     if end<=reference.blick_absolute_begin||onset>=reference.visible_end(){return None}
@@ -411,6 +413,8 @@ impl Instruments {
                     Some(json!({
                         "id":n.id,"start":start,"length":length.max(1),
                         "duration_ticks":n.duration,
+                        "linked_before":ends.contains(&n.onset),
+                        "linked_after":onsets.contains(&(n.onset+n.duration)),
                         "time_dispersion":n.attributes.get("cTimeDispersion").cloned().unwrap_or(json!(1.0)),
                         "pitch_dispersion":n.attributes.get("cPitchDispersion").cloned().unwrap_or(json!(0.0)),
                         "dynamic":n.attributes.get("dynamic").cloned().unwrap_or(json!(0.5)),
@@ -420,6 +424,8 @@ impl Instruments {
                         "articulations":n.attributes.get("articulations").cloned().unwrap_or(json!([])),
                         "vibrato_depth":n.attributes.get("dF0VbrMod").cloned().unwrap_or(json!(1.0)),
                         "vibrato_frequency":n.attributes.get("fF0VbrMod").cloned().unwrap_or(json!(0.0)),
+                        "vibrato_hz":n.attributes.get("fF0Vbr").cloned(),
+                        "vibrato_phase":n.attributes.get("pF0Vbr").cloned(),
                         "vibrato_envelope":super::vibrato::envelope(group.parameters.get("vibratoEnv"),n,length.max(1) as usize),
                         "pitch":(n.pitch+reference.pitch_offset) as f64+n.extra.get("detune").and_then(Value::as_f64).unwrap_or(0.0)/100.0+transpose,
                         "pitch_seed":take.and_then(|t|t.get("seedPitch")).and_then(Value::as_u64).unwrap_or(0),
@@ -453,6 +459,7 @@ impl Instruments {
                     &entry.identity,
                     &waveform,
                     zero_gru_weights,
+                    self.settings.trill_vibrato,
                     entry
                         .auxiliary
                         .as_ref()
@@ -531,14 +538,19 @@ impl Instruments {
             let performance:Result<Vec<_>,String>=references.iter().map(|id| {
                 let reference=track.references().find(|r|r.id==*id).ok_or("Instrument group reference missing")?;
                 let group=project.group(&reference.group_id).ok_or("Instrument group missing")?;
-                super::performance::Performance::read(&project.time,group,reference)
+                super::performance::Performance::read(&project.time,group,reference,entry.gain_db)
             }).collect();
             let performance=match performance {Ok(v)=>v,Err(e)=>{for id in references {self.errors.insert(id,e.clone());self.mix_errors.insert(id,e.clone());}continue;}};
             let microphones=super::microphones::Configuration::read(track.mixer.get("micParams"),&entry.microphones,entry.room.as_deref());
-            let microphones=match microphones {Ok(v)=>v.mix(&entry.microphones),Err(e)=>{for id in references {self.errors.insert(id,e.clone());self.mix_errors.insert(id,e.clone());}continue;}};
+            let microphones=match microphones {Ok(v)=>v,Err(e)=>{for id in references {self.errors.insert(id,e.clone());self.mix_errors.insert(id,e.clone());}continue;}};
+            let room=microphones.room.name.clone();
+            let microphones=microphones.mix(&entry.microphones);
+            let room_pack=self.settings.room_pack();
+            let room_identity=room_pack.as_ref().and_then(|p|std::fs::metadata(p).ok())
+                .map(|m|(m.len(),m.modified().ok()));
             let inputs:Vec<_>=references.iter().map(|id|(id,self.hashes.get(id))).collect();
-            let hash=xxhash_rust::xxh3::xxh3_64(&serde_json::to_vec(&(&inputs,&microphones,track.mixer.get("fxParams"),&performance)).unwrap());
-            specifications.push(super::mixing::Specification {id:track.id,hash,references,entry,microphones,effects,performance,
+            let hash=xxhash_rust::xxh3::xxh3_64(&serde_json::to_vec(&(&inputs,&microphones,&room,&room_pack,&room_identity,track.mixer.get("fxParams"),&performance)).unwrap());
+            specifications.push(super::mixing::Specification {id:track.id,hash,references,entry,microphones,room,room_pack,effects,performance,
                 accept_any_v4_signature: self.settings.accept_any_v4_signature});
         }
         self.mixer.sync(specifications,&self.outputs);

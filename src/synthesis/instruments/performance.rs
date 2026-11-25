@@ -1,6 +1,10 @@
 use crate::model::{Automation, Group, GroupRef, TimeAxis};
 use serde::Serialize;
 
+pub(super) fn model_gain(gain_db: f32) -> f32 {
+    if gain_db > -100. { 10f32.powf(gain_db * 0.05) } else { 0. }
+}
+
 pub fn transpose(reference:&GroupRef)->Result<f64,String> {
     let voice=reference.extra.get("voice");
     let read=|key:&str|->Result<f64,String> {
@@ -18,10 +22,11 @@ pub(crate) struct Performance {
     curves: [Option<Automation>; 2],
     time: TimeAxis,
     offset: i64,
+    model_gain: f32,
 }
 
 impl Performance {
-    pub fn read(time: &TimeAxis, group: &Group, reference: &GroupRef) -> Result<Self, String> {
+    pub fn read(time: &TimeAxis, group: &Group, reference: &GroupRef, gain_db: f32) -> Result<Self, String> {
         let read = |key: &str| -> Result<f32, String> {
             reference.extra.get("voice").and_then(|v| v.get(key)).map_or(Ok(0.), |v| {
                 v.as_f64().filter(|v| v.is_finite() && v.abs() <= 1_000_000.)
@@ -32,7 +37,8 @@ impl Performance {
             .filter(|c| !c.points.is_empty()).cloned());
         for curve in curves.iter().flatten() { curve.validate()?; }
         Ok(Self { loudness: read("paramLoudness")?, noise: read("paramBreathiness")?,
-            curves, time: time.clone(), offset: reference.blick_offset })
+            curves, time: time.clone(), offset: reference.blick_offset,
+            model_gain: model_gain(gain_db) })
     }
 
     fn gains(&self, frame: usize, origin: i64) -> [f32; 2] {
@@ -46,6 +52,14 @@ impl Performance {
 
     pub fn add(&self, origin: i64, control_frames: usize, players: usize, first: usize,
         input: &[f32], output: &mut [[f32; 4]]) {
+        self.add_selected(origin,control_frames,players,first,input,output,None);
+    }
+    pub fn add_member(&self, origin:i64,control_frames:usize,players:usize,first:usize,
+        input:&[f32],output:&mut[[f32;4]],member:usize) {
+        self.add_selected(origin,control_frames,players,first,input,output,Some(member));
+    }
+    fn add_selected(&self, origin:i64,control_frames:usize,players:usize,first:usize,
+        input:&[f32],output:&mut[[f32;4]],selected:Option<usize>) {
         let mut previous = usize::MAX;
         let mut low = [1.; 2];
         let mut high = low;
@@ -61,9 +75,12 @@ impl Performance {
             let fraction = (sample % 240) as f32 / 240.;
             let primary = low[0] * (1. - fraction) + high[0] * fraction;
             let noise = low[1] * (1. - fraction) + high[1] * fraction;
-            for source in members.chunks_exact(8) {
+            for (index,source) in members.chunks_exact(8).enumerate() {
+                if selected.is_some_and(|v|v!=index) {continue;}
                 for c in 0..4 {
-                    destination[c] += (source[c] * primary + source[4 + c] * noise) * preamp;
+                    let primary = ((source[c] * primary) * preamp) * self.model_gain;
+                    let noise = ((source[4 + c] * noise) * preamp) * self.model_gain;
+                    destination[c] += primary + noise;
                 }
             }
         }

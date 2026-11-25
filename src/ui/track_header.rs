@@ -1,4 +1,6 @@
 mod source;
+mod menu;
+pub use menu::show as context_menu;
 
 use super::{icons::Icon, theme::*};
 use crate::{app::App, model::Track};
@@ -11,58 +13,16 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
         let modifiers=ui.input(|i|i.modifiers);
         app.editor.select_track_header(track.id,modifiers.command||modifiers.ctrl,modifiers.shift);
     }
-    if response.double_clicked() {
+    let name_rect = Rect::from_min_max(
+        rect.min + vec2(16.0, 5.0),
+        pos2(rect.right() - 95.0, rect.top() + 29.0),
+    );
+    if response.double_clicked()
+        && response.interact_pointer_pos().is_some_and(|p| name_rect.contains(p))
+    {
         app.rename = Some(super::rename::Rename::track(track.id, &track.name));
     }
-    response.context_menu(|ui| {
-        if !app.editor.selected_tracks.contains(&track.id){app.editor.select_track_header(track.id,false,false);}
-        app.editor.track_focus=true;
-        if ui.button(crate::i18n::t("Duplicate Track")).clicked(){app.commit_lyric();app.editor.duplicate_tracks(false);ui.close();}
-        if ui.button(crate::i18n::t("Duplicate Track (Unlinked)")).clicked(){app.commit_lyric();app.editor.duplicate_tracks(true);ui.close();}
-        ui.separator();
-        if ui.button(crate::i18n::t("重命名音轨…")).clicked() {
-            app.rename = Some(super::rename::Rename::track(track.id, &track.name));
-            ui.close();
-        }
-        super::instrumental::create_menu(app, ui);
-        super::rocoflex::track_menu(app, ui, track);
-        let index = app
-            .editor
-            .project
-            .tracks
-            .iter()
-            .position(|t| t.id == track.id)
-            .unwrap();
-        if ui.add_enabled(index > 0, Button::new(crate::i18n::t("上移音轨"))).clicked() {
-            app.editor.reorder_track(track.id, -1);
-            ui.close();
-        }
-        if ui
-            .add_enabled(
-                index + 1 < app.editor.project.tracks.len(),
-                Button::new(crate::i18n::t("下移音轨")),
-            )
-            .clicked()
-        {
-            app.editor.reorder_track(track.id, 1);
-            ui.close();
-        }
-        ui.separator();
-        if ui
-            .add_enabled(!app.editor.selected_tracks.is_empty(), Button::new(crate::i18n::t("删除音轨")))
-            .clicked()
-        {
-            app.commit_lyric();
-            app.editor.delete_tracks();
-            ui.close();
-        }
-        ui.separator();
-        if let Some(color) = super::track_color::picker(ui, track.disp_color) {
-            app.commit_lyric();
-            app.editor.set_track_color(track.id, color);
-            ui.close();
-        }
-    });
+    response.context_menu(|ui| context_menu(app, ui, track));
     let text_rect = Rect::from_min_max(
         rect.min + vec2(16.0, 0.0),
         pos2(rect.right() - 95.0, rect.bottom()),
@@ -70,13 +30,15 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
     let painter = ui
         .painter()
         .with_clip_rect(ui.clip_rect().intersect(text_rect));
-    painter.text(
-        rect.min + vec2(18.0, 17.0),
-        Align2::LEFT_CENTER,
-        &track.name,
-        FontId::proportional(12.0),
-        TEXT,
-    );
+    if !super::rename::track_field(app, ui, name_rect, track.id) {
+        painter.text(
+            rect.min + vec2(18.0, 17.0),
+            Align2::LEFT_CENTER,
+            &track.name,
+            FontId::proportional(12.0),
+            TEXT,
+        );
+    }
     source::show(app, ui, rect, text_rect, track);
     let morphing = app.synthesis.morph_pending(track.id);
     if morphing || app.synthesis.morph_error(track.id).is_some() {
@@ -120,7 +82,7 @@ pub fn show(app: &mut App, ui: &mut Ui, rect: Rect, track: &Track) {
             .and_then(serde_json::Value::as_f64)
             .unwrap_or(reset);
         let (value, response) = knob(ui, (track.id, field), center, old, min, max, reset);
-        let response = response.on_hover_text(crate::lformat!("{label}  {old:.2}\n拖动调整，双击复位"));
+        let response = response.on_hover_text(format!("{label}  {old:.2}"));
         if response.drag_started() || response.double_clicked() {
             app.editor.begin(crate::i18n::t("调整混音"));
         }

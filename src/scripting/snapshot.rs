@@ -4,24 +4,24 @@ const ID:&str="__rynthvId";
 pub fn encode(project:&Project)->Result<Value,String> {
     let mut value=serde_json::to_value(project).map_err(|e|e.to_string())?;
     for (track,row) in project.tracks.iter().zip(value["tracks"].as_array_mut().unwrap()) {
-        row[ID]=json!(track.id);row["mainRef"][ID]=json!(track.main_ref.id);
+        row[ID]=json!(track.id.to_string());row["mainRef"][ID]=json!(track.main_ref.id.to_string());
         row["__audioTrack"]=json!(track.is_instrumental());
-        if track.is_instrumental(){row["__audioSourceId"]=json!(track.id);}
+        if track.is_instrumental(){row["__audioSourceId"]=json!(track.id.to_string());}
         if let Some((begin,end))=track.audio_window(){row["__audioRange"]=json!([project.time.position_at(begin),project.time.position_at(end)]);}
-        for (reference,value) in track.groups.iter().zip(row["groups"].as_array_mut().unwrap()){value[ID]=json!(reference.id);}
-        for (note,value) in track.main_group.notes.iter().zip(row["mainGroup"]["notes"].as_array_mut().unwrap()){value[ID]=json!(note.id);}
+        for (reference,value) in track.groups.iter().zip(row["groups"].as_array_mut().unwrap()){value[ID]=json!(reference.id.to_string());}
+        for (note,value) in track.main_group.notes.iter().zip(row["mainGroup"]["notes"].as_array_mut().unwrap()){value[ID]=json!(note.id.to_string());}
     }
     for (group,row) in project.library.iter().zip(value["library"].as_array_mut().unwrap()) {
-        for (note,value) in group.notes.iter().zip(row["notes"].as_array_mut().unwrap()){value[ID]=json!(note.id);}
+        for (note,value) in group.notes.iter().zip(row["notes"].as_array_mut().unwrap()){value[ID]=json!(note.id.to_string());}
     }
     Ok(value)
 }
 fn restore(id:&mut EntityId,extra:&mut Extra,seen:&mut std::collections::BTreeSet<EntityId>)->Result<(),String> {
-    if let Some(value)=extra.remove(ID){*id=value.as_u64().filter(|v|*v>0).ok_or("Invalid script object identity")?;}
+    if let Some(value)=extra.remove(ID){*id=read_id(&value).filter(|v|*v>0).ok_or("Invalid script object identity")?;}
     if !seen.insert(*id){return Err("Duplicate script object identity".into());}Ok(())
 }
 fn identity(value:&Value)->Option<String> {
-    value.get(ID).and_then(Value::as_u64).map(|id|format!("id:{id}"))
+    value.get(ID).and_then(read_id).map(|id|format!("id:{id}"))
         .or_else(||value.get("uuid").and_then(Value::as_str).map(|id|format!("uuid:{id}")))
 }
 fn preserve_numbers(value:&mut Value,original:&Value) {
@@ -47,7 +47,7 @@ pub fn decode(mut value:Value,original:&Project)->Result<Project,String> {
     for track in &mut project.tracks {
         restore(&mut track.id,&mut track.extra,&mut seen)?;
         track.extra.remove("__audioTrack");track.extra.remove("__audioRange");
-        let source=track.extra.remove("__audioSourceId").and_then(|v|v.as_u64()).unwrap_or(track.id);
+        let source=track.extra.remove("__audioSourceId").and_then(|v|read_id(&v)).unwrap_or(track.id);
         track.instrumental=original.tracks.iter().find(|t|t.id==source).and_then(|t|t.instrumental.clone());
         for reference in std::iter::once(&mut track.main_ref).chain(&mut track.groups){restore(&mut reference.id,&mut reference.extra,&mut seen)?;}
     }
@@ -57,3 +57,4 @@ pub fn decode(mut value:Value,original:&Project)->Result<Project,String> {
     }
     crate::storage::validate(&project)?;Ok(project)
 }
+pub fn read_id(value:&Value)->Option<EntityId>{value.as_str()?.parse().ok()}

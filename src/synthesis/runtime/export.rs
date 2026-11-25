@@ -20,7 +20,7 @@ impl ExportRequest {
             project.extra.get("projectMixer"),
         )?;
         for track in &project.tracks {
-            crate::synthesis::mixing_options::validate_mixer(&track.mixer)
+            crate::synthesis::mixing_options::validate_track_mixer(track)
                 .map_err(|error| format!("音轨 {}：{error}", track.name))?;
         }
         let text = |key: &str| {

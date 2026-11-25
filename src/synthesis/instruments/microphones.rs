@@ -37,20 +37,20 @@ impl Configuration {
     }
     pub fn read(value:Option<&serde_json::Value>,names:&[String],room:Option<&str>)->Result<Self,String> {
         let source=value.map(Self::parse).transpose()?.unwrap_or_default();
-        if !source.room.name.is_empty() && Some(source.room.name.as_str())!=room {
-            return Err("Selected microphone room is not available in this instrument".into());
-        }
+        let implicit=source==Self::default();
         let mut result=source.clone();
+        if result.room.name.is_empty() {result.room.name=room.unwrap_or_default().into();}
         for name in names {
             let (group,channel)=split(name);
             if group!="Close" && !result.room.mic_arrays.iter().any(|v|v.key==group) {
                 result.room.mic_arrays.push(Named {key:group.into(),value:Group {
-                    mute:matches!(group,"Wide"|"Ambi"),..Default::default()
+                    mute:implicit&&group!="Decca",..Group::default()
                 }});
             }
             let group=result.group_mut(group).expect("materialized microphone group");
             if !group.mics.iter().any(|v|v.key==channel) {
-                group.mics.push(Named {key:channel.into(),value:Channel {gain:1.,pan:match channel {"L"=>-1.,"R"=>1.,_=>0.}}});
+                let gain=if implicit&&split(name).0=="Close"&&!group.mics.is_empty(){0.}else{1.};
+                group.mics.push(Named {key:channel.into(),value:Channel {gain,pan:match channel {"L"=>-1.,"R"=>1.,_=>0.}}});
             }
         }
         result.room.mic_arrays.sort_by(|a,b|a.key.cmp(&b.key));

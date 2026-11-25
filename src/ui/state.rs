@@ -25,10 +25,10 @@ impl Column {
     pub fn label(self) -> &'static str {
         match self {
             Self::Editor => crate::i18n::t("编辑器"),
-            Self::Voice => crate::i18n::t("歌声"),
+            Self::Voice => crate::i18n::t("Voice"),
             Self::Note => crate::i18n::t("音符"),
             Self::Dictionary => crate::i18n::t("词典"),
-            Self::Render => crate::i18n::t("渲染"),
+            Self::Render => crate::i18n::t("Render"),
             Self::Script => crate::i18n::t("脚本"),
             Self::Effects => crate::i18n::t("Effects"),
         }
@@ -84,6 +84,10 @@ pub struct Viewport {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ViewState {
     pub columns: Vec<Column>,
+    #[serde(skip)]
+    pub auto_hidden: std::collections::HashSet<Column>,
+    #[serde(skip)]
+    pub focused_panel: Option<Column>,
     #[serde(default="panel_order")]
     pub panel_order: Vec<Column>,
     pub panel_width: f32,
@@ -109,6 +113,8 @@ impl Default for ViewState {
     fn default() -> Self {
         Self {
             columns: vec![Column::Editor],
+            auto_hidden: Default::default(),
+            focused_panel: None,
             panel_order: panel_order(),
             panel_width: 234.0,
             arrangement_first: true,
@@ -140,9 +146,15 @@ impl Default for ViewState {
 }
 impl ViewState {
     pub fn toggle(&mut self, column: Column) {
+        if self.columns.contains(&column) && self.auto_hidden.contains(&column) {
+            self.focused_panel = Some(column);
+            return;
+        }
         if self.columns.contains(&column) {
             self.columns.retain(|c| *c != column);
+            if self.focused_panel == Some(column) { self.focused_panel = None; }
         } else {
+            self.focused_panel = Some(column);
             if !self.panel_order.contains(&column){self.panel_order.push(column);}
             let rank = self.panel_order.iter().position(|c|*c==column).unwrap();
             let index = self.columns.iter().position(|c|

@@ -50,9 +50,9 @@ fn equivalent(a:&StylePreset,b:&StylePreset)->bool {
     canonical(a)==canonical(b)
 }
 pub(super) fn show(app:&mut App,ui:&mut Ui) {
-    let Some(voice)=app.voice_selection() else {super::widgets::field(ui,crate::i18n::t("默认"),true,crate::i18n::t("先选择歌声"));return;};
+    let Some(voice)=app.voice_selection() else {crate::ui::panels::controls::disabled_field(ui,crate::i18n::t("默认"),true,crate::i18n::t("先选择歌声"));return;};
     let bank=voice.database_id.to_string();let revision=voice.revision.to_string();
-    let Some(inventory)=app.voice_inventory() else {super::widgets::field(ui,crate::i18n::t("默认"),true,crate::i18n::t("歌声正在加载，请稍候"));return;};
+    let Some(inventory)=app.voice_inventory() else {crate::ui::panels::controls::disabled_field(ui,crate::i18n::t("默认"),true,crate::i18n::t("歌声正在加载，请稍候"));return;};
     let names=inventory.configuration.as_ref().map(|c|c.vocal_mode_names().to_vec()).unwrap_or_default();
     let Ok((reference,name,current))=app.editor.voice_preset(&revision) else {return;};
     let mut state=std::mem::take(&mut app.preset_library);
@@ -106,7 +106,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
     })();
     if let Err(error)=result {
         if state.library.as_ref().is_some_and(Result::is_err) {
-            super::widgets::field(ui,crate::i18n::t("默认"),true,&error);
+            crate::ui::panels::controls::disabled_field(ui,crate::i18n::t("默认"),true,&error);
             if !state.load_error_shown {app.error=Some(error);state.load_error_shown=true;}
         }else {app.error=Some(error);}
     }

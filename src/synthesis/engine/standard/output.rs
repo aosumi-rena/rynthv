@@ -37,7 +37,7 @@ pub(super) fn clip(output:NativeAudio,input:&OwnerInput,cancel:&AtomicBool,audio
 
 pub(super) fn phone_track(phones:Vec<super::NativePhone>,errors:std::collections::BTreeMap<u64,String>,input:&OwnerInput)->PhonemeTrack {
     let mut phones=phones.into_iter().filter(|phone|phone.note_id.is_none_or(|id|!errors.contains_key(&id))).map(|phone|RenderedPhone {
-        token:phone.symbol,start_seconds:phone.start,end_seconds:phone.end,predicted_start_seconds:phone.start,predicted_end_seconds:phone.end,
+        token:phone.symbol,language:String::new(),start_seconds:phone.start,end_seconds:phone.end,predicted_start_seconds:phone.start,predicted_end_seconds:phone.end,
         source:phone.note_id.map(|note_id|PhoneSource {note_id,phone_index:phone.token_index}),boundary_strength:0.0,boundary_position:0.0,
         has_activity:false,strength:1.0,error:None,predicted_activity:None,predicted_position:0.0,
     }).collect::<Vec<_>>();
@@ -45,7 +45,7 @@ pub(super) fn phone_track(phones:Vec<super::NativePhone>,errors:std::collections
         if let Some(note)=input.notes.iter().find(|note|note.id==note_id) {
             let start=input.tempo.seconds_at(crate::synthesis::plan::GlobalBlick(note.onset.0.saturating_add(input.content_offset.0)));
             let end=input.tempo.seconds_at(crate::synthesis::plan::GlobalBlick(note.onset.0.saturating_add(input.content_offset.0).saturating_add(note.duration.max(1))));
-            phones.push(RenderedPhone {token:String::new(),start_seconds:start,end_seconds:end,predicted_start_seconds:start,predicted_end_seconds:end,
+            phones.push(RenderedPhone {token:String::new(),language:String::new(),start_seconds:start,end_seconds:end,predicted_start_seconds:start,predicted_end_seconds:end,
                 source:Some(PhoneSource {note_id,phone_index:0}),boundary_strength:0.0,boundary_position:0.0,has_activity:false,strength:0.0,
                 error:Some(Arc::from(message)),predicted_activity:None,predicted_position:0.0});
         }

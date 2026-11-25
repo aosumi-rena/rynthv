@@ -26,6 +26,11 @@ pub struct AnchorSelection {
     candidates: Vec<PitchPoint>,
     revision: u64,
 }
+impl AnchorSelection {
+    pub fn script_ids(&self)->&BTreeSet<String>{&self.ids}
+    pub fn set_script_ids(&mut self,ids:BTreeSet<String>){self.ids=ids;}
+    pub fn script_candidate_ids(&self)->impl Iterator<Item=&str>{self.candidates.iter().map(|p|p.id.as_str())}
+}
 
 pub fn anchor_has_selection(app: &App) -> bool {
     !app.piano_anchor.ids.is_empty()

@@ -1,4 +1,4 @@
-use super::{error_label, widgets};
+use super::{error_label};
 use crate::{
     app::App,
     model::{Language, database_language},
@@ -11,7 +11,7 @@ pub(super) fn show(app: &mut App, ui: &mut Ui) {
         .voice_inventory()
         .and_then(|voice| voice.configuration.as_ref())
     else {
-        widgets::field(ui, crate::i18n::t("未加载歌声"), true, crate::i18n::t("加载声库后可选择其支持的语言"));
+        crate::ui::panels::controls::disabled_field(ui, crate::i18n::t("未加载歌声"), true, crate::i18n::t("加载声库后可选择其支持的语言"));
         return;
     };
     let Some(native) = Language::parse(&config.default_language) else {

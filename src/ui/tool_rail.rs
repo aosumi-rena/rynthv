@@ -19,10 +19,10 @@ pub fn show(app: &mut App, ui: &mut Ui) {
     let mut content = child(ui, rect.shrink2(vec2(3.0, 5.0)), "rail-content");
     content.spacing_mut().item_spacing.y = 12.0;
     let instrument=app.editor.current_track().is_instrument();
-    let panels:&[_]=if instrument{&[Column::Voice,Column::Note,Column::Dictionary,Column::Effects,Column::Render]}else{&Column::PANELS};
+    let panels:&[_]=if instrument{&[Column::Voice,Column::Note,Column::Dictionary,Column::Effects,Column::Render,Column::Script]}else{&Column::PANELS};
     for &panel in panels {
         if content
-            .add(button(if instrument{super::instruments::icon(panel)}else{panel.icon()},if instrument{super::instruments::label(panel)}else{panel.label()}).selected(app.view.columns.contains(&panel)))
+            .add(button(if instrument{super::instruments::icon(panel)}else{panel.icon()},if instrument{super::instruments::label(panel)}else{panel.label()}).selected(app.view.columns.contains(&panel) && !app.view.auto_hidden.contains(&panel)))
             .clicked()
         {
             if instrument&&panel==Column::Dictionary{app.instrument_mixer=true;}else{app.view.toggle(panel);}
@@ -36,7 +36,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         app.voice_finetuning.open = !app.voice_finetuning.open;
     }
 
-    } else {content.add_enabled(false,button(Icon::Retake,crate::i18n::t("AI Rewrites")));}
+    }
     content.add_space(7.0);
     let (separator, _) = content.allocate_exact_size(vec2(WIDTH - 6.0, 1.0), Sense::hover());
     content.painter().hline(

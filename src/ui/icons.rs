@@ -5,6 +5,7 @@ use eframe::egui::*;
 pub enum Icon {
     ChevronDown,
     ChevronRight,
+    ChevronLeft,
     Plus,
     Close,
     Link,
@@ -71,6 +72,7 @@ impl Icon {
             Self::ChevronRight => {
                 Image::new(include_image!("../../assets/icons/chevron-right.svg"))
             }
+            Self::ChevronLeft => Image::new(include_image!("../../assets/icons/chevron-right.svg")).rotate(std::f32::consts::PI,vec2(0.5,0.5)),
             Self::Plus => Image::new(include_image!("../../assets/icons/plus.svg")),
             Self::Close => Image::new(include_image!("../../assets/icons/close.svg")),
             Self::Link => Image::new(include_image!("../../assets/icons/link.svg")),

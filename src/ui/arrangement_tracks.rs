@@ -89,6 +89,15 @@ pub fn show(app: &mut App, ui: &mut Ui, timeline_left: f32, scroll: f32) {
             group(app, ui, body, track, reference);
         }
     }
+    let empty = Rect::from_min_max(
+        pos2(rect.left(), (rect.top() + tracks.len() as f32 * 56.0 - scroll).max(rect.top())),
+        rect.max,
+    );
+    if empty.is_positive() {
+        let track = app.editor.current_track().clone();
+        ui.interact(empty, Id::new("empty-track-area"), Sense::click())
+            .context_menu(|ui| super::track_header::context_menu(app, ui, &track));
+    }
     if app.group_gesture.as_ref().is_some_and(|g| g.arrangement) {
         let target = ui.input(|i| i.pointer.interact_pos()).and_then(|p| {
             track_rects

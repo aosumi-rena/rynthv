@@ -1,4 +1,4 @@
-use crate::model::Extra;
+use crate::model::{Extra, Track};
 use serde_json::Value;
 
 pub(super) fn validate_project_mixer(value: Option<&Value>) -> Result<(), String> {
@@ -35,6 +35,13 @@ pub(super) fn validate_mixer(mixer: &Extra) -> Result<(), String> {
         }
     }
     Ok(())
+}
+pub(super) fn validate_track_mixer(track: &Track) -> Result<(), String> {
+    if track.is_instrument() {
+        validate_instrument_mixer(&track.mixer)
+    } else {
+        validate_mixer(&track.mixer)
+    }
 }
 pub(super) fn validate_instrument_mixer(mixer:&Extra)->Result<(),String> {
     let mut rest=mixer.clone();

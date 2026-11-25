@@ -100,6 +100,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         pos2(ruler.left(), header.bottom()),
         rect.max - vec2(0.0, 6.0),
     );
+    super::scripts::set_viewport(ui.ctx(),"arrangement",body);
     let pan = app.view_pan.drag(
         ui,
         super::view_pan::Target::Arrangement,

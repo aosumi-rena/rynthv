@@ -7,6 +7,7 @@ use std::{collections::BTreeMap, sync::Arc};
 #[derive(Clone, Debug)]
 pub struct RenderedPhone {
     pub token: String,
+    pub language: String,
     pub start_seconds: f64,
     pub end_seconds: f64,
     pub predicted_start_seconds: f64,
@@ -58,6 +59,7 @@ impl PhonemeTrack {
                     let source = phrase.phone_sources[phone.record_index][phone.phone_index];
                     let control = source.and_then(|s| phrase.phoneme_controls.get(&s));
                     RenderedPhone {
+                        language:phrase.records[phone.record_index].phones[phone.phone_index].language.clone(),
                         token: source.and_then(|s|phrase.phone_labels.get(&s)).cloned().unwrap_or_else(||
                             phrase.records[phone.record_index].phones[phone.phone_index].token.clone()),
                         start_seconds,
@@ -89,7 +91,7 @@ impl PhonemeTrack {
     }
     pub fn memory_bytes(&self) -> usize {
         std::mem::size_of_val(self.0.as_ref())
-            + self.0.iter().map(|p| p.token.capacity()).sum::<usize>()
+            + self.0.iter().map(|p| p.token.capacity()+p.language.capacity()).sum::<usize>()
             + self.1.values().map(|indices| std::mem::size_of::<(u64, Vec<usize>)>()
                 + indices.capacity() * std::mem::size_of::<usize>()).sum::<usize>()
     }

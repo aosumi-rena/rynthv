@@ -3,7 +3,6 @@ use crate::ui::theme::*;
 use eframe::egui::*;
 
 pub(super) fn show(ui: &mut Ui) {
-    ui.weak(crate::i18n::t("当前快捷键；自定义绑定尚未接入。"));
     for (title, entries) in [
         (
             crate::i18n::t("工程"),

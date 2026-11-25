@@ -1,5 +1,5 @@
 mod diagram;
-pub(super) mod slider;
+use crate::ui::slider::{self, Slider};
 
 use crate::{app::App,synthesis::voice::VoiceFamily};
 use eframe::egui::*;
@@ -40,12 +40,12 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
     if diagram::show(ui,&visual,&plan,&speakers,accent) {
         loop {let seed=uuid::Uuid::new_v4().as_u128() as u32;if seed!=settings.seed {next.seed=seed;break}}
     }
-    if let Some(count)=slider::show(ui,id.with("count"),crate::i18n::t("成员数量"),settings.count as f64,1.0,16.0,1.0) {
-        next.count=count as usize;
+    if let Some(change)=Slider::new(id.with("count"),crate::i18n::t("成员数量"),settings.count as f64,1.0,16.0,1.0).step(1.).show(ui).change {
+        next.count=change.value as usize;
     }
     ui.add_space(-1.0);
-    if let Some(spacing)=slider::show(ui,id.with("spacing"),crate::i18n::t("间距"),f64::from(settings.spacing),0.5,2.0,0.05) {
-        next.spacing=spacing as f32;
+    if let Some(change)=Slider::new(id.with("spacing"),crate::i18n::t("间距"),f64::from(settings.spacing),0.5,2.0,f64::from(crate::synthesis::unison::UnisonSettings::default().spacing)).step(0.05).show(ui).change {
+        next.spacing=change.value as f32;
     }
     if next!=settings && let Err(error)=app.editor.set_unison(reference,next) {app.error=Some(error)}
 }

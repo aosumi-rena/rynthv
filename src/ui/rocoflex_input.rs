@@ -24,7 +24,7 @@ impl Input {
         let at = ctx.input(|input| input.pointer.hover_pos());
         if !self.focused && !self.hovered && self.buttons == 0 && !at.is_some_and(within) { return; }
         let (pointer, focused, modifiers, events, files) = ctx.input(|input| (input.pointer.clone(), input.focused,
-            input.modifiers, input.raw.events.clone(), input.raw.dropped_files.clone()));
+            input.modifiers, input.events.clone(), input.raw.dropped_files.clone()));
         {
             let local = |p: Pos2| { let d = (p - rect.min) / ratio; [d.x, d.y] };
             let hovered = pointer.hover_pos().is_some_and(within);

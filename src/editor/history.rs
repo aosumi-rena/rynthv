@@ -52,6 +52,12 @@ impl History {
         *project = entry.project;
         Some(entry.selection)
     }
+    pub fn coalesce_previous(&mut self) {
+        if self.undo.len()<2{return;}
+        let last=self.undo.last().unwrap();
+        if last.state==self.saved{return;}
+        self.undo.pop();
+    }
     pub fn dirty(&self, project: &Project) -> bool {
         self.imported_unsaved || self.state != self.saved || self.pending.as_ref().is_some_and(|e| e.project != *project)
     }

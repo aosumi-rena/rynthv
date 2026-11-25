@@ -71,6 +71,7 @@ pub fn parameter_deactivate(app: &mut App) {
 
 pub fn parameter_clear(app: &mut App) {
     app.parameter_lane.selected.clear();
+    app.parameter_lane.others.clear();
     app.parameter_lane.anchor = None;
 }
 

@@ -1,160 +1,157 @@
+mod header;
+mod plan;
+mod strip;
+mod strip_header;
 use crate::{
     app::App,
-    ui::{
-        icons::{Icon, IconButton},
-        theme::*,
-    },
+    synthesis::instruments::microphones::Configuration,
+    ui::{theme::*, track_color::TrackColors},
 };
 use eframe::egui::*;
+
 pub fn show(app: &mut App, ui: &mut Ui) {
     if ui.button(crate::i18n::t("Mic Mixer")).clicked() {
         app.instrument_mixer = true;
     }
 }
 pub fn dialog(app: &mut App, ctx: &Context) {
-    if !app.instrument_mixer {
+    if !app.instrument_mixer || app.settings {
         return;
     }
     let Some(entry) = super::current(app).cloned() else {
         app.instrument_mixer = false;
         return;
     };
-    let mut config = match crate::synthesis::instruments::microphones::Configuration::read(
-        app.editor.current_track().mixer.get("micParams"),&entry.microphones,entry.room.as_deref()) {
-        Ok(v)=>v,Err(e)=>{app.error=Some(e);app.instrument_mixer=false;return;}
+    let mut config = match Configuration::read(
+        app.editor.current_track().mixer.get("micParams"),
+        &entry.microphones,
+        entry.room.as_deref(),
+    ) {
+        Ok(v) => v,
+        Err(e) => {
+            app.error = Some(e);
+            app.instrument_mixer = false;
+            return;
+        }
+    };
+    let pack = app
+        .synthesis
+        .library
+        .settings
+        .instruments
+        .room_pack()
+        .map(|p| crate::synthesis::instruments::rooms::load(&p))
+        .transpose();
+    let pack = match pack {
+        Ok(v) => v,
+        Err(e) => {
+            app.error = Some(e);
+            None
+        }
     };
     let before = config.clone();
-    let mut close = false;
-    let mut preset_applied=false;
-    let modal = Modal::new(Id::new("instrument-mic-mixer"))
-        .frame(Frame::new().fill(PANEL).corner_radius(6).inner_margin(16))
+    let mut actions = header::Actions {
+        close: false,
+        applied: false,
+        navigate: None,
+    };
+    let viewport = ctx.content_rect().shrink(16.);
+    let fit = (viewport.width() / 1059.)
+        .min(viewport.height() / 502.)
+        .clamp(0.1, 1.);
+    let scale = 0.75 * fit;
+    let size = vec2(1059., 502.) * fit;
+    let color = TrackColors::new(app.editor.current_track()).accent;
+    let editing = Id::new("microphone-mixer-edit");
+    let owned = ctx.data(|d| d.get_temp::<u64>(editing)) == Some(app.editor.track);
+    Window::new(crate::i18n::t("Mic Mixer"))
+        .id(Id::new("instrument-mic-mixer"))
+        .title_bar(false)
+        .resizable(false)
+        .collapsible(false)
+        .constrain_to(viewport)
+        .default_pos(viewport.center() - size * 0.5)
+        .fixed_size(size)
+        .frame(Frame::new().fill(PANEL).corner_radius(10).inner_margin(0))
         .show(ctx, |ui| {
-            ui.set_width((ctx.content_rect().width() - 80.0).clamp(300.0, 1050.0));
-            ui.horizontal(|ui| {
-                ui.label(&app.editor.current_track().name);
-                ui.add_space(20.0);
-                ui.allocate_ui_with_layout(vec2(220.,28.),Layout::top_down(Align::Min),|ui|{
-                    preset_applied=crate::ui::presets::show(app,ui,crate::ui::presets::Kind::Microphones);
-                });
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    close = ui
-                        .add(IconButton::new(Icon::Close, crate::i18n::t("Close")))
-                        .clicked();
-                });
-            });
-            if preset_applied{return;}
-            ui.separator();
-            ScrollArea::horizontal().show(ui, |ui| {
-                ui.horizontal_top(|ui| {
-                    let (plan, _) = ui.allocate_exact_size(vec2(270.0, 400.0), Sense::hover());
-                    let p = ui.painter();
-                    p.text(
-                        plan.min + vec2(8.0, 14.0),
-                        Align2::LEFT_TOP,
-                        super::native_label(&format!(
-                            "Mic_{}",
-                            entry.room.as_deref().unwrap_or("Studio A")
-                        )),
-                        FontId::proportional(13.0),
-                        TEXT,
-                    );
-                    let player = plan.min + vec2(135.0, 85.0);
-                    p.circle_stroke(player, 26.0, Stroke::new(2.0, crate::ui::theme::accent(ui)));
-                    Icon::Instrument.paint(
+            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            ui.spacing_mut().item_spacing = vec2(3., 3.) * fit;
+            let header_rect = Rect::from_min_size(rect.min, vec2(size.x, 44. * fit));
+            actions = header::show(app, ui, header_rect, color, fit);
+            ui.painter()
+                .hline(rect.x_range(), header_rect.bottom(), Stroke::new(1., EDGE));
+            let body = Rect::from_min_max(
+                rect.min + vec2(9., 54.) * fit,
+                rect.max - vec2(9., 10.) * fit,
+            );
+            let mut content = crate::ui::child(ui, body, "microphone-body");
+            content.add_enabled_ui(
+                !actions.applied && (!app.editor.is_editing() || owned),
+                |ui| {
+                    let plan_rect = Rect::from_min_size(body.min, vec2(381. * fit, body.height()));
+                    plan::show(
                         ui,
-                        Rect::from_center_size(player, vec2(24.0, 24.0)),
-                        crate::ui::theme::accent(ui),
+                        &entry,
+                        &mut config,
+                        pack.as_deref(),
+                        plan_rect,
+                        color,
+                        scale,
                     );
-                    let active=config.mix(&entry.microphones);
-                    for (x, y, name) in [
-                        (135.0, 145.0, "Close"),
-                        (135.0, 270.0, "Decca-C"),
-                        (85.0, 300.0, "Decca-L"),
-                        (185.0, 300.0, "Decca-R"),
-                        (40.0, 345.0, "Wide-L"),
-                        (230.0, 345.0, "Wide-R"),
-                        (120.0, 355.0, "Ambi-L"),
-                        (150.0, 355.0, "Ambi-R"),
-                    ] {
-                        Icon::Microphone.paint(
-                            ui,
-                            Rect::from_center_size(plan.min + vec2(x, y), vec2(16.0, 26.0)),
-                            if active.iter().any(|v|v.name==name) { crate::ui::theme::accent(ui) } else { MUTED.gamma_multiply(0.4) },
-                        );
-                    }
+                    let mut x = plan_rect.right() + 3. * fit;
                     for group in ["Close", "Decca", "Wide", "Ambi"] {
-                        let mut channels: Vec<_> = entry
-                            .microphones
-                            .iter()
-                            .filter(|n| n.starts_with(group))
-                            .collect();
-                        channels.sort_by_key(|name|match crate::synthesis::instruments::microphones::split(name).1 {"L"=>0,"C"=>1,"R"=>2,_=>0});
-                        if channels.is_empty() {
-                            continue;
+                        let width = strip::width(group, &entry.microphones) * fit;
+                        if width > 0. {
+                            let strip_rect = Rect::from_min_size(
+                                pos2(x, body.top()),
+                                vec2(width, body.height()),
+                            );
+                            strip::show(
+                                ui,
+                                strip_rect,
+                                group,
+                                &entry.microphones,
+                                &mut config,
+                                scale,
+                                color,
+                            );
+                            x += width + 3. * fit;
                         }
-                        let settings=config.group_mut(group).expect("catalogued microphone group");
-                        Frame::new()
-                            .fill(BORDER)
-                            .inner_margin(10)
-                            .corner_radius(3)
-                            .show(ui, |ui| {
-                                let width = channels.len() as f32 * 68.0;
-                                ui.set_width(width);
-                                ui.horizontal(|ui| {
-                                    ui.label(super::native_label(&format!("Mic_{group}")));
-                                    if channels.len()>1 && ui.add(IconButton::new(Icon::Link,crate::i18n::t("Link")).selected(settings.link)).clicked(){settings.link=!settings.link;}
-                                    if ui.add(Button::selectable(settings.mute,"M")).clicked(){settings.mute=!settings.mute;}
-                                    if ui.add(Button::selectable(settings.solo,"S")).clicked(){settings.solo=!settings.solo;}
-                                });
-                                ui.add_space(14.0);
-                                ui.horizontal(|ui| {
-                                    for channel in channels {
-                                        ui.vertical(|ui| {
-                                            ui.set_width(58.0);
-                                            let side = channel
-                                                .split_once('-')
-                                                .map(|(_, v)| match v {
-                                                    "L" => "Mic_Left",
-                                                    "R" => "Mic_Right",
-                                                    _ => "Mic_Center",
-                                                })
-                                                .unwrap_or("Mic_Front");
-                                            ui.label(super::native_label(side));
-                                            let key=crate::synthesis::instruments::microphones::split(channel).1;
-                                            let mic=settings.mics.iter().find(|v|v.key==key).expect("catalogued microphone");
-                                            let previous=mic.value.gain;
-                                            let mut gain=if mic.value.gain>0.{20.*mic.value.gain.log10()}else{-60.};
-                                            let slider=ui.add_sized(vec2(40.,255.),Slider::new(&mut gain,-60.0..=6.0).vertical().show_value(false));
-                                            let edit=ui.add(DragValue::new(&mut gain).range(-60.0..=6.0).speed(0.1).fixed_decimals(1));
-                                            if slider.double_clicked(){gain=0.;}
-                                            if slider.changed()||slider.double_clicked()||edit.changed(){
-                                                let next=10f32.powf(gain/20.);
-                                                for other in &mut settings.mics {
-                                                    if other.key==key {other.value.gain=next;}
-                                                    else if settings.link {other.value.gain=(other.value.gain*next/previous.max(0.001)).clamp(0.001,10f32.powf(0.3));}
-                                                }
-                                            }
-                                        });
-                                    }
-                                });
-                            });
                     }
-                });
-            });
+                },
+            );
         });
-    if config != before {
-        app.editor.begin("Mic Mixer");
-        let id = app.editor.track;
-        app.editor
+    if config != before && !actions.applied && (!app.editor.is_editing() || owned) {
+        if !owned {
+            app.commit_lyric();
+            app.editor.begin(crate::i18n::t("Mic Mixer"));
+            ctx.data_mut(|d| d.insert_temp(editing, app.editor.track));
+        }
+        let track = app
+            .editor
             .project
             .tracks
             .iter_mut()
-            .find(|t| t.id == id)
-            .unwrap()
-            .mixer.insert("micParams".into(),serde_json::to_value(config).expect("finite microphone controls"));
-        app.editor.finish();
+            .find(|t| t.id == app.editor.track)
+            .unwrap();
+        track.mixer.insert(
+            "micParams".into(),
+            serde_json::to_value(config).expect("finite microphone settings"),
+        );
     }
-    if close || (modal.is_top_modal && !modal.any_popup_open && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))) {
+    if ctx.data(|d| d.get_temp::<u64>(editing)).is_some() && !ctx.input(|i| i.pointer.any_down()) {
+        app.editor.finish();
+        ctx.data_mut(|d| d.remove::<u64>(editing));
+    }
+    if let Some(track) = actions.navigate {
+        app.commit_lyric();
+        app.editor.select_track(track);
+    }
+    if actions.close
+        || (!Popup::is_any_open(ctx)
+            && !app.control_presets.is_naming()
+            && ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape)))
+    {
         app.instrument_mixer = false;
     }
 }

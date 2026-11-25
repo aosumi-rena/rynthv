@@ -1,3 +1,4 @@
+use crate::synthesis::voice::VoiceRevision;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -13,5 +14,5 @@ pub struct InstrumentTrack {
 #[serde(rename_all = "camelCase")]
 pub struct InstrumentSelection {
     pub database_id: String,
-    pub revision: String,
+    pub revision: VoiceRevision,
 }

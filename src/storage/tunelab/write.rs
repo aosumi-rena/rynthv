@@ -128,8 +128,8 @@ pub(super) fn project(p: &Project) -> Result<Value> {
                     let rev = inst
                         .selection
                         .as_ref()
-                        .map(|s| s.revision.as_str())
-                        .unwrap_or(text(&r.database, "version", ""));
+                        .map(|s| s.revision.to_string())
+                        .unwrap_or_else(|| text(&r.database, "version", "").to_owned());
                     part["voice"] = json!({"type":"Cordis","id":id,"kind":"instrument","name":text(&r.database,"name","")});
                     part["properties"]["instrument_version"] = json!(rev);
                 } else {

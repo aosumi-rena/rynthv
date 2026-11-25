@@ -12,6 +12,8 @@ pub struct InstrumentSettings {
     pub overrides: Vec<InstrumentKeyOverride>,
     pub waveform_override_enabled: bool,
     pub waveform_override: Option<WaveformSource>,
+    pub trill_vibrato: bool,
+    pub room_pack: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -27,6 +29,9 @@ pub struct InstrumentKeyOverride {
     pub value: u64,
 }
 impl InstrumentSettings {
+    pub fn room_pack(&self) -> Option<PathBuf> {
+        self.room_pack.clone().or_else(super::rooms::installed_path)
+    }
     pub fn key(&self, selection: &InstrumentSelection) -> u64 {
         self.overrides
             .iter()

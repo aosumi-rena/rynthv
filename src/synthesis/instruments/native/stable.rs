@@ -45,6 +45,7 @@ pub fn frames(
             .saturating_mul(n.p(0))
             .saturating_sub(args[0].shape[2] - 1),
         0xb00 => first.saturating_sub(1).saturating_mul(n.p(1)),
+        0xb02 => both.saturating_sub(1).saturating_mul(n.p(1)),
         0xa01 if n.p(0) != 0 => both.saturating_sub(n.p(0) / 2),
         0xa01 => 0,
         0x701 if n.p(0) == 1 => 0,

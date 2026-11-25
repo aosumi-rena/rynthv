@@ -13,7 +13,7 @@ pub(super) fn players(app:&mut App,ui:&mut Ui) {
     let frame=ui.ctx().cumulative_frame_nr();
     let id=ui.make_persistent_id(("instrument-players",reference_id));
     let mut drag=ui.ctx().data(|d|d.get_temp::<Drag>(id)).filter(|d|d.frame+1>=frame);
-    let (rect,response)=ui.allocate_exact_size(vec2(ui.available_width(),80.),Sense::drag());
+    let (rect,response)=ui.allocate_exact_size(vec2(ui.available_width(),80.),Sense::click_and_drag());
     if response.drag_started()&&!app.editor.is_editing()
         &&let Some(origin)=ui.input(|i|i.pointer.press_origin()) {
         drag=Some(Drag {value:original,origin,initial:original,frame});
@@ -24,7 +24,10 @@ pub(super) fn players(app:&mut App,ui:&mut Ui) {
             d.value=(d.initial as i32+((d.origin.y-position.y)/10.).round() as i32).clamp(1,16) as usize;
         }
     }
-    let value=drag.as_ref().map_or(original,|d|d.value);
+    if response.clicked()||response.drag_started() {response.request_focus();}
+    let reset=ui.is_enabled()&&(response.double_clicked()||response.has_focus()&&ui.input(|i|i.key_pressed(Key::Home)));
+    let delta=if ui.is_enabled()&&response.has_focus(){ui.input(|i|i32::from(i.key_pressed(Key::ArrowUp))-i32::from(i.key_pressed(Key::ArrowDown)))}else{0};
+    let value=if reset{1}else if delta!=0{(original as i32+delta).clamp(1,16) as usize}else{drag.as_ref().map_or(original,|d|d.value)};
     ui.painter().rect_filled(rect,4,if response.hovered(){BUTTON_HOVER}else{BORDER});
     ui.painter().text(rect.left_center()+vec2(24.,-10.),Align2::LEFT_CENTER,value.to_string(),FontId::proportional(28.),color);
     ui.painter().text(rect.left_center()+vec2(24.,18.),Align2::LEFT_CENTER,
@@ -38,9 +41,8 @@ pub(super) fn players(app:&mut App,ui:&mut Ui) {
             (seat/columns) as f32-(rows-1) as f32/2.)*vec2(spacing,16.);
         ui.painter().circle_filled(point,4.5,if (first..first+value).contains(&seat){color}else{BUTTON});
     }
-    response.clone().on_hover_text(crate::i18n::t("Drag up or down to set the number of players"));
     response.widget_info(||WidgetInfo::labeled(WidgetType::DragValue,ui.is_enabled(),crate::i18n::t("Ensemble")));
-    if response.drag_stopped() {
+    if response.drag_stopped()||reset||delta!=0 {
         if value!=original&&!app.editor.is_editing() {
             app.editor.begin(crate::i18n::t("Ensemble"));
             if let Some(track)=app.editor.project.tracks.iter_mut().find(|t|t.id==app.editor.track)
@@ -63,8 +65,12 @@ pub(super) fn spread(app:&mut App,ui:&mut Ui) {
     ui.add_enabled_ui(enabled,|ui| {
         for (i,label,key,max) in [(0,"Timing","cTimeDispersion",2.),(1,"Pitch","cPitchDispersion",1.)] {
             let id=ui.make_persistent_id(("instrument-spread",app.editor.reference,app.editor.revision,key));
-            if let Some(value)=crate::ui::voice_library::parameter_slider(ui,id,crate::i18n::t(label),values[i],0.,max,0.05) {
-                super::controls::edit_notes(app,crate::i18n::t("Ensemble Spread"),|n|{n.attributes.insert(key.into(),json!(value));});
+            let appearance=crate::ui::slider::Appearance::Instrument(TrackColors::new(app.editor.current_track()).accent);
+            if let Some(change)=crate::ui::slider::Slider::new(id,crate::i18n::t(label),values[i],0.,max,[1.,0.][i])
+                .step(0.05).appearance(appearance).show(ui).change {
+                super::controls::edit_notes(app,crate::i18n::t("Ensemble Spread"),|n|{
+                    if change.reset {n.attributes.remove(key);}else{n.attributes.insert(key.into(),json!(change.value));}
+                });
             }
         }
     });

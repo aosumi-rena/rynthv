@@ -10,6 +10,7 @@ use std::collections::BTreeSet;
 pub struct ParameterSelection {
     pub(super) owner: Option<Owner>,
     pub(super) selected: BTreeSet<i64>,
+    pub(super) others:std::collections::BTreeMap<String,BTreeSet<i64>>,
     pub(super) anchor: Option<i64>,
     pub(super) focused: bool,
     pub(super) drag: Option<super::point_drag::PointDrag>,
@@ -46,7 +47,7 @@ pub(super) fn reconcile(app: &mut App) {
                 .editor
                 .active_ref()
                 .is_some_and(|reference| reference.group_id == owner.group)
-            && active_lane(app).is_some()
+            && (owner.lane==0||active_lane(app).is_some())
     });
     if !valid {
         finish_drag(app, false);
@@ -101,6 +102,7 @@ pub(super) fn activate(app: &mut App, lane: &Lane) {
 pub(super) fn select(app: &mut App, time: Option<i64>, extend: bool) {
     if !extend {
         app.parameter_lane.selected.clear();
+        app.parameter_lane.others.clear();
     }
     if let Some(time) = time {
         if extend && app.parameter_lane.selected.contains(&time) {
@@ -112,11 +114,12 @@ pub(super) fn select(app: &mut App, time: Option<i64>, extend: bool) {
     app.parameter_lane.anchor = time;
 }
 pub(super) fn contains(app: &App, lane: u64, time: i64) -> bool {
-    app.parameter_lane
-        .owner
-        .as_ref()
-        .is_some_and(|owner| owner.lane == lane)
-        && app.parameter_lane.selected.contains(&time)
+    let Some(owner)=&app.parameter_lane.owner else{return false};
+    if owner.track!=app.editor.track||Some(owner.reference)!=app.editor.reference{return false;}
+    let Some(lane)=app.view.lanes.iter().chain(std::iter::once(&app.view.instrument_lanes.curve)).find(|l|l.id==lane)else{return false};
+    if lane.foreground==owner.target{app.parameter_lane.selected.contains(&time)}else{
+        app.parameter_lane.others.get(&super::script_selection::key(&lane.foreground)).is_some_and(|times|times.contains(&time))
+    }
 }
 pub(super) fn finish_drag(app: &mut App, commit: bool) {
     if app.parameter_lane.drag.take().is_some()

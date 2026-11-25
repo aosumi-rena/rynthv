@@ -14,6 +14,8 @@ fn instruments(args: impl Iterator<Item=std::ffi::OsString>) -> Result<(),String
         return Ok(());
     };
     let revision = args.next().ok_or("Expected a revision number")?;
+    let revision = revision.to_str().ok_or("Invalid instrument revision")?
+        .parse::<rynthv::synthesis::voice::VoiceRevision>()?;
     let score = args.next().map(PathBuf::from).ok_or("Expected an instrument note JSON file")?;
     let wav = match args.next() {
         None => None,
@@ -26,7 +28,7 @@ fn instruments(args: impl Iterator<Item=std::ffi::OsString>) -> Result<(),String
         return Err("Unexpected argument after the output WAV path".into());
     }
     let entry = catalog.entries.iter().find(|e|
-        e.selection.database_id == id.to_string_lossy() && e.selection.revision == revision.to_string_lossy()
+        e.selection.database_id == id.to_string_lossy() && e.selection.revision == revision
     ).ok_or_else(||format!("Instrument not discovered: {:?}",catalog.warnings))?;
     let notes = serde_json::from_slice(&std::fs::read(score).map_err(|e|e.to_string())?)
         .map_err(|e|e.to_string())?;

@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 pub(super) struct State {
     pub query: String,
     pub sort: Sort,
-    pub versions: BTreeMap<String, String>,
+    pub versions: BTreeMap<String, crate::synthesis::voice::VoiceRevision>,
     pub expanded: Option<String>,
     pub available_only: bool,
 }
@@ -125,7 +125,7 @@ fn body(app: &mut App, ui: &mut Ui, state: &mut State) {
                 state.versions.get(&e.selection.database_id) == Some(&e.selection.revision),
                 super::current(app).is_some_and(|c| c.selection == e.selection),
                 e.auxiliary.is_some(),
-                e.selection.revision.clone(),
+                e.selection.revision,
             )
         };
         if banks

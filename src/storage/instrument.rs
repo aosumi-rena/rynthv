@@ -1,7 +1,7 @@
 use crate::model::*;
 use serde_json::{Value, json};
 
-pub(super) const VERSION: i32 = 201;
+pub(super) const VERSION: i32 = 204;
 
 fn takes(value: &mut Value) {
     if let Some(rows) = value
@@ -19,7 +19,7 @@ fn takes(value: &mut Value) {
 
 pub(super) fn decode(bytes: &[u8]) -> Result<Project, String> {
     let mut value: Value = serde_json::from_slice(bytes).map_err(|e| e.to_string())?;
-    if value.get("version").and_then(Value::as_i64) != Some(i64::from(VERSION)) {
+    if !value.get("version").and_then(Value::as_i64).is_some_and(|version| (201..=i64::from(VERSION)).contains(&version)) {
         return Err("Unsupported Instrument X project version".into());
     }
     fn group(value: &mut Value) {

@@ -49,7 +49,7 @@ fn weight(ui:&mut Ui,salt:impl std::hash::Hash + std::fmt::Debug,label:&str,orig
         if ui.checkbox(&mut enabled,label).changed() {result=Some(enabled.then_some(original.unwrap_or(default)));}
         if enabled {
             let mut current=ui.ctx().data(|d|d.get_temp::<f32>(id)).unwrap_or(original.unwrap_or(default));
-            let response=ui.add(Slider::new(&mut current,0.0..=1.0));
+            let response=crate::ui::slider::value(ui,"local-weight",&mut current,0.,1.,default,0.01,"");
             if response.dragged() {ui.ctx().data_mut(|d|d.insert_temp(id,current));}
             if response.drag_stopped() || response.changed() && !response.dragged() {
                 ui.ctx().data_mut(|d|d.remove::<f32>(id));result=Some(Some(current));

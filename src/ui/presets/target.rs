@@ -16,7 +16,7 @@ impl Target {
             Kind::Instrument=>{
                 let entry=app.synthesis.instruments.for_track(track).ok_or("Instrument is not available")?;
                 result.scope=format!("instrument:{}",entry.selection.database_id);
-                result.signature=entry.selection.revision.clone();
+                result.signature=entry.selection.revision.to_string();
                 result.default=json!({});
                 result.value=reference.extra.get("voice").cloned().unwrap_or_else(||json!({}));
                 let values=result.value.as_object_mut().ok_or("Instrument parameters must be an object")?;

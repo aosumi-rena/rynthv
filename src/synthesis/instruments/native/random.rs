@@ -97,16 +97,3 @@ pub fn normals(
     }
     Ok(Tensor::new(vec![b, t * reps, channels], data))
 }
-pub fn ambient(seed: u32, count: usize) -> Vec<f32> {
-    let mut rng = Normal::new(seed as u64, 0xda3e39cb94b95bdb, true);
-    let mut w = 0f32;
-    (0..count)
-        .map(|_| {
-            w += rng.next();
-            if w.abs() > 5. {
-                w = 0.;
-            }
-            w + 40.
-        })
-        .collect()
-}

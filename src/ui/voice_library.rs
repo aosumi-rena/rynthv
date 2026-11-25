@@ -12,7 +12,6 @@ mod duration_key;
 mod selector;
 pub(crate) use selector::{donor_picker, vocoder_picker};
 mod family_filter;
-mod widgets;
 mod vocal_modes;
 mod style_presets;
 pub use style_presets::PresetLibrary;
@@ -71,4 +70,3 @@ fn language_name(language: &str) -> &str {
         other => other,
     }
 }
-pub(crate) use unison::slider::show as parameter_slider;

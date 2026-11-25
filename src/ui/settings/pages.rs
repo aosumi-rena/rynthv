@@ -28,13 +28,7 @@ pub(super) fn general(app: &mut App, ui: &mut Ui) {
             .ctx()
             .data_mut(|data| data.get_temp::<f32>(id))
             .unwrap_or(app.preferences.zoom * 100.0);
-        ui.label(format!("{percent:.0}%"));
-        ui.spacing_mut().slider_width = ui.available_width().max(40.0);
-        let response = ui.add(
-            Slider::new(&mut percent, 25.0..=200.0)
-                .step_by(5.0)
-                .show_value(false),
-        );
+        let response = crate::ui::slider::value(ui,"zoom",&mut percent,25.,200.,super::Preferences::default().zoom*100.,5.,"%");
         if response.drag_stopped() || response.changed() && !response.dragged() {
             app.preferences.zoom = percent / 100.0;
         }
@@ -67,8 +61,7 @@ pub(super) fn general(app: &mut App, ui: &mut Ui) {
     toggle(ui, crate::i18n::t("显示控件操作提示"), &mut app.preferences.control_hints);
     section(ui, crate::i18n::t("工作区"));
     row(ui, crate::i18n::t("工具列宽度"), |ui| {
-        ui.spacing_mut().slider_width = (ui.available_width() - 55.0).max(40.0);
-        ui.add(Slider::new(&mut app.view.panel_width, 140.0..=420.0).suffix(" px"));
+        crate::ui::slider::value(ui,"panel-width",&mut app.view.panel_width,140.,420.,crate::ui::state::ViewState::default().panel_width,1.," px");
     });
     row(ui, crate::i18n::t("布局"), |ui| {
         if ui.button(crate::i18n::t("重置工作区布局")).clicked() {
@@ -115,8 +108,7 @@ pub(super) fn audio(app: &mut App, ui: &mut Ui) {
 pub(super) fn editing(app: &mut App, ui: &mut Ui) {
     section(ui, crate::i18n::t("钢琴卷帘"));
     row(ui, crate::i18n::t("半音行高"), |ui| {
-        ui.spacing_mut().slider_width = (ui.available_width() - 55.0).max(40.0);
-        ui.add(Slider::new(&mut app.view.row_height, 12.0..=36.0).suffix(" px"));
+        crate::ui::slider::value(ui,"row-height",&mut app.view.row_height,12.,36.,crate::ui::state::ViewState::default().row_height,1.," px");
     });
     toggle(ui, crate::i18n::t("音符对齐网格"), &mut app.view.snap);
     row(ui, crate::i18n::t("网格精度"), |ui| {
@@ -138,10 +130,10 @@ pub(super) fn editing(app: &mut App, ui: &mut Ui) {
     section(ui, crate::i18n::t("装饰"));
     toggle(ui, crate::i18n::t("显示角色图像"), &mut app.preferences.display_background_image);
     row(ui, crate::i18n::t("图像透明度"), |ui| {
-        ui.spacing_mut().slider_width = (ui.available_width()-50.0).max(40.0);
-        ui.label(format!("{:.0}%", app.preferences.background_transparency*100.0));
-        ui.add(Slider::new(&mut app.preferences.background_transparency,0.0..=1.0)
-            .step_by(0.1).show_value(false));
+        let mut percent=app.preferences.background_transparency*100.;
+        if crate::ui::slider::value(ui,"artwork-opacity",&mut percent,0.,100.,super::Preferences::default().background_transparency*100.,10.,"%").changed() {
+            app.preferences.background_transparency=percent/100.;
+        }
     });
 }
 
@@ -149,7 +141,6 @@ pub(super) fn recording(ui: &mut Ui) {
     fixed(ui, crate::i18n::t("录音输入设备"), crate::i18n::t("未启用"), crate::i18n::t("录音功能尚未接入"));
     fixed(ui, crate::i18n::t("录音声道"), crate::i18n::t("未启用"), crate::i18n::t("录音功能尚未接入"));
     section(ui, crate::i18n::t("录制"));
-    ui.weak(crate::i18n::t("录制功能尚未接入，相关设置暂不可用。"));
 }
 
 pub(super) fn rendering(app: &mut App, ui: &mut Ui) {

@@ -228,6 +228,9 @@ impl Runtime {
             .clone()
             .or_else(|| self.playback.snapshot().error)
     }
+    pub fn project_error(&self) -> Option<&str> {
+        self.project_error.as_deref()
+    }
     pub fn audition_key(&self, note: Option<u8>) {
         self.playback.audition_key(note);
     }

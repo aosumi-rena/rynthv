@@ -158,6 +158,10 @@ impl Editor {
             self.reconcile();
         }
     }
+    pub fn finish_script(&mut self,coalesce:bool) {
+        let revision=self.revision;self.finish();
+        if coalesce&&self.revision!=revision{self.history.coalesce_previous();}
+    }
     pub fn cancel(&mut self) {
         self.performance_edit = None;
         if let Some(selection) = self.history.cancel(&mut self.project) {

@@ -3,15 +3,16 @@ use eframe::egui::*;
 
 pub fn status(app: &App) -> &'static str {
     if !app.editor.current_track().is_instrument() {
+        if app.synthesis.instruments.busy() {return "正在合成歌声";}
         return app.synthesis.status();
     }
     let library = &app.synthesis.instruments;
     let track = app.editor.current_track();
     if library.is_scanning() {
         "正在加载…"
-    } else if track
-        .references()
-        .any(|r| library.errors.contains_key(&r.id))
+    } else if app.synthesis.project_error().is_some()
+        || app.synthesis.playback_error().is_some()
+        || track.references().any(|r| library.errors.contains_key(&r.id))
     {
         "Instrument rendering failed"
     } else if track.references().any(|r| library.reference_busy(r.id)) {
@@ -30,6 +31,10 @@ pub fn render_status(app: &mut App, ui: &mut Ui) {
         ui.label(RichText::new(crate::i18n::t("歌声合成")).strong());
         ui.separator();
         ui.label(crate::i18n::message(status(app)));
+        if let Some(error) = app.synthesis.project_error() {
+            ui.colored_label(Color32::LIGHT_RED, crate::i18n::message(error));
+        }
+        output_error(app, ui);
         let mut failed = false;
         for reference in app.editor.current_track().references() {
             if let Some(error) = app.synthesis.instruments.errors.get(&reference.id) {
@@ -45,7 +50,7 @@ pub fn render_status(app: &mut App, ui: &mut Ui) {
     }
     ui.label(RichText::new(crate::i18n::t("歌声合成")).strong());
     ui.separator();
-    ui.label(crate::i18n::message(app.synthesis.status()));
+    ui.label(crate::i18n::message(status(app)));
     if let Some(progress) = &app.synthesis.progress {
         ui.horizontal(|ui| {
             ui.spinner();
@@ -77,12 +82,7 @@ pub fn render_status(app: &mut App, ui: &mut Ui) {
     {
         app.synthesis.retry();
     }
-    if let Some(error) = app.synthesis.playback_error() {
-        ui.colored_label(
-            Color32::from_rgb(218, 142, 126),
-            crate::lformat!("播放设备：{error}"),
-        );
-    }
+    output_error(app, ui);
     ui.add_space(10.0);
     if let Some(duration) = app.synthesis.audio_duration() {
         ui.label(crate::lformat!(
@@ -102,4 +102,13 @@ pub fn render_status(app: &mut App, ui: &mut Ui) {
             summary.unchanged_owners
         ));
     });
+}
+
+fn output_error(app: &App, ui: &mut Ui) {
+    if let Some(error) = app.synthesis.playback_error() {
+        ui.colored_label(
+            Color32::from_rgb(218, 142, 126),
+            crate::lformat!("播放设备：{error}"),
+        );
+    }
 }

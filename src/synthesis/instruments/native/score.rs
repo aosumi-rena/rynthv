@@ -1,6 +1,6 @@
 use super::{
     Result, fail,
-    random::{M, ambient, pcg},
+    random::{M, Normal, pcg},
     tensor::Tensor,
 };
 use serde::Deserialize;
@@ -26,6 +26,10 @@ pub struct Note {
     #[serde(default)]
     pub vibrato_frequency: f32,
     #[serde(default)]
+    pub vibrato_hz: Option<f32>,
+    #[serde(default)]
+    pub vibrato_phase: Option<f32>,
+    #[serde(default)]
     pub vibrato_envelope: Vec<f32>,
     #[serde(default = "four")]
     pub articulation_in: u32,
@@ -41,6 +45,8 @@ pub struct Note {
     pub dynamics_seed: u32,
     #[serde(default)]
     pub duration_ticks: u64,
+    pub linked_before: bool,
+    pub linked_after: bool,
     #[serde(default = "one")]
     pub time_dispersion: f32,
     #[serde(default)]
@@ -69,6 +75,8 @@ pub fn records(notes: &[Note]) -> Result<Vec<Record>> {
         super::super::articulation::features(&note.articulations)?;
         if !note.vibrato_depth.is_finite() || !(0.0..=2.0).contains(&note.vibrato_depth)
             || !note.vibrato_frequency.is_finite() || !(-1.0..=1.0).contains(&note.vibrato_frequency)
+            || note.vibrato_hz.is_some_and(|hz| !hz.is_finite() || !(4.0..=8.0).contains(&hz))
+            || note.vibrato_phase.is_some_and(|phase| !phase.is_finite() || !(-1.0..=1.0).contains(&phase))
         {
             return fail("Invalid instrument vibrato depth or frequency");
         }
@@ -202,7 +210,19 @@ pub fn record_seeds(notes: &[Note], recs: &[Record], kind: u32) -> Tensor {
             .collect(),
     )
 }
-fn segment_seeds(notes: &[Note], index: usize, context: u32, base: u64, count: usize) -> Vec<f32> {
+pub fn timing_seeds(notes: &[Note], recs: &[Record], explicit_vibrato: bool) -> Tensor {
+    if !explicit_vibrato { return record_seeds(notes, recs, 1); }
+    let mut data = Vec::with_capacity(recs.len() * 8);
+    for record in recs {
+        let dynamics = note_hash(notes, record.owner, record.context, Some(1));
+        data.extend(words(dynamics, 1));
+        let mut input = dynamics.to_vec();
+        input.extend(11u64.to_le_bytes());
+        data.extend(words(xxhash_rust::xxh3::xxh3_128(&input).to_le_bytes(), 1));
+    }
+    Tensor::new(vec![1, recs.len(), 8], data)
+}
+fn segment_hash(notes: &[Note], index: usize, context: u32, base: u64) -> [u8; 16] {
     let mut h = note_hash(notes, index, context, None).to_vec();
     let seed = if base == 5 {
         notes[index].pitch_seed
@@ -210,7 +230,29 @@ fn segment_seeds(notes: &[Note], index: usize, context: u32, base: u64, count: u
         notes[index].timbre_seed
     };
     h.extend(domain(base, seed).to_le_bytes());
-    words(xxhash_rust::xxh3::xxh3_128(&h).to_le_bytes(), count)
+    xxhash_rust::xxh3::xxh3_128(&h).to_le_bytes()
+}
+pub(super) fn segment_seeds(notes: &[Note], index: usize, context: u32, base: u64, count: usize) -> Vec<f32> {
+    words(segment_hash(notes, index, context, base), count)
+}
+fn fallback_pitch(notes: &[Note], frames: usize) -> Vec<f32> {
+    let mut output = vec![0.; frames];
+    for (begin, end, index, context) in segments(notes, frames) {
+        let mut input = segment_hash(notes, index, context, 5).to_vec();
+        input.extend(0x46304649u64.to_le_bytes());
+        let hash = xxhash_rust::xxh3::xxh3_128(&input).to_le_bytes();
+        let state = u64::from_le_bytes(hash[..8].try_into().unwrap());
+        let increment = u64::from_le_bytes(hash[8..].try_into().unwrap()) | 1;
+        let mut random = Normal::new(state, increment, false);
+        let mut walk = 0f32;
+        for local in 0..end - begin {
+            walk += random.next();
+            if walk.abs() > 5. { walk = 0.; }
+            let frame = if context == 1 { end - 1 - local } else { begin + local };
+            output[frame] = walk + 40.;
+        }
+    }
+    output
 }
 pub fn clock_seeds(notes: &[Note], frames: usize, base: u64, step: usize) -> Tensor {
     let mut a = vec![0.; frames / step * 4];
@@ -223,6 +265,21 @@ pub fn clock_seeds(notes: &[Note], frames: usize, base: u64, step: usize) -> Ten
         }
     }
     Tensor::new(vec![1, frames / step, 4], a)
+}
+pub fn wave_seeds(notes: &[Note], frames: usize, source_seed: u32) -> Tensor {
+    let mut output = vec![0.; frames * 4];
+    let salt = u64::from(source_seed).wrapping_mul(M).wrapping_add(0x86d247d3a65e6b6a);
+    for (begin, end, owner, context) in segments(notes, frames) {
+        let mut input = segment_hash(notes, owner, context, 9).to_vec();
+        input.extend(salt.to_le_bytes());
+        let hash = xxhash_rust::xxh3::xxh3_128(&input).to_le_bytes();
+        let values = words(hash, end - begin);
+        for frame in begin..end {
+            let local = if context == 1 { end - 1 - frame } else { frame - begin };
+            output[frame * 4..(frame + 1) * 4].copy_from_slice(&values[local * 4..(local + 1) * 4]);
+        }
+    }
+    Tensor::new(vec![1, frames, 4], output)
 }
 pub fn expand(encoded: &Tensor, recs: &[Record], frames: usize) -> Tensor {
     let width = encoded.shape[2];
@@ -255,6 +312,8 @@ pub fn pitch_features(
     recs: &[Record],
     encoded: &Tensor,
     timing: &Tensor,
+    trill_vibrato: bool,
+    players: usize,
 ) -> (Tensor, Tensor) {
     let frames = recs.last().unwrap().start + recs.last().unwrap().length;
     let e = expand(encoded, recs, frames);
@@ -263,7 +322,7 @@ pub fn pitch_features(
     for t in 0..frames {
         x[t * 522..t * 522 + 512].copy_from_slice(&e.data[t * 512..(t + 1) * 512]);
         x[t * 522 + 512] = 0.5;
-        x[t * 522 + 517] = 0.5;
+        x[t * 522 + 517] = super::naturalness::pitch(players);
     }
     for (begin, end, i, context) in segments(notes, frames) {
         let row = recs.iter().position(|r| r.note == Some(i)).unwrap();
@@ -274,8 +333,11 @@ pub fn pitch_features(
             let envelope = if note.vibrato_envelope.is_empty() { 1.0 } else {
                 note.vibrato_envelope[t.saturating_sub(note.start).min(note.length - 1)]
             };
-            x[t * 522 + 518] = note.vibrato_depth * envelope - 1.0;
-            x[t * 522 + 519] = notes[i].vibrato_frequency;
+            let trill = note.articulations.iter().any(|name| name.starts_with("Trill "));
+            if !trill || trill_vibrato {
+                x[t * 522 + 518] = note.vibrato_depth * envelope - 1.0;
+                x[t * 522 + 519] = notes[i].vibrato_frequency;
+            }
             x[t * 522 + 513] = timing.get(row * 2 + 1);
             let p = if context == 1 { end - 1 - t } else { t - begin };
             seeds[t * 4..(t + 1) * 4].copy_from_slice(&q[p * 4..(p + 1) * 4]);
@@ -298,12 +360,18 @@ pub fn latent_features(
     timing: &Tensor,
     pitch: &Tensor,
     frames: usize,
+    players: usize,
 ) -> (Tensor, Tensor, Tensor) {
     let e = expand(encoded, recs, frames);
     let mut x = vec![0.; frames * 518];
     let mut controls = vec![0.; frames / 4 * 2];
     for row in controls.chunks_mut(2) {
         row[0] = 0.5;
+    }
+    for note in notes.iter().filter(|n| n.linked_before && n.linked_after) {
+        let begin = (note.start / 4).min(frames / 4);
+        let end = ((note.start + note.length) / 4).min(frames / 4);
+        for t in begin..end { controls[t * 2] = super::naturalness::timbre(players); }
     }
     for t in 0..frames {
         x[t * 518..t * 518 + 512].copy_from_slice(&e.data[t * 512..(t + 1) * 512]);
@@ -315,7 +383,7 @@ pub fn latent_features(
         let end = end.min(frames);
         for t in begin..end {
             x[t * 518 + 512] = notes[i].dynamic;
-            x[t * 518 + 513] = timing.get(row * 2 + 1);
+            x[t * 518 + 513] = timing.get(row * timing.shape[2] + 1);
             if context == 0 {
                 x[t * 518 + 514] = 1.;
                 x[t * 518 + 516] = (t - begin) as f32;
@@ -329,7 +397,7 @@ pub fn latent_features(
         Tensor::new(vec![1, frames / 4, 2], controls),
     )
 }
-pub fn assemble(raw: &Tensor, notes: &[Note], frames: usize, seed: u32) -> Tensor {
+pub fn assemble(raw: &Tensor, notes: &[Note], frames: usize) -> Tensor {
     let midi: Vec<f32> = (0..raw.len())
         .map(|i| (((raw.get(i) as f64 / 440.).log2() * 12.) + 69.) as f32)
         .collect();
@@ -383,16 +451,7 @@ pub fn assemble(raw: &Tensor, notes: &[Note], frames: usize, seed: u32) -> Tenso
             ws[t] += w;
         }
     }
-    let draws = ambient(seed, frames);
-    let mut fallback = vec![0.; frames];
-    let mut cursor = 0;
-    for (begin, end, _, context) in segments(notes, frames) {
-        for t in begin..end {
-            let p = if context == 1 { end - 1 - t } else { t - begin };
-            fallback[t] = draws[cursor + p];
-        }
-        cursor += end - begin;
-    }
+    let fallback = fallback_pitch(notes, frames);
     let out = (0..frames)
         .map(|t| {
             let p = if ws[t] > 1e-5 {

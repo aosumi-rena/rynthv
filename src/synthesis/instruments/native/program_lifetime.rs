@@ -7,7 +7,7 @@ pub fn counts(nodes:&[Node],outputs:&[(usize,u32)],bound:&[u32])->Result<Vec<usi
         let node=nodes.get(i).ok_or("Instrument programme lifetime bounds")?;
         uses[i]+=1;
         if uses[i]!=1 {continue;}
-        if bound.contains(&node.tag) || (node.opcode==0 && node.kind==3) {continue;}
+        if bound.contains(&node.tag) || (node.opcode==0 && matches!(node.kind,0|3)) {continue;}
         for p in node.ports.iter().copied().filter(|p|*p!=65535).map(usize::from) {
             if p>=i {return Err("Instrument programme dependency order".into());}
             if nodes[p].kind!=2 {visit.push(p);}

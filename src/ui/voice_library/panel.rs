@@ -1,4 +1,4 @@
-use super::{language, selected_entry, selector, vocal_modes, weak, widgets};
+use super::{language, selected_entry, selector, vocal_modes, weak};
 use crate::{
     app::App,
     synthesis::{runtime::VoiceState, settings::VoiceSelection},
@@ -39,7 +39,7 @@ fn version(app: &mut App, ui: &mut Ui) {
     let requested=crate::model::effective_singer_database(&track.main_ref.database,&reference.database)
         .get("version").and_then(serde_json::Value::as_str).unwrap_or("").to_owned();
     let Some(selected) = app.voice_selection() else {
-        widgets::field(ui, "", true, if app.synthesis.voice_not_installed(track,reference) {
+        crate::ui::panels::controls::disabled_field(ui, "", true, if app.synthesis.voice_not_installed(track,reference) {
             crate::i18n::t("未安装")
         }else{crate::i18n::t("先选择歌声")});
         return;

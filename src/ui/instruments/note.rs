@@ -11,7 +11,10 @@ fn cards(ui: &mut Ui, labels: [(&str, &'static [u8]); 3]) -> Option<usize> {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         for (i, (label, svg)) in labels.into_iter().enumerate() {
-            let (r, response) = ui.allocate_exact_size(vec2(w, 80.0), Sense::click());
+            let (r, response) = ui.allocate_exact_size(vec2(w, w * 56.0 / 68.0), Sense::click());
+            response.widget_info(|| {
+                WidgetInfo::labeled(WidgetType::Button, ui.is_enabled(), crate::i18n::t(label))
+            });
             ui.painter().rect_filled(
                 r,
                 3,
@@ -21,8 +24,14 @@ fn cards(ui: &mut Ui, labels: [(&str, &'static [u8]); 3]) -> Option<usize> {
                     BORDER
                 },
             );
-            Image::from_bytes(format!("bytes://rinstx-retake-{label}"), svg)
-                .tint(crate::ui::theme::accent(ui).gamma_multiply(if ui.is_enabled() { 0.45 } else { 0.16 }))
+            Image::from_bytes(format!("bytes://rinstx-retake-{label}.svg"), svg)
+                .tint(
+                    crate::ui::theme::accent(ui).gamma_multiply(if ui.is_enabled() {
+                        0.45
+                    } else {
+                        0.16
+                    }),
+                )
                 .fit_to_exact_size(r.size())
                 .paint_at(ui, r);
             ui.painter().text(
@@ -85,32 +94,38 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         }
     });
     super::section(ui, crate::i18n::t("AI Rewrites"), |ui| {
-        let choice=ui.add_enabled_ui(super::rewrite::enabled(app), |ui| {
-            cards(
-                ui,
-                [
-                    (
-                        "ARTIC.",
-                        include_bytes!("../../../assets/icons/rinstx/arrange.svg"),
-                    ),
-                    (
-                        "DYNAMICS",
-                        include_bytes!("../../../assets/icons/rinstx/dynamics.svg"),
-                    ),
-                    (
-                        "BOTH",
-                        include_bytes!("../../../assets/icons/rinstx/both.svg"),
-                    ),
-                ],
-            )
-        }).inner;
-        if let Some(index)=choice {
+        let choice = ui
+            .add_enabled_ui(super::rewrite::enabled(app), |ui| {
+                cards(
+                    ui,
+                    [
+                        (
+                            "ARTIC.",
+                            include_bytes!("../../../assets/icons/rinstx/arrange.svg"),
+                        ),
+                        (
+                            "DYNAMICS",
+                            include_bytes!("../../../assets/icons/rinstx/dynamics-pattern.svg"),
+                        ),
+                        (
+                            "BOTH",
+                            include_bytes!("../../../assets/icons/rinstx/both.svg"),
+                        ),
+                    ],
+                )
+            })
+            .inner;
+        if let Some(index) = choice {
             use crate::synthesis::instruments::rewrite::Kind;
-            super::rewrite::start(app,ui.ctx(),[Kind::Articulation,Kind::Dynamics,Kind::Both][index]);
+            super::rewrite::start(
+                app,
+                ui.ctx(),
+                [Kind::Articulation, Kind::Dynamics, Kind::Both][index],
+            );
         }
     });
     super::section(ui, crate::i18n::t("Ensemble Spread"), |ui| {
-        super::ensemble::spread(app,ui);
+        super::ensemble::spread(app, ui);
     });
     super::section(ui, crate::i18n::t("Vibrato"), |ui| {
         super::controls::vibrato(app, ui);

@@ -175,7 +175,7 @@ impl Runtime {
                 .tracks
                 .iter()
                 .try_fold(BTreeSet::new(), |mut solo, track| {
-                    crate::synthesis::mixing_options::validate_mixer(&track.mixer)
+                    crate::synthesis::mixing_options::validate_track_mixer(track)
                         .map_err(|error| format!("音轨 {}：{error}", track.name))?;
                     if track.rocoflex.as_ref().is_some_and(|r|r.enabled) && super::mixer::has_effects(&track.mixer) {
                         return Err(format!("{}: Rocoflex with track effects is not supported",track.name));

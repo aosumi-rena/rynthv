@@ -10,6 +10,7 @@ pub fn players(reference:&crate::model::GroupRef)->Result<usize,String> {
             .map(|n|n as usize).ok_or_else(||"Invalid instrument player count".into()))
 }
 pub mod microphones;
+pub mod rooms;
 pub mod direction;
 pub mod rewrite;
 mod settings;
@@ -30,15 +31,26 @@ pub fn scan_directory(root: PathBuf, accept_any_v4_signature: bool) -> Result<Ca
 }
 
 pub fn preview(
-    entry: &Entry, notes: Vec<serde_json::Value>, accept_any_v4_signature: bool,
+    entry: &Entry, mut notes: Vec<serde_json::Value>, accept_any_v4_signature: bool,
 ) -> Result<Vec<f32>,String> {
     let settings = InstrumentSettings {accept_any_v4_signature,..Default::default()};
     let cancel: std::sync::Arc<std::sync::atomic::AtomicBool> = std::sync::Arc::default();
+    let onsets:std::collections::BTreeSet<_>=notes.iter().filter_map(|n|n.get("start").and_then(serde_json::Value::as_i64)).collect();
+    let ends:std::collections::BTreeSet<_>=notes.iter().filter_map(|n|
+        n.get("start")?.as_i64()?.checked_add(n.get("length")?.as_i64()?)).collect();
+    for note in &mut notes {
+        let start=note.get("start").and_then(serde_json::Value::as_i64);
+        let end=start.and_then(|s|s.checked_add(note.get("length")?.as_i64()?));
+        let object=note.as_object_mut().ok_or("Invalid instrument preview note")?;
+        object.insert("linked_before".into(),serde_json::Value::Bool(start.is_some_and(|s|ends.contains(&s))));
+        object.insert("linked_after".into(),serde_json::Value::Bool(end.is_some_and(|e|onsets.contains(&e))));
+    }
     let mut source = native::prepare(&settings,entry,notes,0,1,cancel.clone(),None)?;
     let microphones = microphones::Configuration::read(None,&entry.microphones,entry.room.as_deref())?
         .mix(&entry.microphones);
     let mut microphones = native::Microphones::from_path(&entry.main,&microphones,accept_any_v4_signature)?;
     let gain = 10f32.powf(0.45000001788139343);
+    let model_gain=performance::model_gain(entry.gain_db);
     let mut pcm = Vec::new();
     let mut publish = |_:usize,block:Vec<f32>| {
         pcm.extend(block);
@@ -47,7 +59,7 @@ pub fn preview(
     loop {
         let complete = source.advance(cancel.clone(),&mut |_,block| {
             let mixed:Vec<[f32;4]> = block.chunks_exact(8).map(|v| std::array::from_fn(
-                |c|(v[c]+v[4+c])*gain
+                |c|((v[c]*gain)*model_gain)+((v[4+c]*gain)*model_gain)
             )).collect();
             microphones.feed_mixed(&mixed,false,&cancel,&mut publish)
         })?;
@@ -62,8 +74,15 @@ pub struct EffectiveNote {
     pub id: crate::model::EntityId,
     pub dynamic: f32,
     pub articulations: Vec<String>,
+    pub vibrato_hz: Option<f32>,
+    pub vibrato_phase: Option<f32>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MicrophonePlacement {
+    pub position: [f32; 3],
+    pub kind: String,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Entry {
     pub selection: InstrumentSelection,
@@ -73,12 +92,18 @@ pub struct Entry {
     pub main: PathBuf,
     pub auxiliary: Option<PathBuf>,
     pub pitch_range: Option<[i32; 2]>,
+    #[serde(default)]
+    pub gain_db: f32,
     pub microphones: Vec<String>,
+    #[serde(default)]
+    pub close_microphones: std::collections::BTreeMap<String, MicrophonePlacement>,
     pub identity: String,
     #[serde(default)]
     pub room: Option<String>,
     #[serde(default)]
     pub artwork: Option<PathBuf>,
+    #[serde(default)]
+    pub explicit_vibrato: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

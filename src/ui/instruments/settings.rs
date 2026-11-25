@@ -42,6 +42,19 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         }
     });
     ui.separator();
+    ui.label(crate::i18n::t("Room Resources"));
+    ui.horizontal(|ui| {
+        if let Some(path)=settings.room_pack() {
+            ui.label(path.file_name().unwrap_or_default().to_string_lossy()).on_hover_text(path.display().to_string());
+        }
+        if ui.button(crate::i18n::t("Browse...")).clicked()
+            && let Some(path)=rfd::FileDialog::new().add_filter("Instrument X rooms", &["drirpack"]).pick_file() {
+            match crate::synthesis::instruments::rooms::load(&path) {
+                Ok(_)=>settings.room_pack=Some(path),Err(e)=>app.error=Some(e),
+            }
+        }
+    });
+    ui.separator();
     key(
         ui,
         "global-instrument-key",

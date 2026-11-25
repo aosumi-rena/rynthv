@@ -1,5 +1,6 @@
 use crate::{app::App,synthesis::{experiments::{BlendTarget,ExperimentControls},settings::VoiceSelection}};
 use eframe::egui::*;
+use crate::ui::slider;
 mod dds;
 
 #[derive(Clone)]
@@ -30,11 +31,12 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
             }
         }
         let mut value=controls.growl.unwrap_or(global);
+        let defaults=if is_track {crate::synthesis::experiments::GrowlControls::default()}else{global};
         ui.add_enabled_ui(is_track || controls.growl.is_some(),|ui| {
             ui.label(crate::i18n::t("嘶吼幅度"));
-            let amplitude=ui.add(Slider::new(&mut value.amplitude,0.0..=1.0));
+            let amplitude=slider::value(ui,"growl-amplitude",&mut value.amplitude,0.,1.,defaults.amplitude,0.01,"");
             ui.label(crate::i18n::t("嘶吼频率"));
-            let frequency=ui.add(Slider::new(&mut value.frequency,30.0..=90.0).suffix(" Hz"));
+            let frequency=slider::value(ui,"growl-frequency",&mut value.frequency,30.,90.,defaults.frequency,0.1," Hz");
             if amplitude.changed() || frequency.changed() {controls.growl=Some(value);}
         });
         ui.separator();
@@ -48,7 +50,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
                 if ui.button(crate::i18n::t("重新随机")).clicked() {controls.random_seed=(uuid::Uuid::new_v4().as_u128() as u32)&0x7fff_ffff;}
             });
             ui.label(crate::i18n::t("混合量"));
-            ui.add(Slider::new(&mut controls.random_amount,0.0..=300.0).suffix("%"));
+            slider::value(ui,"random-amount",&mut controls.random_amount,0.,300.,ExperimentControls::default().random_amount,1.,"%");
             if settings.negative_styles {ui.checkbox(&mut controls.random_signed,crate::i18n::t("随机混合允许负唱法"));}
             ui.horizontal_wrapped(|ui| {
                 for (i,label) in ["音高","音色","发音"].into_iter().enumerate() {if modern || i==1 {ui.checkbox(&mut controls.random_lanes[i],crate::i18n::t(label));}}
@@ -65,7 +67,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
                     ui.add(DragValue::new(&mut controls.random_voice_seed).range(0..=i32::MAX as u32));
                     if ui.button(crate::i18n::t("重新随机")).clicked() {controls.random_voice_seed=(uuid::Uuid::new_v4().as_u128() as u32)&0x7fff_ffff;}
                 });
-                ui.add(Slider::new(&mut controls.random_voice_amount,0.0..=1.0));
+                slider::value(ui,"random-voice-amount",&mut controls.random_voice_amount,0.,1.,ExperimentControls::default().random_voice_amount,0.01,"");
             }
         }
         let was_acoustic=controls.acoustic_blend;
@@ -79,7 +81,6 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
         });
         if domain!=old_domain {controls.dds.speaker_vectors=domain==2;controls.acoustic_blend=domain!=0;}
         if controls.acoustic_blend && !was_acoustic {for target in &mut controls.voices {target.transpose=0;}}
-        if controls.acoustic_blend {ui.weak(crate::i18n::t("沿用主歌声的时长和音高。"));}
         let family=app.voice_inventory().and_then(|v|v.configuration.as_ref()).map(|c|c.family);
         let catalog:Vec<_>=app.synthesis.library.catalog().into_iter().flat_map(|c|c.entries.iter())
             .filter(|e|e.family==family && e.availability.is_loadable())
@@ -93,7 +94,7 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
                     if ui.small_button("×").clicked() {remove=Some(index);}
                 });
                 ui.label(crate::i18n::t("混合比例"));
-                ui.add_enabled(!(settings.random_voices && controls.random_voice_enabled),Slider::new(&mut target.weight,0.0..=1.0));
+                ui.add_enabled_ui(!(settings.random_voices && controls.random_voice_enabled),|ui| slider::value(ui,"blend-weight",&mut target.weight,0.,1.,0.,0.01,""));
                 if !controls.acoustic_blend {
                     ui.label(crate::i18n::t("和声移调"));
                     ui.add(DragValue::new(&mut target.transpose).range(-24..=24).suffix(crate::i18n::t("半音")));
@@ -123,13 +124,13 @@ pub(super) fn show(app:&mut App,ui:&mut Ui) {
     if settings.component_effects {
         ui.separator();
         ui.label(crate::i18n::t("谐波增益"));
-        ui.add(Slider::new(&mut controls.harmonic_gain,-24.0..=24.0).suffix(" dB"));
+        slider::value(ui,"harmonic-gain",&mut controls.harmonic_gain,-24.,24.,ExperimentControls::default().harmonic_gain,0.1," dB");
         ui.label(crate::i18n::t("气声增益"));
-        ui.add(Slider::new(&mut controls.aspiration_gain,-24.0..=24.0).suffix(" dB"));
+        slider::value(ui,"aspiration-gain",&mut controls.aspiration_gain,-24.,24.,ExperimentControls::default().aspiration_gain,0.1," dB");
         ui.label(crate::i18n::t("环形调制深度"));
-        ui.add(Slider::new(&mut controls.ring_depth,0.0..=1.0));
+        slider::value(ui,"ring-depth",&mut controls.ring_depth,0.,1.,ExperimentControls::default().ring_depth,0.01,"");
         ui.label(crate::i18n::t("环形调制频率"));
-        ui.add(Slider::new(&mut controls.ring_frequency,20.0..=150.0).suffix(" Hz"));
+        slider::value(ui,"ring-frequency",&mut controls.ring_frequency,20.,150.,ExperimentControls::default().ring_frequency,0.1," Hz");
     }
     if controls!=original {
         if ui.input(|i|i.pointer.any_down()) || app.editor.is_editing() {

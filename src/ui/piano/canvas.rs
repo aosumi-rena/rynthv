@@ -40,6 +40,7 @@ pub fn show(app: &mut App, ui: &mut Ui) {
         pos2(ruler.left(), ruler.bottom() + 20.0),
         all.max - vec2(0.0, 6.0),
     );
+    crate::ui::scripts::set_viewport(ui.ctx(),"piano",canvas);
     if canvas.height() < 8.0 {
         return;
     }

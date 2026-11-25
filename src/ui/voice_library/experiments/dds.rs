@@ -7,7 +7,7 @@ pub(super) fn show(app:&App,ui:&mut Ui,c:&mut DdsControls) {
     ui.checkbox(&mut c.default_as_style,crate::i18n::t("Treat default as a vocal mode"));
     if c.default_as_style {
         ui.label(crate::i18n::t("Default vocal mode weight"));
-        ui.add(Slider::new(&mut c.default_weight,-3.0..=3.0));
+        crate::ui::slider::value(ui,"default-weight",&mut c.default_weight,-3.,3.,DdsControls::default().default_weight,0.01,"");
     }
     let entries:Vec<_>=app.synthesis.library.catalog().into_iter().flat_map(|a|&a.entries)
         .filter(|e|e.family==family&&e.availability.is_loadable()).collect();
@@ -41,7 +41,7 @@ pub(super) fn show(app:&App,ui:&mut Ui,c:&mut DdsControls) {
                 ui.selectable_value(&mut slot.language,String::new(),crate::i18n::t("Follow phoneme"));
                 for name in languages {ui.selectable_value(&mut slot.language,name.clone(),name);}
             });
-            ui.add(Slider::new(&mut slot.weight,0.0..=1.0));
+            crate::ui::slider::value(ui,"phone-weight",&mut slot.weight,0.,1.,0.,0.01,"");
         });
     }
     if let Some(index)=remove {c.phonemes.remove(index);}

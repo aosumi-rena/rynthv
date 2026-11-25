@@ -26,6 +26,24 @@ fn save(app:&mut App,state:&mut State,target:&Target,name:&str)->Result<(),Strin
     next.scopes.entry(target.scope.clone()).or_default().insert(name.into(),Preset {signature:target.signature.clone(),value:target.value.clone()});
     next.save(path)?;*store=next;target.apply(app,target.value.clone(),name)
 }
+pub fn cycle(app:&mut App,kind:Kind,direction:isize)->bool {
+    let Ok(target)=Target::read(app,kind) else {return false};
+    let mut state=std::mem::take(&mut app.control_presets);
+    let result=(||->Result<bool,String>{
+        let (_,store)=library(&mut state)?;
+        let mut choices=vec![(String::new(),target.default.clone())];
+        if let Some(presets)=store.scopes.get(&target.scope) {
+            choices.extend(presets.iter().filter(|(_,p)|p.signature==target.signature).map(|(name,p)|(name.clone(),p.value.clone())));
+        }
+        let current=choices.iter().position(|(n,_)|n==&target.name).unwrap_or(0) as isize;
+        let next=(current+direction).clamp(0,choices.len() as isize-1) as usize;
+        if next as isize==current{return Ok(false);}
+        target.apply(app,choices[next].1.clone(),&choices[next].0)?;
+        Ok(true)
+    })();
+    app.control_presets=state;
+    match result {Ok(v)=>v,Err(e)=>{app.error=Some(e);false}}
+}
 pub fn show(app:&mut App,ui:&mut Ui,kind:Kind)->bool {
     let target=match Target::read(app,kind){Ok(v)=>v,Err(_)=>return false};
     let mut state=std::mem::take(&mut app.control_presets);let mut applied=false;

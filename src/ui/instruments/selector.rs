@@ -111,7 +111,7 @@ fn pick(
             (
                 selected == Some(&e.selection),
                 !require_auxiliary || e.auxiliary.is_some(),
-                e.selection.revision.clone(),
+                e.selection.revision,
             )
         };
         if rank(entry) > rank(current) {

@@ -43,7 +43,11 @@ pub(super) fn expression(ui: &mut Ui, value: &mut [f64; 2], mixed: bool) -> Resp
     painter.hline(rect.x_range(), rect.center().y, Stroke::new(1.0, BUTTON));
     painter.vline(rect.center().x, rect.y_range(), Stroke::new(1.0, BUTTON));
     for (position, anchor, text) in [
-        (rect.min + vec2(8.0, 8.0), Align2::LEFT_TOP, crate::i18n::t("鲜活")),
+        (
+            rect.min + vec2(8.0, 8.0),
+            Align2::LEFT_TOP,
+            crate::i18n::t("鲜活"),
+        ),
         (
             rect.right_top() + vec2(-8.0, 8.0),
             Align2::RIGHT_TOP,
@@ -54,7 +58,11 @@ pub(super) fn expression(ui: &mut Ui, value: &mut [f64; 2], mixed: bool) -> Resp
             Align2::LEFT_BOTTOM,
             crate::i18n::t("机械"),
         ),
-        (rect.max - vec2(8.0, 8.0), Align2::RIGHT_BOTTOM, crate::i18n::t("原生")),
+        (
+            rect.max - vec2(8.0, 8.0),
+            Align2::RIGHT_BOTTOM,
+            crate::i18n::t("原生"),
+        ),
     ] {
         painter.text(position, anchor, text, FontId::proportional(12.0), MUTED);
     }
@@ -87,58 +95,24 @@ pub(super) fn slider(
     default: f64,
     label: &str,
 ) -> Response {
-    let (rect, mut response) =
-        ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click_and_drag());
-    let bounds = rect.shrink2(vec2(9.0, 0.0));
-    if ui.is_enabled() {
-        let original = *value;
-        if response.double_clicked() {
-            *value = default;
-        } else if let Some(pointer) = response.interact_pointer_pos()
-            && (response.dragged() || response.clicked())
-        {
-            *value = ((pointer.x - bounds.left()) / bounds.width()).clamp(0.0, 1.0) as f64;
-        }
-        if response.clicked() || response.drag_started() {
-            response.request_focus();
-        }
-        if response.has_focus() {
-            lock_focus(ui, &response);
-            ui.input(|input| {
-                let step = if input.modifiers.shift { 0.001 } else { 0.01 };
-                *value += (key_delta(input, Key::ArrowLeft, Key::ArrowRight)
-                    + key_delta(input, Key::ArrowDown, Key::ArrowUp))
-                    * step;
-                if input.key_pressed(Key::Home) {
-                    *value = default;
-                }
-            });
-        }
-        *value = value.clamp(0.0, 1.0);
-        if *value != original
-            || response.double_clicked()
-            || response.has_focus() && ui.input(|input| input.key_pressed(Key::Home))
-            || mixed && (response.clicked() || response.dragged())
-        {
-            response.mark_changed();
-        }
-    }
-    let center = pos2(
-        bounds.left() + bounds.width() * *value as f32,
-        rect.center().y,
+    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 28.), Sense::hover());
+    let response = crate::ui::slider::rail(
+        ui,
+        ui.id().with(label),
+        rect,
+        value,
+        crate::ui::slider::Range {
+            min: 0.,
+            max: 1.,
+            default,
+            step: 0.,
+        },
+        crate::ui::slider::Appearance::Voice,
+        false,
+        mixed,
     );
-    ui.painter()
-        .hline(bounds.x_range(), center.y, Stroke::new(2.0, EDGE));
-    ui.painter()
-        .hline(bounds.left()..=center.x, center.y, Stroke::new(2.0, MUTED));
-    ui.painter()
-        .circle(center, 9.0, BUTTON, Stroke::new(0.7, BUTTON_ACTIVE));
-    ui.painter().circle_filled(center, 3.0, TEXT);
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Slider, ui.is_enabled(), label));
     response
-        .on_hover_cursor(CursorIcon::PointingHand)
-        .on_hover_text(crate::lformat!(
-            "拖动调整所选音符的{label}；方向键微调，Shift 加方向键精细调整。双击或 Home 恢复默认，Esc 取消本次拖动。"
-        ))
 }
 
 pub(super) fn labeled_slider(

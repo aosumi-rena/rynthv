@@ -86,17 +86,21 @@ pub fn scan(settings: &InstrumentSettings, cancel: Arc<AtomicBool>) -> Result<Ca
                 if !visited.insert(canonical) {
                     continue;
                 }
+                let revision_name = rev.file_name().unwrap_or_default().to_string_lossy();
+                let revision = match revision_name.parse::<VoiceRevision>() {
+                    Ok(revision) => revision,
+                    Err(error) => {
+                        out.warnings.push(format!("{}: {error}", rev.display()));
+                        continue;
+                    }
+                };
                 let selection = InstrumentSelection {
                     database_id: bank
                         .file_name()
                         .unwrap_or_default()
                         .to_string_lossy()
                         .into_owned(),
-                    revision: rev
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .into_owned(),
+                    revision,
                 };
                 let mut mains = Vec::new();
                 let mut aux = Vec::new();
@@ -119,6 +123,15 @@ pub fn scan(settings: &InstrumentSettings, cancel: Arc<AtomicBool>) -> Result<Ca
                         if a.contains(&id(PROGRAMS[7])) {
                             let (root, nonce) = metadata::description(&a)?;
                             let extra = metadata::extra(&a)?;
+                            let gain_db = match extra.get("gain_db") {
+                                Some(Value::Float(v)) => *v as f32,
+                                Some(Value::Int(v)) => *v as f32,
+                                None => 0.,
+                                _ => return fail("Invalid instrument model gain"),
+                            };
+                            if !gain_db.is_finite() || (gain_db > -100. && !10f32.powf(gain_db * 0.05).is_finite()) {
+                                return fail("Invalid instrument model gain");
+                            }
                             let pitch_range =
                                 if let Some(Value::Array(v)) = extra.get("pitch_range") {
                                     if v.len() == 2 {
@@ -139,7 +152,7 @@ pub fn scan(settings: &InstrumentSettings, cancel: Arc<AtomicBool>) -> Result<Ca
                                 None
                             };
                             let name = metadata::name(&root, nonce)?;
-                            let vendor = super::manifest::vendor(&rev, &name, &selection.revision)
+                            let vendor = super::manifest::vendor(&rev, &name, &selection.revision.to_string())
                                 .unwrap_or_default();
                             let artwork = if vendor.is_empty() {
                                 display.lookup_unique_name(&name)
@@ -158,13 +171,14 @@ pub fn scan(settings: &InstrumentSettings, cancel: Arc<AtomicBool>) -> Result<Ca
                                 main: path.clone(),
                                 auxiliary: None,
                                 pitch_range,
-                                microphones: metadata::microphones(&root)?
-                                    .keys()
-                                    .cloned()
-                                    .collect(),
+                                gain_db,
+                                microphones: metadata::microphone_order(&root)?
+                                    .into_iter().map(|(name,_)|name).collect(),
+                                close_microphones: metadata::placements(&extra)?,
                                 identity: identity(&path)?,
                                 room,
                                 artwork,
+                                explicit_vibrato: super::protocol::Protocol::from_main(&a)?.explicit_vibrato(),
                             });
                         } else if a.contains(&id(PROGRAMS[0]))
                             && a.contains(&id(PROGRAMS[1]))
@@ -202,16 +216,9 @@ pub fn scan(settings: &InstrumentSettings, cancel: Arc<AtomicBool>) -> Result<Ca
     });
     use_latest_artwork(&mut out);
     out.entries.sort_by(|a, b| {
-        (
-            a.name.to_lowercase(),
-            &a.selection.revision,
-            &a.selection.database_id,
-        )
-            .cmp(&(
-                b.name.to_lowercase(),
-                &b.selection.revision,
-                &b.selection.database_id,
-            ))
+        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+            .then(a.selection.database_id.cmp(&b.selection.database_id))
+            .then(b.selection.revision.cmp(&a.selection.revision))
     });
     Ok(out)
 }
@@ -224,12 +231,9 @@ fn use_latest_artwork(catalog: &mut Catalog) {
         .map(|entry| (&entry.selection, entry.artwork.as_ref()))
         .chain(catalog.unavailable.iter().map(|entry| (&entry.selection, None)));
     for (selection, artwork) in revisions {
-        let revision = (
-            selection.revision.parse::<VoiceRevision>().ok(),
-            selection.revision.clone(),
-        );
+        let revision = selection.revision;
         let newest = latest.entry(selection.database_id.clone()).or_insert_with(|| {
-            (revision.clone(), artwork.cloned())
+            (revision, artwork.cloned())
         });
         if revision > newest.0 {
             *newest = (revision, artwork.cloned());

@@ -4,6 +4,8 @@ mod selection;
 mod point_drag;
 pub use commands::*;
 pub use selection::ParameterSelection;
+mod script_selection;
+pub use script_selection::{script_points,set_script_points};
 use selection::{active_lane, editable_bounds, reconcile, editable};
 mod gesture;
 mod header;

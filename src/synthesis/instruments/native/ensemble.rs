@@ -73,7 +73,7 @@ pub fn prepare(settings:&InstrumentSettings,entry:&Entry,notes:Vec<serde_json::V
             }
         }
         let stream=render::prepare_member(settings,entry,input,
-            ambient.wrapping_add((member as u32).wrapping_mul(3)),players>1,cancel.clone(),&main,&auxiliary,wave_archive.clone())?;
+            ambient.wrapping_add((member as u32).wrapping_mul(3)),players,cancel.clone(),&main,&auxiliary,wave_archive.clone())?;
         if member==0 {controls=stream.controls.clone();}
         if member_pitch.first().is_some_and(|p:&Vec<f32>|p.len()!=stream.pitch.len()) {
             return Err("Instrument member frame clocks disagree".into());
