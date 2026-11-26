@@ -17,11 +17,11 @@ impl Equalizer {
     pub fn read(p:&Program,base:u32,width:usize,rate:f64)->Result<Self,String> {
         let q=p.values(base+1,&[])?[0];
         let centers=p.values(base+2,&[width-2])?;
-        let ends=p.values(base+3,&[2])?.try_into().unwrap();
+        let ends:[f64;2]=p.values(base+3,&[2])?.try_into().unwrap();
         let frequencies=p.values(base+4,&[width])?;
         let correction=p.values(base+5,&[width,width])?;
         let iterations=usize::try_from(p.integers(base+6,&[])?[0]).map_err(|_|"Invalid Hall equalizer iterations")?;
-        if q<=0. || iterations>16 || centers.iter().chain(&ends).any(|f|*f<=0.||*f>=rate/2.) {
+        if q<=0. || iterations>16 || centers.iter().chain(ends.iter()).any(|f|*f<=0.||*f>=rate/2.) {
             return Err("Invalid Hall equalizer specification".into());
         }
         Ok(Self{q,centers,ends,frequencies,correction,iterations,rate})
